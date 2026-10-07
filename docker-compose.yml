@@ -1,0 +1,95 @@
+services:
+  # =========================================================================
+  # Serviço Principal: Plataforma iPLS (SJRR - Justiça Federal)
+  # =========================================================================
+  ipls-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ipls-sjrr:latest
+    container_name: ipls-sjrr-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      # Volume persistente para banco de dados e medições auditadas do PLS
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ipls-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      local-ai:
+        condition: service_started
+        required: false
+
+  # =========================================================================
+  # Serviço de Banco de Dados Relacional (PostgreSQL 16)
+  # Padrão Corporativo para Tribunais e Datacenters (TRF1 / CNJ)
+  # Inicializa automaticamente com as tabelas e dados em data/init-db.sql
+  # Ative com: docker compose --profile db up -d (ou docker compose up -d)
+  # =========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: ipls-sjrr-postgres
+    restart: unless-stopped
+    ports:
+      - "${PGPORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ipls_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ipls_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ipls_secret_trf1}
+    volumes:
+      - ipls_pgdata:/var/lib/postgresql/data
+      - ./data/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipls_admin} -d ${POSTGRES_DB:-ipls_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - ipls-network
+
+  # =========================================================================
+  # Serviço Opcional de IA Local (On-Premise para dependências da SJRR)
+  # Permite inferência 100% offline via Ollama na rede interna do Tribunal
+  # Ative com: docker compose --profile local-ai up -d
+  # =========================================================================
+  local-ai:
+    image: ollama/ollama:latest
+    container_name: ipls-sjrr-ollama
+    restart: unless-stopped
+    profiles:
+      - local-ai
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - ipls-network
+
+networks:
+  ipls-network:
+    driver: bridge
+    name: ipls-network
+
+volumes:
+  ipls_pgdata:
+    name: ipls_pgdata
+  ollama_models:
+    name: ipls_ollama_models
