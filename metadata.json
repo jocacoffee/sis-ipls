@@ -1,0 +1,6 @@
+{
+  "name": "iPLS — Gestão do Plano de Logística Sustentável",
+  "description": "Plataforma iPLS de gestão, monitoramento, conformidade normativa (Resoluções CNJ 400/2021 e 594/2024), auditoria e inteligência analítica do Plano de Logística Sustentável (PLS) para a Justiça Federal em Roraima e Poder Judiciário.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

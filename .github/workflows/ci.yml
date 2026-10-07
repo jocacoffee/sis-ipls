@@ -1,0 +1,67 @@
+name: CI - Integração Contínua iPLS
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint, Tipos e Testes Estáticos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Verificação de Tipos TypeScript (Lint)
+        run: npm run lint
+
+      - name: Build da Aplicação (Vite Bundle)
+        run: npm run build
+
+      - name: Teste de Validação das Séries Históricas e Temas
+        run: |
+          npx tsx -e '
+            import { OFFICIAL_THEMES } from "./src/data/officialThemes";
+            import { INITIAL_INDICATORS, INITIAL_TARGETS, INITIAL_MEASUREMENTS } from "./src/data/seedData";
+            import { buildFiveYearHistoricalSeries } from "./src/services/historicalAnalytics";
+            const series = buildFiveYearHistoricalSeries(INITIAL_INDICATORS, INITIAL_MEASUREMENTS, INITIAL_TARGETS, 2026);
+            if (OFFICIAL_THEMES.length !== 21) throw new Error("Temas incompletos");
+            if (series.length < 20) throw new Error("Séries quinquenais insuficientes");
+            console.log("Validação aprovada: 21 temas e", series.length, "séries históricas ativas.");
+          '
+
+  docker-dry-run:
+    name: Teste de Construção do Container Docker
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build do Container (Validação do Dockerfile)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: ipls-sjrr:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

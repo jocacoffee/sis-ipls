@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ipls-sjrr-deployment
+  namespace: ipls-sustentabilidade
+  labels:
+    app: ipls-sjrr
+    tribunal: sjrr-trf1
+    sistema: plsv2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ipls-sjrr
+  template:
+    metadata:
+      labels:
+        app: ipls-sjrr
+    spec:
+      containers:
+        - name: ipls-app
+          image: ghcr.io/trf1-sjrr/ipls-sjrr:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ipls-secrets
+                  key: gemini-api-key
+                  optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: ipls-data-volume
+              mountPath: /app/data
+      volumes:
+        - name: ipls-data-volume
+          persistentVolumeClaim:
+            claimName: ipls-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ipls-sjrr-service
+  namespace: ipls-sustentabilidade
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+  selector:
+    app: ipls-sjrr
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ipls-data-pvc
+  namespace: ipls-sustentabilidade
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+yarn-error.log
+.git
+.github
+.vscode
+dist
+*.local
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+*.pdf
+tmp
