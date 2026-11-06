@@ -10,13 +10,17 @@ services:
     container_name: ipls-sjrr-app
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      # Porta no host (3100 por padrão, para não conflitar com outros sistemas na 3000)
+      - "${IPLS_PORT:-3100}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
+      # vazio, a base é importada de data/database.json.
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:-<senha-do-banco>}@postgres:5432/${POSTGRES_DB:-ipls_db}
     volumes:
-      # Volume persistente para banco de dados e medições auditadas do PLS
+      # Fonte da importação inicial (data/database.json) e arquivos de carga
       - ./data:/app/data
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -29,7 +33,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-        required: false
       local-ai:
         condition: service_started
         required: false
@@ -37,22 +40,21 @@ services:
   # =========================================================================
   # Serviço de Banco de Dados Relacional (PostgreSQL 16)
   # Padrão Corporativo para Tribunais e Datacenters (TRF1 / CNJ)
-  # Inicializa automaticamente com as tabelas e dados em data/init-db.sql
-  # Ative com: docker compose --profile db up -d (ou docker compose up -d)
+  # As tabelas (schema "ipls") são criadas pela própria aplicação na inicialização.
+  # Exposto só em 127.0.0.1, na porta 5433 por padrão (a 5432 pode estar em uso).
   # =========================================================================
   postgres:
     image: postgres:16-alpine
     container_name: ipls-sjrr-postgres
     restart: unless-stopped
     ports:
-      - "${PGPORT:-5432}:5432"
+      - "127.0.0.1:${IPLS_PG_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ipls_db}
       POSTGRES_USER: ${POSTGRES_USER:-ipls_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-<senha-do-banco>}
     volumes:
       - ipls_pgdata:/var/lib/postgresql/data
-      - ./data/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipls_admin} -d ${POSTGRES_DB:-ipls_db}"]
       interval: 10s

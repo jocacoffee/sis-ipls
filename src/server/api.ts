@@ -218,7 +218,7 @@ export function createApiRouter() {
   });
 
   // POST /api/measurements - Add or update measurement with validation, audit & disk persistence
-  router.post('/measurements', (req: Request, res: Response) => {
+  router.post('/measurements', async (req: Request, res: Response) => {
     const {
       indicatorId,
       year,
@@ -325,12 +325,17 @@ export function createApiRouter() {
       );
     }
 
-    storage.saveNow();
+    try {
+      await storage.saveNow();
+    } catch (err) {
+      console.error('[API] Falha ao gravar no banco:', err);
+      return res.status(500).json({ error: 'Falha ao gravar no banco de dados. O lançamento não foi confirmado.' });
+    }
     res.json({ success: true, measurement, persisted: true });
   });
 
   // POST /api/measurements/batch - Ingest batch of measurements from spreadsheet (2021-2025)
-  router.post('/measurements/batch', (req: Request, res: Response) => {
+  router.post('/measurements/batch', async (req: Request, res: Response) => {
     const {
       measurements: items,
       sourceDescription = 'Importação de Planilha PLS SJRR',
@@ -416,7 +421,12 @@ export function createApiRouter() {
       'Módulo de Importação de Planilhas'
     );
 
-    storage.saveNow();
+    try {
+      await storage.saveNow();
+    } catch (err) {
+      console.error('[API] Falha ao gravar no banco:', err);
+      return res.status(500).json({ error: 'Falha ao gravar no banco de dados. O lançamento não foi confirmado.' });
+    }
     res.json({
       success: true,
       totalProcessed: items.length,

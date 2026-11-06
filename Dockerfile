@@ -48,9 +48,9 @@ RUN mkdir -p /app/data && chown -R iplsuser:nodejs /app
 # Copy production dependencies and built assets
 COPY --from=deps --chown=iplsuser:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=iplsuser:nodejs /app/dist ./dist
-COPY --from=builder --chown=iplsuser:nodejs /app/public ./public
 COPY --from=builder --chown=iplsuser:nodejs /app/data ./data
 COPY --from=builder --chown=iplsuser:nodejs /app/src ./src
+COPY --from=builder --chown=iplsuser:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=iplsuser:nodejs /app/server.ts ./server.ts
 COPY --from=builder --chown=iplsuser:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=iplsuser:nodejs /app/tsconfig.json ./tsconfig.json

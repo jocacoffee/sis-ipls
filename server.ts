@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createApiRouter } from './src/server/api';
+import { storage } from './src/server/storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,11 +16,15 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+  // Carrega a base (PostgreSQL se DATABASE_URL estiver definida; senão data/database.json)
+  await storage.init();
+
   // Health check endpoint for Docker / Kubernetes liveness & readiness probes
   app.get('/health', (_req, res) => {
     res.json({
       status: 'ok',
       service: 'ipls-sjrr',
+      storage: storage.backend,
       uptime: process.uptime(),
       timestamp: new Date().toISOString()
     });
