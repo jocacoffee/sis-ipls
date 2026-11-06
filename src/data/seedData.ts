@@ -22,6 +22,16 @@ import { INDICATORS_PART_3 } from './officialIndicatorsPart3';
 
 export const INITIAL_ORGANIZATIONS: Organization[] = [
   {
+    id: 'org-trf1',
+    name: 'Tribunal Regional Federal da 1ª Região',
+    acronym: 'TRF1',
+    type: 'TRIBUNAL',
+    active: true,
+    uf: 'DF',
+    totalFloorAreaM2: 85000,
+    totalMagistratesStaff: 3450
+  },
+  {
     id: 'org-sjrr',
     name: 'Seção Judiciária de Roraima',
     acronym: 'SJRR',
@@ -33,14 +43,15 @@ export const INITIAL_ORGANIZATIONS: Organization[] = [
     totalMagistratesStaff: 331
   },
   {
-    id: 'org-trf1',
-    name: 'Tribunal Regional Federal da 1ª Região',
-    acronym: 'TRF1',
-    type: 'TRIBUNAL',
+    id: 'org-sjac',
+    name: 'Seção Judiciária do Acre',
+    acronym: 'SJAC',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
     active: true,
-    uf: 'DF',
-    totalFloorAreaM2: 85000,
-    totalMagistratesStaff: 3450
+    uf: 'AC',
+    totalFloorAreaM2: 9800,
+    totalMagistratesStaff: 210
   },
   {
     id: 'org-sjam',
@@ -54,15 +65,114 @@ export const INITIAL_ORGANIZATIONS: Organization[] = [
     totalMagistratesStaff: 680
   },
   {
-    id: 'org-sjac',
-    name: 'Seção Judiciária do Acre',
-    acronym: 'SJAC',
+    id: 'org-sjap',
+    name: 'Seção Judiciária do Amapá',
+    acronym: 'SJAP',
     type: 'SECAO_JUDICIARIA',
     parentOrganizationId: 'org-trf1',
     active: true,
-    uf: 'AC',
-    totalFloorAreaM2: 9800,
-    totalMagistratesStaff: 210
+    uf: 'AP',
+    totalFloorAreaM2: 11200,
+    totalMagistratesStaff: 240
+  },
+  {
+    id: 'org-sjba',
+    name: 'Seção Judiciária da Bahia',
+    acronym: 'SJBA',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'BA',
+    totalFloorAreaM2: 54000,
+    totalMagistratesStaff: 1850
+  },
+  {
+    id: 'org-sjdf',
+    name: 'Seção Judiciária do Distrito Federal',
+    acronym: 'SJDF',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'DF',
+    totalFloorAreaM2: 48000,
+    totalMagistratesStaff: 1620
+  },
+  {
+    id: 'org-sjgo',
+    name: 'Seção Judiciária de Goiás',
+    acronym: 'SJGO',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'GO',
+    totalFloorAreaM2: 36000,
+    totalMagistratesStaff: 950
+  },
+  {
+    id: 'org-sjma',
+    name: 'Seção Judiciária do Maranhão',
+    acronym: 'SJMA',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'MA',
+    totalFloorAreaM2: 28500,
+    totalMagistratesStaff: 790
+  },
+  {
+    id: 'org-sjmt',
+    name: 'Seção Judiciária de Mato Grosso',
+    acronym: 'SJMT',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'MT',
+    totalFloorAreaM2: 26000,
+    totalMagistratesStaff: 720
+  },
+  {
+    id: 'org-sjpa',
+    name: 'Seção Judiciária do Pará',
+    acronym: 'SJPA',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'PA',
+    totalFloorAreaM2: 38000,
+    totalMagistratesStaff: 1100
+  },
+  {
+    id: 'org-sjpi',
+    name: 'Seção Judiciária do Piauí',
+    acronym: 'SJPI',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'PI',
+    totalFloorAreaM2: 19500,
+    totalMagistratesStaff: 510
+  },
+  {
+    id: 'org-sjro',
+    name: 'Seção Judiciária de Rondônia',
+    acronym: 'SJRO',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'RO',
+    totalFloorAreaM2: 18000,
+    totalMagistratesStaff: 480
+  },
+  {
+    id: 'org-sjto',
+    name: 'Seção Judiciária do Tocantins',
+    acronym: 'SJTO',
+    type: 'SECAO_JUDICIARIA',
+    parentOrganizationId: 'org-trf1',
+    active: true,
+    uf: 'TO',
+    totalFloorAreaM2: 16500,
+    totalMagistratesStaff: 420
   }
 ];
 
@@ -108,7 +218,7 @@ export const INITIAL_PLS_CYCLES: PLSCycle[] = [
   {
     id: 'pls-sjrr-2021-2026',
     organizationId: 'org-sjrr',
-    title: 'Plano de Logística Sustentável da SJRR (Ciclo 2021-2026)',
+    title: 'Plano de Logística Sustentável da SJRR (1º Ciclo 2021-2026)',
     cycle: '2021-2026',
     startDate: '2021-01-01',
     endDate: '2026-12-31',
@@ -120,6 +230,21 @@ export const INITIAL_PLS_CYCLES: PLSCycle[] = [
       'Resolução CNJ nº 641/2025 (Novas Tecnologias e Inovação)',
       'Portaria SJRR/DIREF nº 14/2021',
       'Guia de Indicadores PLS-Jud CNJ'
+    ]
+  },
+  {
+    id: 'pls-sjrr-2027-2032',
+    organizationId: 'org-sjrr',
+    title: 'Plano de Logística Sustentável da SJRR (2º Ciclo 2027-2032)',
+    cycle: '2027-2032',
+    startDate: '2027-01-01',
+    endDate: '2032-12-31',
+    status: 'EM_REVISAO',
+    normativeBase: [
+      'Resolução CNJ nº 400/2021 (Ciclos Sexenais)',
+      'Resolução CNJ nº 594/2024 (Justiça Carbono Zero - Meta 2030)',
+      'Resolução CNJ nº 641/2025 (Inovação Tecnológica)',
+      'Diretrizes Estratégicas da Justiça Federal'
     ]
   }
 ];

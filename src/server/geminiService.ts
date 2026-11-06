@@ -167,13 +167,13 @@ export async function generateGeminiAnnualReport(
     try {
       const systemInstruction = `Você é o Redator Técnico e Consultor de Sustentabilidade da Justiça Federal (TRF1 / Seção Judiciária de Roraima - SJRR), encarregado de redigir o RELATÓRIO ANUAL DE ACOMPANHAMENTO DO PLANO DE LOGÍSTICA SUSTENTÁVEL (Art. 22 da Resolução CNJ nº 400/2021 e Resolução CNJ nº 594/2024 - Programa Justiça Carbono Zero).
 
-Sua tarefa é gerar um relatório analítico de alto nível, fundamentado nos dados reais auditados do ano corrente (${context.year}) e na série histórica comparativa dos últimos 5 anos (2022 a 2026).
+Sua tarefa é gerar um relatório analítico de alto nível, fundamentado nos dados reais auditados do ano corrente (${context.year}) e na série histórica comparativa dos últimos 5 anos (${context.year - 4} a ${context.year}).
 
 Diretrizes de redação:
 1. Tom formal, institucional, rigoroso e propositivo, adequado para publicação oficial no portal do CNJ e apreciação pela Diretoria do Foro.
 2. Destaque expressamente:
-   - Os avanços acumulados de 2022 a 2026 (ex: eliminação total de copos plásticos descartáveis de 162 centenas em 2022 para zero em 2026; redução sustentada de resmas de papel e impressões per capita; expansão da reciclagem com a associação de catadores).
-   - As anomalias e desafios enfrentados no ano corrente (${context.year}), notadamente o pico de energia elétrica em agosto/2026 (21.450 kWh) causado pela falha do chiller central durante severa estiagem e calor extremo em Boa Vista/RR, e a defasagem nos cancelamentos de troncos de telefonia fixa analógica.
+   - Os avanços acumulados de ${context.year - 4} a ${context.year} (ex: eliminação total de copos plásticos descartáveis; redução sustentada de resmas de papel e impressões per capita; expansão da reciclagem com a associação de catadores).
+   - As anomalias e desafios enfrentados no ano corrente (${context.year}), detalhando as causas e as medidas corretivas adotadas.
    - A governança das 14 ações socioambientais do PLS e o alinhamento com a Resolução CNJ nº 594/2024 (Justiça Carbono Zero: emissões de Escopo 1, 2 e 3 e meta de neutralidade até 2030).
 3. Responda em JSON rigoroso com a estrutura exata:
 {
@@ -203,7 +203,7 @@ Diretrizes de redação:
     },
     {
       "id": 4,
-      "title": "4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (2022 a 2026)",
+      "title": "4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (${context.year - 4} a ${context.year})",
       "category": "HISTORICO",
       "content": "análise técnica detalhada da evolução dos últimos 5 anos, correlacionando os dados dos gráficos do relatório"
     },
@@ -232,7 +232,7 @@ Diretrizes de redação:
 
 Diretriz Adicional do Usuário: ${context.customFocus || 'Abordagem abrangente e analítica completa conforme Resoluções CNJ 400/2021 e 594/2024'}.
 
-DADOS AUDITADOS DA SÉRIE HISTÓRICA DOS ÚLTIMOS 5 ANOS (2022 - 2026):
+DADOS AUDITADOS DA SÉRIE HISTÓRICA DOS ÚLTIMOS 5 ANOS (${context.year - 4} - ${context.year}):
 ${JSON.stringify(historicalSummary, null, 2)}
 
 AÇÕES SOCIOAMBIENTAIS EM ANDAMENTO:
@@ -311,10 +311,10 @@ function generateDeterministicAnnualReport(
     },
     {
       id: 4,
-      title: '4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (2022 a 2026)',
+      title: `4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (${context.year - 4} a ${context.year})`,
       category: 'HISTORICO',
       statusBadge: 'Série Quinquenal',
-      content: `A análise retrospectiva dos últimos 5 anos (2022 a 2026), detalhada nos gráficos comparativos deste relatório, demonstra a efetividade das políticas de sustentabilidade implementadas pela SJRR:\n\n• Consumo de Energia Elétrica: Evoluiu de 182.400 kWh em 2022 para ${e61?.years[2026]?.total.toLocaleString('pt-BR')} kWh projetados em 2026 (${e61?.fiveYearChangePct}%), refletindo a substituição de luminárias LED e sensores de presença.\n• Consumo de Água: Reduziu de 2.850 m³ em 2022 para ${w71?.years[2026]?.total.toLocaleString('pt-BR')} m³ em 2026 (${w71?.fiveYearChangePct}%), fruto da modernização hidrossanitária com arejadores automáticos.\n• Desmaterialização (Papel A4): Decréscimo pronunciado de 1.120 resmas em 2022 para ${p21?.years[2026]?.total.toLocaleString('pt-BR')} resmas em 2026 (${p21?.fiveYearChangePct}%), consolidando a cultura 100% digital do SEI.\n• Coleta Seletiva Cidadã: Crescimento de 3.790 kg de materiais recicláveis em 2022 para ${r86?.years[2026]?.total.toLocaleString('pt-BR')} kg em 2026 (+${r86?.fiveYearChangePct}%), fortalecendo a inclusão socioprodutiva de catadores.\n• Emissões Totais de GEE: Queda consistente de 158,4 tCO2e em 2022 para 102,0 tCO2e em 2026 (${g204?.fiveYearChangePct}%), pavimentando o compromisso de descarbonização.`
+      content: `A análise retrospectiva dos últimos 5 anos (${context.year - 4} a ${context.year}), detalhada nos gráficos comparativos deste relatório, demonstra a efetividade das políticas de sustentabilidade implementadas pela SJRR:\n\n• Consumo de Energia Elétrica: Evoluiu de ${e61?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '182.400'} kWh em ${context.year - 4} para ${e61?.years[context.year]?.total.toLocaleString('pt-BR')} kWh em ${context.year} (${e61?.fiveYearChangePct}%), refletindo a substituição de luminárias LED e sensores de presença.\n• Consumo de Água: Reduziu de ${w71?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '2.850'} m³ em ${context.year - 4} para ${w71?.years[context.year]?.total.toLocaleString('pt-BR')} m³ em ${context.year} (${w71?.fiveYearChangePct}%), fruto da modernização hidrossanitária com arejadores automáticos.\n• Desmaterialização (Papel A4): Decréscimo pronunciado de ${p21?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '1.120'} resmas em ${context.year - 4} para ${p21?.years[context.year]?.total.toLocaleString('pt-BR')} resmas em ${context.year} (${p21?.fiveYearChangePct}%), consolidando a cultura 100% digital do SEI.\n• Coleta Seletiva Cidadã: Crescimento de ${r86?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '3.790'} kg em ${context.year - 4} para ${r86?.years[context.year]?.total.toLocaleString('pt-BR')} kg em ${context.year} (+${r86?.fiveYearChangePct}%), fortalecendo a inclusão socioprodutiva de catadores.\n• Emissões Totais de GEE: Queda consistente de ${g204?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '158,4'} tCO2e em ${context.year - 4} para ${g204?.years[context.year]?.total.toLocaleString('pt-BR') || '102,0'} tCO2e em ${context.year} (${g204?.fiveYearChangePct}%), pavimentando o compromisso de descarbonização.`
     },
     {
       id: 5,
@@ -341,7 +341,7 @@ function generateDeterministicAnnualReport(
 
   return {
     sections,
-    executiveSummary: `A Seção Judiciária de Roraima encerra o exercício de ${context.year} com expressiva consolidação dos indicadores socioambientais do PLS. A série histórica dos últimos 5 anos (2022 a 2026) evidencia reduções consistentes no consumo de energia elétrica (${e61?.fiveYearChangePct}%), água (${w71?.fiveYearChangePct}%), papel A4 (${p21?.fiveYearChangePct}%) e nas emissões globais de GEE (${g204?.fiveYearChangePct}%), além da erradicação completa do uso de copos descartáveis plásticos.\n\nMesmo diante do pico atípico de consumo energético registrado em agosto/${context.year} por intempéries climáticas e manutenção dos chillers, as respostas gerenciais tempestivas garantiram a conformidade institucional com as Resoluções CNJ nº 400/2021 e nº 594/2024.`,
+    executiveSummary: `A Seção Judiciária de Roraima encerra o exercício de ${context.year} com expressiva consolidação dos indicadores socioambientais do PLS. A série histórica dos últimos 5 anos (${context.year - 4} a ${context.year}) evidencia reduções consistentes no consumo de energia elétrica (${e61?.fiveYearChangePct}%), água (${w71?.fiveYearChangePct}%), papel A4 (${p21?.fiveYearChangePct}%) e nas emissões globais de GEE (${g204?.fiveYearChangePct}%), além da erradicação completa do uso de copos descartáveis plásticos.\n\nMesmo diante do pico atípico de consumo energético registrado em agosto/${context.year} por intempéries climáticas e manutenção dos chillers, as respostas gerenciais tempestivas garantiram a conformidade institucional com as Resoluções CNJ nº 400/2021 e nº 594/2024.`,
     keyAchievements: [
       'Erradicação de 100% no uso de copos e plásticos descartáveis na SJRR (consumo zero)',
       `Redução de ${p21?.fiveYearChangePct}% no consumo de resmas de papel nos últimos 5 anos`,

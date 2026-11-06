@@ -15,7 +15,8 @@ import {
   Sparkles,
   RefreshCw,
   Eye,
-  Info
+  Info,
+  Building2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Indicator, IndicatorMeasurement } from '../types';
@@ -33,6 +34,7 @@ import { STORAGE_KEYS, saveLocalData } from '../services/storageSync';
 interface SpreadsheetImportModalProps {
   indicators: Indicator[];
   selectedYear: number;
+  selectedOrgId?: string;
   onClose: () => void;
   onImportBatch: (measurements: Partial<IndicatorMeasurement>[]) => void;
 }
@@ -40,6 +42,7 @@ interface SpreadsheetImportModalProps {
 export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
   indicators,
   selectedYear,
+  selectedOrgId = 'org-sjrr',
   onClose,
   onImportBatch
 }) => {
@@ -52,10 +55,12 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
 
   const [parseReport, setParseReport] = useState<SpreadsheetParseReport | null>(null);
   const [previewYearFilter, setPreviewYearFilter] = useState<string>('ALL');
+  const [previewOrgFilter, setPreviewOrgFilter] = useState<string>('ALL');
   const [previewTypeFilter, setPreviewTypeFilter] = useState<'ALL' | 'MONTHLY' | 'ANNUAL'>('ALL');
   const [importedSummary, setImportedSummary] = useState<{
     total: number;
     years: number[];
+    organizations?: string[];
     serverPersisted?: boolean;
     serverMessage?: string;
   } | null>(null);
@@ -65,8 +70,8 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
   // Consolidate both monthly and annual parsed rows into a complete batch ready for database
   const consolidatedMeasurements = useMemo(() => {
     if (!parseReport) return [];
-    return prepareMeasurementsForBatchPersistence(parseReport, indicators);
-  }, [parseReport, indicators]);
+    return prepareMeasurementsForBatchPersistence(parseReport, indicators, selectedOrgId);
+  }, [parseReport, indicators, selectedOrgId]);
 
   // Handle uploaded File (Excel or CSV)
   const processFile = async (file: File) => {
@@ -215,6 +220,7 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
     setImportedSummary({
       total: batchPayload.length,
       years: parseReport.detectedYears,
+      organizations: parseReport.detectedOrganizations.map(o => o.acronym),
       serverPersisted,
       serverMessage
     });
@@ -234,6 +240,9 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
     if (previewYearFilter !== 'ALL' && r.year !== parseInt(previewYearFilter, 10)) {
       return false;
     }
+    if (previewOrgFilter !== 'ALL' && r.organizationId !== previewOrgFilter && r.organizationAcronym !== previewOrgFilter) {
+      return false;
+    }
     return true;
   });
 
@@ -249,14 +258,14 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-slate-900">
-                  Importador de Planilhas PLS (SJRR 2021–2025)
+                  Importador de Planilhas PLS (TRF1 e Seções Judiciárias)
                 </h3>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
                   Excel & CSV
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Suporte nativo a planilhas anuais e mensais da Justiça Federal (Série Histórica e Ciclo 2021-2026).
+                Suporte nativo a planilhas Excel (.xlsx, .xls) com múltiplas abas, fórmulas automáticas e dados de todas as Seções Judiciárias da 1ª Região.
               </p>
             </div>
           </div>
@@ -345,13 +354,16 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                     <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-medium">
-                      Multi-abas (2021, 2022, 2023, 2024, 2025)
+                      Multi-abas (TRF1, SJRR, SJBA, SJDF, etc.)
                     </span>
                     <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-medium">
-                      Mês a Mês (Jan a Dez)
+                      Fórmulas Excel Calculadas
                     </span>
                     <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-medium">
-                      Consolidados Anuais
+                      Mês a Mês & Anual
+                    </span>
+                    <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-medium">
+                      Padrão CNJ / Res. 400
                     </span>
                   </div>
                 </div>
@@ -485,6 +497,49 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
                 </div>
               </div>
 
+              {/* Detected Organizations Bar */}
+              {parseReport.detectedOrganizations && parseReport.detectedOrganizations.length > 0 && (
+                <div className="bg-emerald-50/70 border border-emerald-200/80 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-emerald-700" />
+                      Unidades / Seções Judiciárias Identificadas nas Abas/Colunas ({parseReport.detectedOrganizations.length}):
+                    </span>
+                    <span className="text-[11px] text-emerald-700">
+                      Os dados serão vinculados automaticamente a cada Seção
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOrgFilter('ALL')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        previewOrgFilter === 'ALL'
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-white text-emerald-900 border border-emerald-300 hover:bg-emerald-100'
+                      }`}
+                    >
+                      Todas as Unidades ({parseReport.totalRowsProcessed} linhas)
+                    </button>
+                    {parseReport.detectedOrganizations.map(org => (
+                      <button
+                        type="button"
+                        key={org.id}
+                        onClick={() => setPreviewOrgFilter(org.acronym)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                          previewOrgFilter === org.acronym
+                            ? 'bg-emerald-700 text-white shadow-xs'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="font-bold">{org.acronym}</span>
+                        <span className="text-[10px] opacity-75 font-mono">({org.count})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Filters & Tabs */}
               <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-1">
@@ -529,6 +584,7 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 sticky top-0 z-10">
                     <tr>
+                      <th className="py-2 px-3">Unidade / Seção</th>
                       <th className="py-2 px-3">Exercício</th>
                       <th className="py-2 px-3">Competência</th>
                       <th className="py-2 px-3">Código</th>
@@ -542,6 +598,11 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
                   <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                     {filteredPreviewRows.slice(0, 100).map((row, idx) => (
                       <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-1.5 px-3">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold text-[10px] border border-emerald-200">
+                            {row.organizationAcronym || 'SJRR'}
+                          </span>
+                        </td>
                         <td className="py-1.5 px-3 font-bold text-slate-800">{row.year}</td>
                         <td className="py-1.5 px-3">
                           {row.month === 0 ? (

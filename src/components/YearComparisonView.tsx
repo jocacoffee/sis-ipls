@@ -9,6 +9,8 @@ import {
   Search
 } from 'lucide-react';
 import { Indicator, IndicatorMeasurement, PLSTheme } from '../types';
+import { IDSThermometerCard } from './IDSThermometerCard';
+import { getSystemAvailableYears } from '../utils/yearUtils';
 
 interface YearComparisonViewProps {
   indicators: Indicator[];
@@ -21,17 +23,30 @@ export const YearComparisonView: React.FC<YearComparisonViewProps> = ({
   measurements,
   themes
 }) => {
-  const availableYears = [2026, 2025, 2024, 2023, 2022, 2021];
-  const [baseYear, setBaseYear] = useState<number>(2024);
-  const [targetYear, setTargetYear] = useState<number>(2025);
+  const currentCalYear = new Date().getFullYear();
+  const availableYears = React.useMemo(() => {
+    return getSystemAvailableYears(measurements, []);
+  }, [measurements]);
+
+  const [baseYear, setBaseYear] = useState<number>(() => {
+    return availableYears.includes(2025) ? 2025 : availableYears[1] || currentCalYear - 1;
+  });
+  const [targetYear, setTargetYear] = useState<number>(() => {
+    return availableYears.includes(2026) ? 2026 : availableYears[0] || currentCalYear;
+  });
   const [selectedTheme, setSelectedTheme] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [periodMode, setPeriodMode] = useState<'SAME_PERIOD' | 'FULL_YEAR'>('SAME_PERIOD');
 
-  // Months to compare (e.g. 1 to 8 if comparing Jan-Aug with 2026, or 1 to 12 for completed years)
-  const compareMonths = periodMode === 'FULL_YEAR' && targetYear !== 2026 && baseYear !== 2026
-    ? 12
-    : (targetYear === 2026 || baseYear === 2026 ? 8 : 12);
+  // Máximo mês reportado para o ano alvo (ou 12 se ano já encerrado)
+  const maxMonthInTarget = React.useMemo(() => {
+    const months = measurements
+      .filter(m => m.year === targetYear && m.value !== undefined && m.month >= 1 && m.month <= 12)
+      .map(m => m.month);
+    return months.length > 0 ? Math.max(...months) : 12;
+  }, [measurements, targetYear]);
+
+  const compareMonths = periodMode === 'FULL_YEAR' ? 12 : maxMonthInTarget;
 
   const filteredIndicators = indicators.filter(ind => {
     if (selectedTheme !== 'ALL' && ind.themeId !== selectedTheme) return false;
@@ -115,6 +130,15 @@ export const YearComparisonView: React.FC<YearComparisonViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Termômetro e Relógio do IDS Oficial do CNJ com Comparativo Histórico */}
+      <IDSThermometerCard
+        measurements={measurements}
+        currentYear={targetYear}
+        onYearSelect={setTargetYear}
+        initialViewMode="COMBINED"
+        defaultExpanded={false}
+      />
 
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">

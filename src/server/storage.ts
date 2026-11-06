@@ -78,12 +78,22 @@ class StorageEngine {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw) as Partial<AppDatabase>;
         console.log(`[StorageEngine] Base de dados carregada do disco (${parsed.measurements?.length || 0} medições).`);
-        return {
+        const rawIndicators = parsed.indicators || [...INITIAL_INDICATORS];
+        let wasFixed = false;
+        const indicators = rawIndicators.map(ind => {
+          if (ind.themeId === 'theme-1' && ind.periodicity !== 'ANUAL') {
+            wasFixed = true;
+            return { ...ind, periodicity: 'ANUAL' as const };
+          }
+          return ind;
+        });
+
+        const loadedDb: AppDatabase = {
           organizations: parsed.organizations || [...INITIAL_ORGANIZATIONS],
           users: parsed.users || [...INITIAL_USERS],
           plsCycles: parsed.plsCycles || [...INITIAL_PLS_CYCLES],
           themes: parsed.themes || [...INITIAL_THEMES],
-          indicators: parsed.indicators || [...INITIAL_INDICATORS],
+          indicators,
           targets: parsed.targets || [...INITIAL_TARGETS],
           measurements: parsed.measurements || [...INITIAL_MEASUREMENTS],
           documents: parsed.documents || [...INITIAL_DOCUMENTS],
@@ -96,6 +106,12 @@ class StorageEngine {
           alerts: parsed.alerts || [...INITIAL_ALERTS],
           lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
         };
+
+        if (wasFixed) {
+          this.persistSync(loadedDb);
+        }
+
+        return loadedDb;
       }
     } catch (err) {
       console.warn('[StorageEngine] Erro ao ler base existente; inicializando com seed padrão:', err);

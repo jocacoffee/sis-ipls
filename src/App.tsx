@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Organization,
   UserRole,
@@ -47,17 +47,29 @@ import { IntegrationsView } from './components/IntegrationsView';
 import { YearComparisonView } from './components/YearComparisonView';
 import { AuditLogView } from './components/AuditLogView';
 import { IndicatorDetailModal } from './components/IndicatorDetailModal';
+import { EditIndicatorModal } from './components/EditIndicatorModal';
 import { DataIngestionModal } from './components/DataIngestionModal';
 import { SpreadsheetImportModal } from './components/SpreadsheetImportModal';
+import { ReplicateGeneralVariablesModal } from './components/ReplicateGeneralVariablesModal';
+import { GENERAL_VARIABLE_INDICATOR_IDS } from './utils/generalVariablesUtils';
 import { PanelLeftOpen, PanelLeftClose, Building2, FileSpreadsheet, Maximize2 } from 'lucide-react';
 import {
   STORAGE_KEYS,
   loadLocalData,
+  loadIndicatorsData,
   saveLocalData,
   mergeMeasurements,
   isUserImportedMeasurement,
   syncMeasurementsToServer
 } from './services/storageSync';
+import {
+  getSystemAvailableYears,
+  getPlsCycleForYear,
+  getAllAvailableCycles,
+  getYearsForCycle,
+  getCycleFromYear,
+  getCycleInfo
+} from './utils/yearUtils';
 
 export function App() {
   // Core state
@@ -69,7 +81,10 @@ export function App() {
 
   // Relational data store with dual-layer localStorage caching
   const [themes] = useState<PLSTheme[]>(INITIAL_THEMES);
-  const [indicators] = useState<Indicator[]>(INITIAL_INDICATORS);
+  const [indicators, setIndicators] = useState<Indicator[]>(() =>
+    loadIndicatorsData(INITIAL_INDICATORS)
+  );
+  const [editingIndicator, setEditingIndicator] = useState<Indicator | null>(null);
   const [targets, setTargets] = useState<IndicatorTarget[]>(() =>
     loadLocalData(STORAGE_KEYS.TARGETS, INITIAL_TARGETS)
   );
@@ -91,10 +106,12 @@ export function App() {
 
   // Modals state
   const [selectedIndicatorForDetail, setSelectedIndicatorForDetail] = useState<Indicator | null>(null);
+  const [targetToEdit, setTargetToEdit] = useState<{ indicatorId: string; target?: IndicatorTarget } | null>(null);
   const [isDataIngestionOpen, setIsDataIngestionOpen] = useState<boolean>(false);
   const [preselectedIndicatorId, setPreselectedIndicatorId] = useState<string | undefined>(undefined);
   const [preselectedMonth, setPreselectedMonth] = useState<number | undefined>(undefined);
   const [isSpreadsheetImportOpen, setIsSpreadsheetImportOpen] = useState<boolean>(false);
+  const [isReplicateModalOpen, setIsReplicateModalOpen] = useState<boolean>(false);
 
   // Chat pre-filled query
   const [chatInitialQuery, setChatInitialQuery] = useState<string | undefined>(undefined);
@@ -103,6 +120,86 @@ export function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() =>
     loadLocalData('ipls_sidebar_collapsed', false)
   );
+
+  // Selected cycle state (synchronized with selectedYear and persisted in localStorage)
+  const [selectedCycle, setSelectedCycle] = useState<string>(() => {
+    return loadLocalData('ipls_selected_cycle', getCycleFromYear(selectedYear));
+  });
+
+  const allCycles = useMemo(() => {
+    return getAllAvailableCycles();
+  }, []);
+
+  const activeCycleInfo = useMemo(() => {
+    return getCycleInfo(selectedCycle);
+  }, [selectedCycle]);
+
+  // Ao selecionar o ciclo, os anos visíveis na tela são SOMENTE os anos daquele ciclo correspondente
+  const currentCycleYears = useMemo(() => {
+    return getYearsForCycle(selectedCycle);
+  }, [selectedCycle]);
+
+  const handleSelectCycle = (newCycle: string) => {
+    setSelectedCycle(newCycle);
+    saveLocalData('ipls_selected_cycle', newCycle);
+    const years = getYearsForCycle(newCycle);
+    if (!years.includes(selectedYear)) {
+      const curCalYear = new Date().getFullYear();
+      const nextYear = years.includes(curCalYear) ? curCalYear : years[0];
+      setSelectedYear(nextYear);
+    }
+  };
+
+  const handleSelectYear = (year: number) => {
+    setSelectedYear(year);
+    const cycleForYear = getCycleFromYear(year);
+    if (cycleForYear !== selectedCycle) {
+      setSelectedCycle(cycleForYear);
+      saveLocalData('ipls_selected_cycle', cycleForYear);
+    }
+  };
+
+  // Dynamic forward-compatible years
+  const availableSystemYears = useMemo(() => {
+    return getSystemAvailableYears(measurements, targets, selectedYear);
+  }, [measurements, targets, selectedYear]);
+
+  // Handler para replicação de Variáveis Gerais (Tema 1) de exercícios anteriores
+  const handleConfirmReplication = (
+    newMeasurements: IndicatorMeasurement[],
+    fromYear: number,
+    toYear: number
+  ) => {
+    setMeasurements(prev => {
+      // Filtrar eventuais variáveis gerais existentes em toYear e anexar as novas
+      const filtered = prev.filter(
+        m => !(m.year === toYear && GENERAL_VARIABLE_INDICATOR_IDS.includes(m.indicatorId))
+      );
+      const updated = [...filtered, ...newMeasurements];
+      saveLocalData(STORAGE_KEYS.MEASUREMENTS, updated);
+      syncMeasurementsToServer(newMeasurements);
+      return updated;
+    });
+
+    const newAuditLog: AuditLog = {
+      id: `log-rep-gv-${Date.now()}`,
+      organizationId: selectedOrgId,
+      userId: 'usr-1',
+      userName: 'Gestor do PLS',
+      action: 'ALTERACAO',
+      timestamp: new Date().toISOString(),
+      entityType: 'MEASUREMENT',
+      entityId: `gv-${toYear}`,
+      newValue: `Replicação das variáveis institucionais (FTT, Área e Pessoal) a partir de ${fromYear}.`,
+      reason: `Replicação de variáveis institucionais para o exercício ${toYear}.`,
+      source: 'iPLS-Core'
+    };
+    setAuditLogs(prev => {
+      const updated = [newAuditLog, ...prev];
+      saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
+      return updated;
+    });
+  };
 
   const handleToggleSidebar = () => {
     setIsSidebarCollapsed(prev => {
@@ -129,6 +226,16 @@ export function App() {
     fetch(`/api/bootstrap?year=${selectedYear}&orgId=${selectedOrgId}`)
       .then(res => res.json())
       .then(data => {
+        if (data.indicators) {
+          const normalized = data.indicators.map((ind: Indicator) => {
+            if (ind.themeId === 'theme-1' && ind.periodicity !== 'ANUAL') {
+              return { ...ind, periodicity: 'ANUAL' as const };
+            }
+            return ind;
+          });
+          setIndicators(normalized);
+          saveLocalData(STORAGE_KEYS.INDICATORS, normalized);
+        }
         if (data.targets) {
           setTargets(data.targets);
           saveLocalData(STORAGE_KEYS.TARGETS, data.targets);
@@ -206,6 +313,61 @@ export function App() {
     setPreselectedIndicatorId(indicatorId);
     setPreselectedMonth(month);
     setIsDataIngestionOpen(true);
+  };
+
+  // Update indicator definition, periodicity, and metadata
+  const handleUpdateIndicator = async (updatedIndicator: Indicator, reason?: string) => {
+    // 1. Post to API
+    try {
+      await fetch(`/api/indicators/${updatedIndicator.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updatedIndicator,
+          reason,
+          userId: 'usr-1',
+          userName: 'Dr. Roberto Magalhães'
+        })
+      });
+    } catch (e) {
+      console.warn('[iPLS] Servidor offline ou em transição, mantendo persistência local:', e);
+    }
+
+    // 2. Update local state
+    setIndicators(prev => {
+      const copy = prev.map(ind => ind.id === updatedIndicator.id ? updatedIndicator : ind);
+      saveLocalData(STORAGE_KEYS.INDICATORS, copy);
+      return copy;
+    });
+
+    // 3. Update detail modal state if currently open
+    setSelectedIndicatorForDetail(prev => {
+      if (prev && prev.id === updatedIndicator.id) {
+        return updatedIndicator;
+      }
+      return prev;
+    });
+
+    // 4. Log audit entry locally
+    const auditEntry: AuditLog = {
+      id: `audit-${Date.now()}`,
+      organizationId: selectedOrgId,
+      userId: 'usr-1',
+      userName: 'Dr. Roberto Magalhães',
+      action: 'ALTERACAO',
+      timestamp: new Date().toISOString(),
+      entityType: 'INDICATOR',
+      entityId: updatedIndicator.id,
+      indicatorCode: updatedIndicator.code,
+      newValue: `${updatedIndicator.name} [${updatedIndicator.periodicity}]`,
+      reason: reason || `Alteração da definição/periodicidade da variável ${updatedIndicator.code}`,
+      source: 'Módulo de Gestão Metodológica'
+    };
+    setAuditLogs(prev => {
+      const updated = [auditEntry, ...prev];
+      saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
+      return updated;
+    });
   };
 
   // Save manual measurement
@@ -614,7 +776,27 @@ export function App() {
       return updated;
     });
 
-    // 3. Add to Audit Logs
+    // 3. Keep indicator state in sync for 2026
+    if (year === 2026) {
+      setIndicators(prevInds => {
+        const indIdx = prevInds.findIndex(i => i.id === targetData.indicatorId);
+        if (indIdx >= 0) {
+          const updatedInds = [...prevInds];
+          updatedInds[indIdx] = {
+            ...updatedInds[indIdx],
+            targetValue2026: Number(targetData.targetValue) || 0,
+            baselineValue: Number(targetData.baselineValue) || updatedInds[indIdx].baselineValue,
+            baselineYear: targetData.baselineYear || updatedInds[indIdx].baselineYear,
+            targetType: targetData.targetType || updatedInds[indIdx].targetType
+          };
+          saveLocalData(STORAGE_KEYS.INDICATORS, updatedInds);
+          return updatedInds;
+        }
+        return prevInds;
+      });
+    }
+
+    // 4. Add to Audit Logs
     const ind = indicators.find(i => i.id === targetData.indicatorId);
     const auditEntry: AuditLog = {
       id: `audit-${Date.now()}`,
@@ -630,7 +812,75 @@ export function App() {
       reason: reason || 'Alteração manual de meta do PLS realizada no painel.',
       source: 'Módulo de Gestão de Metas'
     };
-    setAuditLogs(prev => [auditEntry, ...prev]);
+    setAuditLogs(prev => {
+      const updated = [auditEntry, ...prev];
+      saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
+      return updated;
+    });
+  };
+
+  // Delete PLS indicator target with API persistence and audit log
+  const handleDeleteTarget = async (targetId: string, indicatorId: string, year: number, reason?: string) => {
+    // 1. Call API
+    try {
+      await fetch(`/api/targets/${encodeURIComponent(targetId || 'by-indicator')}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indicatorId, year, reason })
+      });
+    } catch (e) {
+      console.warn('[iPLS] Offline fallback ao excluir meta:', e);
+    }
+
+    // 2. Remove from targets state & localStorage
+    setTargets(prev => {
+      const updated = prev.filter(t => {
+        if (targetId && t.id === targetId) return false;
+        if (t.indicatorId === indicatorId && t.year === year) return false;
+        return true;
+      });
+      saveLocalData(STORAGE_KEYS.TARGETS, updated);
+      return updated;
+    });
+
+    // 3. If year === 2026, reset indicator targetValue2026
+    if (year === 2026) {
+      setIndicators(prevInds => {
+        const indIdx = prevInds.findIndex(i => i.id === indicatorId);
+        if (indIdx >= 0) {
+          const updatedInds = [...prevInds];
+          updatedInds[indIdx] = {
+            ...updatedInds[indIdx],
+            targetValue2026: undefined
+          };
+          saveLocalData(STORAGE_KEYS.INDICATORS, updatedInds);
+          return updatedInds;
+        }
+        return prevInds;
+      });
+    }
+
+    // 4. Record in Audit Logs
+    const ind = indicators.find(i => i.id === indicatorId);
+    const auditEntry: AuditLog = {
+      id: `audit-${Date.now()}`,
+      organizationId: selectedOrgId,
+      userId: 'usr-1',
+      userName: 'Dr. Roberto Magalhães',
+      action: 'EXCLUSAO',
+      timestamp: new Date().toISOString(),
+      entityType: 'TARGET',
+      entityId: targetId || `target-${indicatorId}`,
+      indicatorCode: ind?.code,
+      previousValue: `Meta do exercício ${year}`,
+      reason: reason || 'Exclusão de meta do indicador homologada pelo gestor.',
+      source: 'Módulo de Gestão de Metas'
+    };
+    setAuditLogs(prev => {
+      const updated = [auditEntry, ...prev];
+      saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
+      return updated;
+    });
   };
 
   const pendingValidationCount = measurements.filter(m => m.validationStatus === 'PENDENTE').length;
@@ -665,7 +915,9 @@ export function App() {
         activeAlertsCount={activeAlertsCount}
         pendingValidationCount={pendingValidationCount}
         selectedYear={selectedYear}
-        setSelectedYear={setSelectedYear}
+        setSelectedYear={handleSelectYear}
+        selectedCycle={selectedCycle}
+        setSelectedCycle={handleSelectCycle}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
@@ -735,21 +987,45 @@ export function App() {
               <span className="font-semibold text-slate-700">{currentOrg.acronym}</span>
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-              {[2021, 2022, 2023, 2024, 2025, 2026].map(y => (
-                <button
-                  key={y}
-                  onClick={() => setSelectedYear(y)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                    selectedYear === y
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                  }`}
-                  title={`Exercício ${y}`}
-                >
-                  {y}
-                </button>
-              ))}
+            {/* Seletor Oficial do Ciclo PLS (CNJ) */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1 hidden md:inline">Ciclo:</span>
+              <select
+                value={selectedCycle}
+                onChange={(e) => handleSelectCycle(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 px-2.5 py-1 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer hover:border-emerald-300 transition-colors shadow-2xs"
+                title="Selecione o Ciclo do PLS (Resolução CNJ nº 400/2021)"
+              >
+                {allCycles.map(c => (
+                  <option key={c.cycle} value={c.cycle}>
+                    {c.label} {c.status === 'VIGENTE' ? '• Vigente' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Anos do Ciclo Selecionado - Mostra SOMENTE os anos daquele ciclo */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider px-1.5 hidden lg:inline">
+                Anos do {activeCycleInfo.cycleNumber}º Ciclo:
+              </span>
+              <div className="flex items-center gap-1">
+                {currentCycleYears.map(y => (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => handleSelectYear(y)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      selectedYear === y
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`}
+                    title={`Visualizar dados do exercício de ${y} (${activeCycleInfo.cycleNumber}º Ciclo ${activeCycleInfo.cycle})`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -763,12 +1039,13 @@ export function App() {
             alerts={alerts}
             performances={indicatorPerformances}
             selectedYear={selectedYear}
-            setSelectedYear={setSelectedYear}
+            setSelectedYear={handleSelectYear}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenSpreadsheetImport={() => setIsSpreadsheetImportOpen(true)}
             onOpenDocumentUpload={() => setActiveTab('documents')}
             onOpenChatWithQuery={handleOpenChatWithQuery}
             onSelectIndicator={setSelectedIndicatorForDetail}
+            onOpenReplicateModal={() => setIsReplicateModalOpen(true)}
           />
         )}
 
@@ -782,6 +1059,8 @@ export function App() {
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenChatWithQuery={handleOpenChatWithQuery}
+            onEditIndicator={ind => setEditingIndicator(ind)}
+            onOpenReplicateModal={() => setIsReplicateModalOpen(true)}
           />
         )}
 
@@ -795,6 +1074,9 @@ export function App() {
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenChatWithQuery={handleOpenChatWithQuery}
             onSaveTarget={handleSaveTarget}
+            onDeleteTarget={handleDeleteTarget}
+            initialEditingTarget={targetToEdit}
+            onClearInitialEditingTarget={() => setTargetToEdit(null)}
           />
         )}
 
@@ -980,6 +1262,21 @@ export function App() {
           onClose={() => setSelectedIndicatorForDetail(null)}
           onOpenDataIngestion={handleOpenDataIngestion}
           onOpenChatWithQuery={handleOpenChatWithQuery}
+          onEditIndicator={ind => setEditingIndicator(ind)}
+          onOpenEditTarget={(ind, tgt) => {
+            setSelectedIndicatorForDetail(null);
+            setTargetToEdit({ indicatorId: ind.id, target: tgt });
+            setActiveTab('targets');
+          }}
+        />
+      )}
+
+      {editingIndicator && (
+        <EditIndicatorModal
+          indicator={editingIndicator}
+          theme={themes.find(t => t.id === editingIndicator.themeId)}
+          onClose={() => setEditingIndicator(null)}
+          onSave={(updated, reason) => handleUpdateIndicator(updated, reason)}
         />
       )}
 
@@ -999,8 +1296,21 @@ export function App() {
         <SpreadsheetImportModal
           indicators={indicators}
           selectedYear={selectedYear}
+          selectedOrgId={selectedOrgId}
           onClose={() => setIsSpreadsheetImportOpen(false)}
           onImportBatch={handleImportBatch}
+        />
+      )}
+
+      {isReplicateModalOpen && (
+        <ReplicateGeneralVariablesModal
+          isOpen={isReplicateModalOpen}
+          onClose={() => setIsReplicateModalOpen(false)}
+          targetYear={selectedYear}
+          availableYears={availableSystemYears}
+          measurements={measurements}
+          indicators={indicators}
+          onConfirmReplication={handleConfirmReplication}
         />
       )}
     </div>

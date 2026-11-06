@@ -111,6 +111,78 @@ export function createApiRouter() {
     res.json(db.indicators);
   });
 
+  // PUT /api/indicators/:id - Update indicator/variable definition, periodicity, and metadata
+  router.put('/indicators/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const {
+      name,
+      acronym,
+      description,
+      periodicity,
+      unit,
+      normativeReference,
+      responsibleUnit,
+      formulaDescription,
+      reason,
+      userId = 'usr-1',
+      userName = 'Dr. Roberto Magalhães'
+    } = req.body;
+
+    const indIndex = db.indicators.findIndex(i => i.id === id);
+    if (indIndex === -1) {
+      return res.status(404).json({ error: 'Indicador/Variável não encontrada.' });
+    }
+
+    const old = db.indicators[indIndex];
+    const updated = {
+      ...old,
+      name: name !== undefined ? String(name).trim() : old.name,
+      acronym: acronym !== undefined ? (String(acronym).trim() || undefined) : old.acronym,
+      description: description !== undefined ? String(description).trim() : old.description,
+      periodicity: periodicity === 'ANUAL' || periodicity === 'MENSAL' ? periodicity : old.periodicity,
+      unit: unit !== undefined ? String(unit).trim() : old.unit,
+      normativeReference: normativeReference !== undefined ? (String(normativeReference).trim() || undefined) : old.normativeReference,
+      responsibleUnit: responsibleUnit !== undefined ? (String(responsibleUnit).trim() || undefined) : old.responsibleUnit,
+      formulaDescription: formulaDescription !== undefined ? (String(formulaDescription).trim() || undefined) : old.formulaDescription
+    };
+
+    db.indicators[indIndex] = updated;
+
+    const changes: string[] = [];
+    if (old.periodicity !== updated.periodicity) {
+      changes.push(`Periodicidade: ${old.periodicity} → ${updated.periodicity}`);
+    }
+    if (old.description !== updated.description) {
+      changes.push(`Texto de definição atualizado`);
+    }
+    if (old.name !== updated.name) {
+      changes.push(`Nome: ${old.name} → ${updated.name}`);
+    }
+    if (old.acronym !== updated.acronym) {
+      changes.push(`Sigla: ${old.acronym || '—'} → ${updated.acronym || '—'}`);
+    }
+    if (old.unit !== updated.unit) {
+      changes.push(`Unidade: ${old.unit} → ${updated.unit}`);
+    }
+
+    const auditDesc = changes.length > 0 ? changes.join('; ') : 'Parâmetros metodológicos do indicador atualizados';
+
+    const auditEntry = logAudit(
+      userId,
+      userName,
+      'ALTERACAO',
+      'INDICATOR',
+      updated.id,
+      `${old.name} [${old.periodicity}]`,
+      `${updated.name} [${updated.periodicity}]`,
+      reason || auditDesc,
+      'Gestão Metodológica de Indicadores'
+    );
+
+    storage.scheduleSave();
+    res.json({ success: true, indicator: updated, auditLog: auditEntry });
+  });
+
   // GET /api/analytics/indicators
   router.get('/analytics/indicators', (req: Request, res: Response) => {
     const year = Number(req.query.year) || 2026;
@@ -243,8 +315,12 @@ export function createApiRouter() {
       const month = item.month !== undefined ? Number(item.month) : 1;
       const val = Number(item.value);
 
+      const itemOrgId = item.organizationId || 'org-sjrr';
       const existingIndex = db.measurements.findIndex(
-        m => m.indicatorId === item.indicatorId && m.year === year && m.month === month
+        m => m.indicatorId === item.indicatorId &&
+             m.year === year &&
+             m.month === month &&
+             (m.organizationId === itemOrgId || (!m.organizationId && itemOrgId === 'org-sjrr'))
       );
 
       if (existingIndex >= 0) {
@@ -487,10 +563,11 @@ export function createApiRouter() {
     const orgId = (req.query.orgId as string) || 'org-sjrr';
     const fiveYearSeries = buildFiveYearHistoricalSeries(db.indicators, db.measurements, db.targets, year);
     const summaryStats = getFiveYearSummaryStats(fiveYearSeries);
+    const rollingYears = Array.from({ length: 5 }, (_, i) => year - 4 + i);
 
     res.json({
       year,
-      historicalYears: [2022, 2023, 2024, 2025, 2026],
+      historicalYears: rollingYears,
       fiveYearSeries,
       summaryStats
     });
@@ -655,8 +732,71 @@ export function createApiRouter() {
       );
     }
 
+    // Keep indicator metadata in sync for 2026
+    const indForSync = db.indicators.find(i => i.id === target.indicatorId);
+    if (indForSync && year === 2026) {
+      indForSync.targetValue2026 = Number(target.targetValue);
+      if (target.baselineValue !== undefined) {
+        indForSync.baselineValue = Number(target.baselineValue);
+      }
+      if (target.baselineYear !== undefined) {
+        indForSync.baselineYear = Number(target.baselineYear);
+      }
+    }
+
     storage.scheduleSave();
     res.json({ success: true, target: updatedTarget, targets: db.targets, persisted: true });
+  });
+
+  // DELETE /api/targets/:id - Remove PLS indicator target
+  router.delete('/targets/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    const {
+      indicatorId = req.query.indicatorId as string,
+      year = req.query.year ? Number(req.query.year) : 2026,
+      reason = req.query.reason as string,
+      userId = 'usr-1',
+      userName = 'Dr. Roberto Magalhães'
+    } = req.body || {};
+
+    const targetIndex = db.targets.findIndex(t => {
+      if (id && id !== 'undefined' && id !== ':id' && id !== 'by-indicator' && t.id === id) return true;
+      if (indicatorId && year && t.indicatorId === indicatorId && t.year === Number(year)) return true;
+      if (id && t.id === id) return true;
+      return false;
+    });
+
+    let removedTarget: any = null;
+    if (targetIndex >= 0) {
+      removedTarget = db.targets.splice(targetIndex, 1)[0];
+    }
+
+    const effIndicatorId = removedTarget?.indicatorId || indicatorId;
+    const ind = db.indicators.find(i => i.id === effIndicatorId);
+
+    // Also clear targetValue2026 on the indicator if exercise is 2026
+    if (ind && Number(year) === 2026) {
+      ind.targetValue2026 = undefined;
+    }
+
+    if (!removedTarget && !ind) {
+      return res.status(404).json({ error: 'Meta ou indicador não encontrado para exclusão.' });
+    }
+
+    logAudit(
+      userId,
+      userName,
+      'EXCLUSAO',
+      'TARGET',
+      removedTarget?.id || `target-${effIndicatorId}-${year}`,
+      `Meta do exercício ${year}: ${removedTarget?.targetValue ?? ind?.targetValue2026 ?? ''} ${removedTarget?.targetUnit || ind?.unit || ''}`,
+      undefined,
+      reason || 'Exclusão de meta do indicador homologada pelo gestor.',
+      'Módulo de Gestão de Metas'
+    );
+
+    storage.scheduleSave();
+    res.json({ success: true, removedTarget, targets: db.targets, persisted: true });
   });
 
   return router;

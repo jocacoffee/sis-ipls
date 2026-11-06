@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Target,
   Search,
@@ -20,11 +20,13 @@ import {
   Edit2,
   X,
   Save,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { Indicator, IndicatorTarget, IndicatorCalculationResult, PLSTheme, TargetType } from '../types';
 import { StatusPill } from './Charts';
 import { OFFICIAL_NORMATIVE_INCONSISTENCIES } from '../data/normativeInconsistencies';
+import { getSelectableYears, getPlsCycleForYear } from '../utils/yearUtils';
 
 interface TargetsViewProps {
   indicators: Indicator[];
@@ -35,10 +37,13 @@ interface TargetsViewProps {
   onSelectIndicator: (indicator: Indicator) => void;
   onOpenChatWithQuery: (q: string) => void;
   onSaveTarget?: (target: Partial<IndicatorTarget>, reason?: string) => void;
+  onDeleteTarget?: (targetId: string, indicatorId: string, year: number, reason?: string) => void;
+  initialEditingTarget?: { indicatorId: string; target?: IndicatorTarget } | null;
+  onClearInitialEditingTarget?: () => void;
 }
 
 interface TargetEditFormState {
-  indicator: Indicator;
+  indicatorId: string;
   targetId?: string;
   year: number;
   targetValue: number;
@@ -49,6 +54,7 @@ interface TargetEditFormState {
   reductionPercentage?: number;
   notes: string;
   reason: string;
+  isNew?: boolean;
 }
 
 export const TargetsView: React.FC<TargetsViewProps> = ({
@@ -59,38 +65,130 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
   selectedYear,
   onSelectIndicator,
   onOpenChatWithQuery,
-  onSaveTarget
+  onSaveTarget,
+  onDeleteTarget,
+  initialEditingTarget,
+  onClearInitialEditingTarget
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'METAS' | 'INCONSISTENCIAS'>('METAS');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedThemeFilter, setSelectedThemeFilter] = useState<string>('ALL');
+  const [targetScopeFilter, setTargetScopeFilter] = useState<'WITH_TARGET' | 'ALL' | 'WITHOUT_TARGET'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [editingTarget, setEditingTarget] = useState<TargetEditFormState | null>(null);
+  const [targetToDelete, setTargetToDelete] = useState<{
+    id?: string;
+    indicatorId: string;
+    indicatorName: string;
+    year: number;
+    targetValue: number;
+    targetUnit: string;
+  } | null>(null);
+  const [deleteReason, setDeleteReason] = useState<string>('');
+
+  useEffect(() => {
+    if (initialEditingTarget) {
+      const ind = indicators.find(i => i.id === initialEditingTarget.indicatorId);
+      if (ind) {
+        handleOpenEdit(ind, initialEditingTarget.target);
+      }
+      onClearInitialEditingTarget?.();
+    }
+  }, [initialEditingTarget]);
 
   const filteredPerformances = performances.filter(item => {
+    const hasTarget = Boolean(
+      item.target ||
+      (item.indicator.targetValue2026 !== undefined && item.indicator.targetValue2026 !== null && item.indicator.targetValue2026 > 0) ||
+      (item.result.targetValue !== undefined && item.result.targetValue !== null && item.result.targetValue > 0)
+    );
+
+    if (targetScopeFilter === 'WITH_TARGET' && !hasTarget) return false;
+    if (targetScopeFilter === 'WITHOUT_TARGET' && hasTarget) return false;
     if (selectedStatus !== 'ALL' && item.result.status !== selectedStatus) return false;
+    if (selectedThemeFilter !== 'ALL' && item.indicator.themeId !== selectedThemeFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
         item.indicator.name.toLowerCase().includes(q) ||
-        item.indicator.code.toLowerCase().includes(q)
+        item.indicator.code.toLowerCase().includes(q) ||
+        (item.indicator.acronym && item.indicator.acronym.toLowerCase().includes(q))
       );
     }
     return true;
   });
 
   const handleOpenEdit = (ind: Indicator, target?: IndicatorTarget, res?: IndicatorCalculationResult) => {
+    const hasTargetAlready = Boolean(
+      target ||
+      (ind.targetValue2026 !== undefined && ind.targetValue2026 !== null && ind.targetValue2026 > 0) ||
+      (res && res.targetValue > 0)
+    );
+    const effTargetVal = target?.targetValue ?? res?.targetValue ?? ind.targetValue2026 ?? 0;
     setEditingTarget({
-      indicator: ind,
+      indicatorId: ind.id,
       targetId: target?.id,
-      year: selectedYear,
-      targetValue: target?.targetValue ?? res?.targetValue ?? 0,
-      baselineValue: target?.baselineValue ?? res?.baselineValue ?? 0,
-      baselineYear: target?.baselineYear ?? 2025,
+      year: target?.year ?? selectedYear,
+      targetValue: effTargetVal,
+      baselineValue: target?.baselineValue ?? res?.baselineValue ?? ind.baselineValue ?? 0,
+      baselineYear: target?.baselineYear ?? ind.baselineYear ?? 2025,
       targetUnit: target?.targetUnit || ind.unit,
       targetType: target?.targetType || ind.targetType || 'REDUCAO_PERCENTUAL',
       reductionPercentage: target?.reductionPercentage,
       notes: target?.notes || '',
-      reason: ''
+      reason: '',
+      isNew: !hasTargetAlready
+    });
+  };
+
+  const handleOpenNewTarget = (preselectedIndicatorId?: string) => {
+    const defaultInd = preselectedIndicatorId
+      ? indicators.find(i => i.id === preselectedIndicatorId) || indicators[0]
+      : indicators[0];
+
+    const existingTarget = defaultInd
+      ? targets.find(t => t.indicatorId === defaultInd.id && t.year === selectedYear)
+      : undefined;
+
+    setEditingTarget({
+      indicatorId: defaultInd?.id || '',
+      targetId: existingTarget?.id,
+      year: selectedYear,
+      targetValue: existingTarget?.targetValue ?? defaultInd?.targetValue2026 ?? 0,
+      baselineValue: existingTarget?.baselineValue ?? defaultInd?.baselineValue ?? 0,
+      baselineYear: existingTarget?.baselineYear ?? defaultInd?.baselineYear ?? 2025,
+      targetUnit: existingTarget?.targetUnit || defaultInd?.unit || 'unidades',
+      targetType: existingTarget?.targetType || defaultInd?.targetType || 'REDUCAO_PERCENTUAL',
+      reductionPercentage: existingTarget?.reductionPercentage,
+      notes: existingTarget?.notes || '',
+      reason: existingTarget ? 'Ajuste de meta do indicador' : 'Definição de nova meta vinculada a indicador do PLS',
+      isNew: !existingTarget
+    });
+  };
+
+  const handleIndicatorChangeInModal = (newIndicatorId: string) => {
+    const newInd = indicators.find(i => i.id === newIndicatorId);
+    if (!newInd || !editingTarget) return;
+
+    const existingTargetForThisInd = targets.find(
+      t => t.indicatorId === newInd.id && t.year === editingTarget.year
+    );
+
+    setEditingTarget(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        indicatorId: newInd.id,
+        targetId: existingTargetForThisInd?.id,
+        targetUnit: existingTargetForThisInd?.targetUnit || newInd.unit,
+        targetType: existingTargetForThisInd?.targetType || newInd.targetType || 'REDUCAO_PERCENTUAL',
+        targetValue: existingTargetForThisInd?.targetValue ?? newInd.targetValue2026 ?? 0,
+        baselineValue: existingTargetForThisInd?.baselineValue ?? newInd.baselineValue ?? 0,
+        baselineYear: existingTargetForThisInd?.baselineYear ?? newInd.baselineYear ?? 2025,
+        reductionPercentage: existingTargetForThisInd?.reductionPercentage,
+        notes: existingTargetForThisInd?.notes || '',
+        isNew: !existingTargetForThisInd
+      };
     });
   };
 
@@ -101,7 +199,7 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
     onSaveTarget(
       {
         id: editingTarget.targetId,
-        indicatorId: editingTarget.indicator.id,
+        indicatorId: editingTarget.indicatorId,
         year: editingTarget.year,
         targetValue: Number(editingTarget.targetValue),
         baselineValue: Number(editingTarget.baselineValue),
@@ -111,7 +209,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         reductionPercentage: editingTarget.reductionPercentage !== undefined ? Number(editingTarget.reductionPercentage) : undefined,
         notes: editingTarget.notes
       },
-      editingTarget.reason || 'Alteração de meta via painel de Metas do PLS.'
+      editingTarget.reason || (editingTarget.isNew
+        ? 'Definição e vinculação de meta a indicador do PLS.'
+        : 'Alteração e repactuação de meta via painel de Metas do PLS.')
     );
 
     setEditingTarget(null);
@@ -124,7 +224,7 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
             <Target className="w-3.5 h-3.5" />
-            <span>PLS Seção Judiciária de Roraima (SJRR · TRF1) · Ciclo 2021–2026</span>
+            <span>PLS Seção Judiciária de Roraima (SJRR · TRF1) · {getPlsCycleForYear(selectedYear).cycleNumber}º Ciclo ({getPlsCycleForYear(selectedYear).cycle})</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900 mt-1">
             Metas do PLS-SJRR & Conformidade Normativa
@@ -135,11 +235,20 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onSaveTarget && (
+            <button
+              onClick={() => handleOpenNewTarget()}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Nova Meta / Vincular</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveSubTab('METAS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeSubTab === 'METAS'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -147,9 +256,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
           </button>
           <button
             onClick={() => setActiveSubTab('INCONSISTENCIAS')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeSubTab === 'INCONSISTENCIAS'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-emerald-700 text-white shadow-xs'
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80'
             }`}
           >
@@ -261,7 +370,7 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                 <span className="font-mono text-2xl font-bold text-slate-900">{targets.length}</span>
                 <span className="text-xs text-slate-500">indicadores oficiais</span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">Ciclo sexenal SJRR 2021–2026</p>
+              <p className="mt-1 text-[11px] text-slate-400">Ciclo sexenal SJRR {getPlsCycleForYear(selectedYear).cycle}</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-200/90 bg-white p-4 shadow-xs">
@@ -308,19 +417,42 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
           </div>
 
           {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-            <div className="relative w-full sm:w-80">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="relative w-full lg:w-80">
               <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Buscar por código ou nome do indicador..."
+                placeholder="Buscar por código, nome ou sigla..."
                 className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-9 pr-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <select
+                value={targetScopeFilter}
+                onChange={e => setTargetScopeFilter(e.target.value as any)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="ALL">Todas as Linhas ({performances.length})</option>
+                <option value="WITH_TARGET">Apenas com Meta Fixada ({performances.filter(p => Boolean(p.target || (p.indicator.targetValue2026 ?? 0) > 0 || p.result.targetValue > 0)).length})</option>
+                <option value="WITHOUT_TARGET">Sem Meta Fixada ({performances.filter(p => !Boolean(p.target || (p.indicator.targetValue2026 ?? 0) > 0 || p.result.targetValue > 0)).length})</option>
+              </select>
+
+              <select
+                value={selectedThemeFilter}
+                onChange={e => setSelectedThemeFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="ALL">Todos os Temas ({themes.length})</option>
+                {themes.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.code} — {t.name}
+                  </option>
+                ))}
+              </select>
+
               <select
                 value={selectedStatus}
                 onChange={e => setSelectedStatus(e.target.value)}
@@ -332,6 +464,16 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                 <option value="RISCO">Em Risco</option>
                 <option value="META_ATINGIDA">Meta Atingida</option>
               </select>
+
+              {onSaveTarget && (
+                <button
+                  onClick={() => handleOpenNewTarget()}
+                  className="rounded-xl px-3 py-2 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Cadastrar Meta</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -341,13 +483,21 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
               const ind = item.indicator;
               const res = item.result;
               const target = item.target;
+              const hasTarget = Boolean(
+                target ||
+                (ind.targetValue2026 !== undefined && ind.targetValue2026 !== null && ind.targetValue2026 > 0) ||
+                (res.targetValue !== undefined && res.targetValue !== null && res.targetValue > 0)
+              );
+              const effTargetVal = target?.targetValue ?? ind.targetValue2026 ?? res.targetValue ?? 0;
               const isOverBudget = ind.targetDirection === 'MENOR_MELHOR' && res.annualProjection > res.targetValue;
 
               return (
                 <div
                   key={ind.id}
                   className={`rounded-2xl border bg-white p-5 shadow-xs transition-all duration-200 hover:shadow-sm ${
-                    res.status === 'RISCO'
+                    !hasTarget
+                      ? 'border-slate-200/80 bg-slate-50/30'
+                      : res.status === 'RISCO'
                       ? 'border-rose-200/90 hover:border-rose-300'
                       : res.status === 'ATENCAO'
                       ? 'border-amber-200/90 hover:border-amber-300'
@@ -366,9 +516,17 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                           </span>
                         )}
                         <span className="text-sm font-bold text-slate-900">{ind.name}</span>
-                        <StatusPill status={res.status} />
+                        {hasTarget ? (
+                          <StatusPill status={res.status} />
+                        ) : (
+                          <span className="font-semibold text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-md">
+                            Sem Meta Fixada
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">{res.statusReason}</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {hasTarget ? res.statusReason : 'Nenhuma meta do ciclo 2026 vinculada a este indicador.'}
+                      </p>
 
                       {target?.notes && (
                         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 w-fit">
@@ -379,25 +537,56 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleOpenEdit(ind, target, res)}
-                        className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-                        title="Alterar parâmetros da meta"
-                      >
-                        <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Editar Meta</span>
-                      </button>
+                      {hasTarget ? (
+                        <>
+                          <button
+                            onClick={() => handleOpenEdit(ind, target, res)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                            title="Alterar parâmetros da meta ou vincular a outro indicador"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Editar Meta</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTargetToDelete({
+                                id: target?.id,
+                                indicatorId: ind.id,
+                                indicatorName: `${ind.code} — ${ind.name}`,
+                                year: target?.year || selectedYear,
+                                targetValue: effTargetVal,
+                                targetUnit: target?.targetUnit || ind.unit
+                              });
+                              setDeleteReason('');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
+                            title="Excluir meta do indicador"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="hidden sm:inline">Excluir</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenNewTarget(ind.id)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                          title="Definir e vincular uma meta a este indicador"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Definir Meta</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => onSelectIndicator(ind)}
-                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors shadow-2xs"
+                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
                       >
                         Ver Detalhes
                       </button>
                       <button
                         onClick={() => onOpenChatWithQuery(`Quanto precisamos economizar para alcançar a meta de ${ind.name}?`)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        <Sparkles className="w-3.5 h-3.5 text-slate-500" />
                         <span>Simular com IA</span>
                       </button>
                     </div>
@@ -453,32 +642,129 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         </>
       )}
 
-      {/* Target Editor Modal */}
+      {/* Target Editor Modal com Vínculo de Indicador */}
       {editingTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl p-6 animate-in fade-in duration-150 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl p-6 animate-in fade-in duration-150 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 mb-4 gap-3">
               <div>
-                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                  Gestão Estratégica do PLS-SJRR
-                </span>
-                <h3 className="text-base font-bold text-slate-900 mt-0.5">
-                  Alterar Meta de {editingTarget.indicator.name} ({editingTarget.indicator.code})
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg uppercase tracking-wide">
+                    {editingTarget.isNew ? 'Definição de Nova Meta' : 'Repactuação / Edição de Meta'}
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono">
+                    Exercício {editingTarget.year}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mt-1">
+                  {editingTarget.isNew
+                    ? 'Cadastrar e Vincular Meta a um Indicador'
+                    : 'Editar Parâmetros e Vínculo da Meta'}
                 </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Vincule a meta ao indicador correspondente da Resolução CNJ nº 400/2021 e defina valores de base e alvo.
+                </p>
               </div>
               <button
                 onClick={() => setEditingTarget(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+                aria-label="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveTargetSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* SELEÇÃO DO INDICADOR VINCULADO (Requisito Explícito do Usuário) */}
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200/90 space-y-2">
+                <label className="block font-bold text-emerald-950 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-emerald-700" />
+                    <span>Indicador Específico do PLS Vinculado à Meta *</span>
+                  </span>
+                  <span className="text-[11px] text-emerald-700 font-normal">
+                    {indicators.length} indicadores disponíveis
+                  </span>
+                </label>
+
+                <select
+                  value={editingTarget.indicatorId}
+                  onChange={e => handleIndicatorChangeInModal(e.target.value)}
+                  className="w-full rounded-xl bg-white border border-emerald-300 p-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+                  required
+                >
+                  {themes.map(th => {
+                    const thIndicators = indicators.filter(i => i.themeId === th.id);
+                    if (thIndicators.length === 0) return null;
+                    return (
+                      <optgroup key={th.id} label={`${th.code} — ${th.name}`}>
+                        {thIndicators.map(i => (
+                          <option key={i.id} value={i.id}>
+                            {i.code} — {i.name} {i.acronym ? `(${i.acronym})` : ''} [{i.unit}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+
+                {(() => {
+                  const currentInd = indicators.find(i => i.id === editingTarget.indicatorId);
+                  if (!currentInd) return null;
+                  const currentTheme = themes.find(t => t.id === currentInd.themeId);
+
+                  return (
+                    <div className="flex items-center gap-2 pt-1 text-[11px] text-emerald-900">
+                      <span className="font-semibold">{currentTheme?.name || 'Tema PLS'}</span>
+                      <span>·</span>
+                      <span>Unidade: <strong className="font-mono">{currentInd.unit}</strong></span>
+                      <span>·</span>
+                      <span>Periodicidade: <strong>{currentInd.periodicity}</strong></span>
+                      <span>·</span>
+                      <span>Direção: {currentInd.targetDirection === 'MENOR_MELHOR' ? 'Redução (Menor é melhor)' : 'Expansão (Maior é melhor)'}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Ano e Valores */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Meta para o Exercício {editingTarget.year} *
+                    Exercício da Meta *
+                  </label>
+                  <select
+                    value={editingTarget.year}
+                    onChange={e => {
+                      const newYr = Number(e.target.value);
+                      const currentInd = indicators.find(i => i.id === editingTarget.indicatorId);
+                      const existingTargetForYr = targets.find(t => t.indicatorId === editingTarget.indicatorId && t.year === newYr);
+                      setEditingTarget({
+                        ...editingTarget,
+                        year: newYr,
+                        targetId: existingTargetForYr?.id,
+                        targetValue: existingTargetForYr?.targetValue ?? editingTarget.targetValue,
+                        baselineValue: existingTargetForYr?.baselineValue ?? editingTarget.baselineValue,
+                        isNew: !existingTargetForYr
+                      });
+                    }}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    {getSelectableYears([], targets, editingTarget.year).map(y => {
+                      const cyc = getPlsCycleForYear(y);
+                      return (
+                        <option key={y} value={y}>
+                          {y} — Ciclo {cyc.cycle} ({cyc.status})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Meta para o Exercício ({editingTarget.year}) *
                   </label>
                   <div className="relative">
                     <input
@@ -487,21 +773,35 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                       required
                       value={editingTarget.targetValue}
                       onChange={e => setEditingTarget({ ...editingTarget, targetValue: Number(e.target.value) })}
-                      className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
                     />
-                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-sans">
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-sans">
                       {editingTarget.targetUnit}
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
-                    Valor numérico objetivo para {editingTarget.year}
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Valor numérico teto ou piso
                   </span>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Linha de Base ({editingTarget.baselineYear}) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700">
+                      Linha de Base *
+                    </label>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                      <span>Ano-Base:</span>
+                      <select
+                        value={editingTarget.baselineYear}
+                        onChange={e => setEditingTarget({ ...editingTarget, baselineYear: Number(e.target.value) })}
+                        className="bg-transparent font-bold text-slate-800 border-b border-slate-300 px-1 py-0.5 focus:outline-none text-[11px]"
+                      >
+                        {Array.from({ length: 10 }, (_, i) => Math.max(2015, editingTarget.year - 1 - i)).map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="relative">
                     <input
                       type="number"
@@ -511,17 +811,18 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                       onChange={e => setEditingTarget({ ...editingTarget, baselineValue: Number(e.target.value) })}
                       className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-sans">
+                    <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-sans">
                       {editingTarget.targetUnit}
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
-                    Valor de referência histórica para cálculo
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Referência histórica comparativa (Ano {editingTarget.baselineYear})
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Tipos e Percentual */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Tipo de Meta
@@ -541,6 +842,19 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
+                    Unidade de Medida
+                  </label>
+                  <input
+                    type="text"
+                    value={editingTarget.targetUnit}
+                    onChange={e => setEditingTarget({ ...editingTarget, targetUnit: e.target.value })}
+                    placeholder="Ex: kWh, m³, resmas, %"
+                    className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
                     Variação Esperada (%)
                   </label>
                   <input
@@ -551,9 +865,6 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                     placeholder="Ex: 5.0 ou -15.0"
                     className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
-                    Percentual comparado à linha de base
-                  </span>
                 </div>
               </div>
 
@@ -565,49 +876,161 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                   rows={2}
                   value={editingTarget.notes}
                   onChange={e => setEditingTarget({ ...editingTarget, notes: e.target.value })}
-                  placeholder="Ex: Resolução CNJ nº 400/2021: redução viabilizada pelo retrofit e automação predial."
-                  className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Ex: Resolução CNJ nº 400/2021: meta fixada pela comissão considerando medidas de eficiência energética e retrofit predial."
+                  className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 leading-relaxed"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Justificativa da Alteração (para Registro de Auditoria) *
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Justificativa da Alteração (para Registro de Auditoria) *</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Obrigatório</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={editingTarget.reason}
                   onChange={e => setEditingTarget({ ...editingTarget, reason: e.target.value })}
-                  placeholder="Ex: Repactuação anual de meta aprovada pela Comissão Gestora do PLS."
+                  placeholder="Ex: Repactuação de meta aprovada pela Comissão Gestora do PLS-SJRR em ata formal."
                   className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  Ficará gravado de forma imutável na trilha de auditoria do órgão.
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Ficará gravado de forma rastreável na trilha de auditoria do órgão com usuário, data e hora.
+                </span>
+              </div>
+
+              <div className="pt-3 flex items-center justify-between border-t border-slate-200">
+                <div>
+                  {(!editingTarget.isNew || editingTarget.targetValue > 0 || targets.some(t => t.indicatorId === editingTarget.indicatorId && t.year === editingTarget.year)) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ind = indicators.find(i => i.id === editingTarget.indicatorId);
+                        setTargetToDelete({
+                          id: editingTarget.targetId,
+                          indicatorId: editingTarget.indicatorId,
+                          indicatorName: `${ind?.code || ''} — ${ind?.name || ''}`,
+                          year: editingTarget.year,
+                          targetValue: editingTarget.targetValue,
+                          targetUnit: editingTarget.targetUnit
+                        });
+                        setDeleteReason('');
+                      }}
+                      className="rounded-xl px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Excluir Meta</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTarget(null)}
+                    className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{editingTarget.isNew ? 'Gravar e Vincular Meta' : 'Salvar Alterações da Meta'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Target Confirmation Modal */}
+      {targetToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-rose-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-rose-100 text-rose-700 rounded-xl">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Excluir Meta do Ciclo</h3>
+                  <p className="text-xs text-rose-700">Ação irreversível com registro na trilha de auditoria</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setTargetToDelete(null); setDeleteReason(''); }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">Indicador</div>
+                <div className="font-bold text-slate-900 text-sm">{targetToDelete.indicatorName}</div>
+                <div className="flex gap-4 pt-1 text-slate-600 font-medium">
+                  <span>Exercício: <strong className="text-slate-900 font-mono">{targetToDelete.year}</strong></span>
+                  <span>Meta Atual: <strong className="text-slate-900 font-mono">{targetToDelete.targetValue} {targetToDelete.targetUnit}</strong></span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Justificativa da Exclusão <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={deleteReason}
+                  onChange={e => setDeleteReason(e.target.value)}
+                  placeholder="Informe o motivo da exclusão desta meta (ex.: exclusão de exigência legal, cancelamento de meta pelo comitê, lançamento indevido)..."
+                  className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  A justificativa será arquivada de forma permanente na trilha de auditoria do PLS.
                 </span>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setEditingTarget(null)}
-                  className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                  onClick={() => { setTargetToDelete(null); setDeleteReason(''); }}
+                  className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5"
+                  type="button"
+                  disabled={!deleteReason.trim()}
+                  onClick={() => {
+                    if (!deleteReason.trim()) return;
+                    onDeleteTarget?.(
+                      targetToDelete.id || '',
+                      targetToDelete.indicatorId,
+                      targetToDelete.year,
+                      deleteReason.trim()
+                    );
+                    setTargetToDelete(null);
+                    setDeleteReason('');
+                    setEditingTarget(null);
+                  }}
+                  className={`rounded-xl px-5 py-2 font-bold shadow-xs flex items-center gap-1.5 ${
+                    deleteReason.trim()
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
+                      : 'bg-rose-200 text-rose-400 cursor-not-allowed'
+                  }`}
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Salvar Meta</span>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Confirmar Exclusão</span>
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 };
-

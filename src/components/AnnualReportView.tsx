@@ -51,6 +51,7 @@ import { HistoricalCharts } from './HistoricalCharts';
 import { generateVisualPdf, generateProgrammaticPdf } from '../services/pdfGenerator';
 import { BrasaoDaRepublica } from './BrasaoDaRepublica';
 import { generateIndicatorNarrativeAnalysis } from '../services/indicatorAnalysisText';
+import { getPlsCycleForYear } from '../utils/yearUtils';
 
 interface AnnualReportViewProps {
   organizationName: string;
@@ -558,7 +559,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
             RELATÓRIO ANUAL DE ACOMPANHAMENTO E CUMPRIMENTO DO PLS
           </h1>
           <div className="text-xs font-medium text-slate-500 mt-1 font-mono">
-            EXERCÍCIO DE REFERÊNCIA: <strong className="text-slate-800">{selectedYear}</strong> · CICLO 2021-2026
+            EXERCÍCIO DE REFERÊNCIA: <strong className="text-slate-800">{selectedYear}</strong> · CICLO {getPlsCycleForYear(selectedYear).cycle}
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
             Art. 22 da Resolução CNJ nº 400/2021 & Resolução CNJ nº 594/2024 (Justiça Carbono Zero)
@@ -702,7 +703,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wide">
                 <BarChart3 className="w-4 h-4" />
-                <span>Capítulo 4 — Painel Comparativo Quinquenal (2022 a 2026)</span>
+                <span>Capítulo 4 — Painel Comparativo Quinquenal ({selectedYear - 4} a {selectedYear})</span>
               </div>
               <h3 className="text-base font-extrabold text-slate-900 mt-0.5">
                 Gráficos de Comparação com os Últimos 5 Anos da Série Histórica
@@ -713,7 +714,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
-                Série 2022–2026
+                Série {selectedYear - 4}–{selectedYear}
               </span>
               {onOpenSpreadsheetImport && (
                 <button
@@ -732,9 +733,9 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
           {/* Individual Separated Chart Cards with Dedicated Explanatory Texts */}
           <div className="space-y-4">
             {historicalSeries.map(series => {
-              const years = [2022, 2023, 2024, 2025, 2026];
+              const years = Array.from({ length: 5 }, (_, i) => selectedYear - 4 + i);
               const values = years.map(yr => series.years[yr]?.total || 0);
-              const targetVal = series.target2026 || 0;
+              const targetVal = series.years[selectedYear]?.target ?? series.target2026 ?? 0;
               const maxVal = Math.max(...values, targetVal, 1);
               const isPositive = series.direction === 'MELHORA';
               const targetObj = targets.find(t => t.indicatorId === series.indicatorId && t.year === selectedYear);

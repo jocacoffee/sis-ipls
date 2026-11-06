@@ -1,6 +1,7 @@
-import { IndicatorMeasurement, IndicatorTarget, ActionPlan, AuditLog } from '../types';
+import { Indicator, IndicatorMeasurement, IndicatorTarget, ActionPlan, AuditLog } from '../types';
 
 export const STORAGE_KEYS = {
+  INDICATORS: 'ipls_indicators_v4',
   MEASUREMENTS: 'ipls_measurements_v3',
   TARGETS: 'ipls_targets_v3',
   ACTION_PLANS: 'ipls_action_plans_v3',
@@ -29,6 +30,20 @@ export function loadLocalData<T>(key: string, fallback: T): T {
     console.warn(`[iPLS Storage] Falha ao carregar chave ${key} do localStorage:`, err);
     return fallback;
   }
+}
+
+/**
+ * Carrega a lista de indicadores do localStorage garantindo a periodicidade correta (Variáveis Gerais = ANUAL)
+ */
+export function loadIndicatorsData(fallback: Indicator[]): Indicator[] {
+  const loaded = loadLocalData<Indicator[]>(STORAGE_KEYS.INDICATORS, fallback);
+  return loaded.map(ind => {
+    // Garantir que indicadores do Tema 1 (Variáveis Gerais) sejam por padrão ANUAIS
+    if (ind.themeId === 'theme-1' && ind.periodicity === 'MENSAL') {
+      return { ...ind, periodicity: 'ANUAL' as const };
+    }
+    return ind;
+  });
 }
 
 /**
@@ -61,13 +76,15 @@ export function mergeMeasurements(
 
   // Index base
   base.forEach(m => {
-    const key = `${m.indicatorId}__${m.year}__${m.month}`;
+    const org = m.organizationId || 'org-sjrr';
+    const key = `${org}__${m.indicatorId}__${m.year}__${m.month}`;
     map.set(key, m);
   });
 
   // Apply incoming
   incoming.forEach(m => {
-    const key = `${m.indicatorId}__${m.year}__${m.month}`;
+    const org = m.organizationId || 'org-sjrr';
+    const key = `${org}__${m.indicatorId}__${m.year}__${m.month}`;
     map.set(key, m);
   });
 

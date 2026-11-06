@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { Indicator, IndicatorMeasurement, SourceType } from '../types';
 import { MONTH_NAMES } from '../services/calculationEngine';
+import { getSelectableYears, getPlsCycleForYear } from '../utils/yearUtils';
 
 interface DataIngestionModalProps {
   indicators: Indicator[];
@@ -188,8 +189,11 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
           {/* Year and Month */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Exercício (Ano) *
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                <span>Exercício (Ano) *</span>
+                <span className="text-[10px] text-emerald-600 font-normal">
+                  {getPlsCycleForYear(year).cycle} ({getPlsCycleForYear(year).status})
+                </span>
               </label>
               <select
                 value={year}
@@ -199,32 +203,50 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
                 }}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
               >
-                <option value={2026}>2026</option>
-                <option value={2025}>2025</option>
-                <option value={2024}>2024</option>
+                {getSelectableYears(measurements, [], year).map(y => {
+                  const cyc = getPlsCycleForYear(y);
+                  return (
+                    <option key={y} value={y}>
+                      {y} — Ciclo {cyc.cycle} {y === new Date().getFullYear() ? '★ Vigente' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Competência (Mês) *
+                {selectedIndicator?.periodicity === 'ANUAL' ? 'Periodicidade' : 'Competência (Mês) *'}
               </label>
-              <select
-                value={month}
-                onChange={e => {
-                  setMonth(Number(e.target.value));
-                  setIsConfirmingChange(false);
-                }}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-              >
-                {MONTH_NAMES.map((name, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              {selectedIndicator?.periodicity === 'ANUAL' ? (
+                <div className="w-full bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 text-xs text-emerald-900 font-bold flex items-center justify-between">
+                  <span>Exercício Integral (Anual)</span>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-mono">Consolidado</span>
+                </div>
+              ) : (
+                <select
+                  value={month}
+                  onChange={e => {
+                    setMonth(Number(e.target.value));
+                    setIsConfirmingChange(false);
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
+
+          {selectedIndicator?.periodicity === 'ANUAL' && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+              💡 <strong>Apuração Anual:</strong> Esta variável possui consolidação única por ano, servindo de base estrutural para todos os cálculos derivados de sustentabilidade.
+            </div>
+          )}
 
           {/* Value and Unit */}
           <div className="grid grid-cols-3 gap-3">
@@ -244,6 +266,22 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
                 placeholder="Ex: 14500"
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 tabular-nums"
               />
+              {(() => {
+                const prevYear = year - 1;
+                const prevM = measurements.find(m => m.indicatorId === indicatorId && m.year === prevYear);
+                if (prevM && !value) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setValue(prevM.value.toString())}
+                      className="mt-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                    >
+                      <span>Repetir valor do exercício de {prevYear}: <strong>{prevM.value.toLocaleString('pt-BR')} {selectedIndicator?.unit}</strong></span>
+                    </button>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div>

@@ -14,6 +14,16 @@ export interface ParsedSpreadsheetRow {
   reference?: string;
   notes?: string;
   isAnnualConsolidation?: boolean;
+  organizationId?: string;
+  organizationAcronym?: string;
+  organizationName?: string;
+}
+
+export interface DetectedOrganizationSummary {
+  id: string;
+  acronym: string;
+  name: string;
+  count: number;
 }
 
 export interface SpreadsheetParseReport {
@@ -23,9 +33,44 @@ export interface SpreadsheetParseReport {
   validMeasurements: ParsedSpreadsheetRow[];
   annualConsolidations: ParsedSpreadsheetRow[];
   detectedYears: number[];
+  detectedOrganizations: DetectedOrganizationSummary[];
   matchedIndicatorCodes: string[];
   unmatchedRowsCount: number;
   warnings: string[];
+}
+
+export const TRF1_REGIONAL_ORGANIZATIONS = [
+  { id: 'org-trf1', acronym: 'TRF1', name: 'Tribunal Regional Federal da 1ª Região', uf: 'DF', aliases: ['trf1', 'trf 1', 'trf-1', 'tribunal', 'sede', '2grau', '2º grau', 'segundo grau'] },
+  { id: 'org-sjrr', acronym: 'SJRR', name: 'Seção Judiciária de Roraima', uf: 'RR', aliases: ['sjrr', 'roraima', 'boa vista', 'rr'] },
+  { id: 'org-sjac', acronym: 'SJAC', name: 'Seção Judiciária do Acre', uf: 'AC', aliases: ['sjac', 'acre', 'rio branco', 'ac'] },
+  { id: 'org-sjam', acronym: 'SJAM', name: 'Seção Judiciária do Amazonas', uf: 'AM', aliases: ['sjam', 'amazonas', 'manaus', 'am'] },
+  { id: 'org-sjap', acronym: 'SJAP', name: 'Seção Judiciária do Amapá', uf: 'AP', aliases: ['sjap', 'amapa', 'amapá', 'macapa', 'macapá', 'ap'] },
+  { id: 'org-sjba', acronym: 'SJBA', name: 'Seção Judiciária da Bahia', uf: 'BA', aliases: ['sjba', 'bahia', 'salvador', 'ba'] },
+  { id: 'org-sjdf', acronym: 'SJDF', name: 'Seção Judiciária do Distrito Federal', uf: 'DF', aliases: ['sjdf', 'distrito federal', 'brasilia', 'brasília', 'df'] },
+  { id: 'org-sjgo', acronym: 'SJGO', name: 'Seção Judiciária de Goiás', uf: 'GO', aliases: ['sjgo', 'goias', 'goiás', 'goiania', 'goiânia', 'go'] },
+  { id: 'org-sjma', acronym: 'SJMA', name: 'Seção Judiciária do Maranhão', uf: 'MA', aliases: ['sjma', 'maranhao', 'maranhão', 'sao luis', 'são luís', 'ma'] },
+  { id: 'org-sjmt', acronym: 'SJMT', name: 'Seção Judiciária de Mato Grosso', uf: 'MT', aliases: ['sjmt', 'mato grosso', 'cuiaba', 'cuiabá', 'mt'] },
+  { id: 'org-sjpa', acronym: 'SJPA', name: 'Seção Judiciária do Pará', uf: 'PA', aliases: ['sjpa', 'para', 'pará', 'belem', 'belém', 'pa'] },
+  { id: 'org-sjpi', acronym: 'SJPI', name: 'Seção Judiciária do Piauí', uf: 'PI', aliases: ['sjpi', 'piaui', 'piauí', 'teresina', 'pi'] },
+  { id: 'org-sjro', acronym: 'SJRO', name: 'Seção Judiciária de Rondônia', uf: 'RO', aliases: ['sjro', 'rondonia', 'rondônia', 'porto velho', 'ro'] },
+  { id: 'org-sjto', acronym: 'SJTO', name: 'Seção Judiciária do Tocantins', uf: 'TO', aliases: ['sjto', 'tocantins', 'palmas', 'to'] }
+];
+
+export function matchOrganization(rawText: string): typeof TRF1_REGIONAL_ORGANIZATIONS[0] | undefined {
+  if (!rawText) return undefined;
+  const clean = String(rawText).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  for (const org of TRF1_REGIONAL_ORGANIZATIONS) {
+    if (clean === org.acronym.toLowerCase() || clean === org.id) return org;
+    for (const alias of org.aliases) {
+      const cleanAlias = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (clean === cleanAlias || clean.includes(cleanAlias) || cleanAlias.includes(clean)) {
+        return org;
+      }
+    }
+  }
+  return undefined;
 }
 
 // Portuguese month names map to month number (1-12)
@@ -203,6 +248,9 @@ export function parseSpreadsheetBuffer(
     const sheetYearMatch = sheetName.match(/\b(202[0-9])\b/);
     const contextYear = sheetYearMatch ? parseInt(sheetYearMatch[1], 10) : undefined;
 
+    // Detect sheet organization (e.g. sheet named "TRF1", "SJRR", "SJBA", "Bahia", etc.)
+    const sheetOrg = matchOrganization(sheetName);
+
     // Locate header row (usually row 0 or within first 5 rows)
     let headerRowIdx = 0;
     for (let r = 0; r < Math.min(rawData.length, 6); r++) {
@@ -211,7 +259,8 @@ export function parseSpreadsheetBuffer(
         const textRow = row.map(c => String(c).toLowerCase().trim());
         if (
           textRow.some(c => c.includes('indicador') || c.includes('código') || c.includes('codigo') || c.includes('item')) ||
-          textRow.some(c => c.includes('mes') || c.includes('mês') || c.includes('jan') || c.includes('ano'))
+          textRow.some(c => c.includes('mes') || c.includes('mês') || c.includes('jan') || c.includes('ano')) ||
+          textRow.some(c => c.includes('secao') || c.includes('seção') || c.includes('orgao') || c.includes('órgão') || c.includes('tribunal'))
         ) {
           headerRowIdx = r;
           break;
@@ -243,7 +292,7 @@ export function parseSpreadsheetBuffer(
 
     const isWideMonthFormat = monthCols.length >= 4;
 
-    // Detect column indexes for Long format
+    // Detect column indexes for Long format & Organization
     const colAno = normalizedHeader.findIndex(h => h.includes('ano') || h.includes('exercicio') || h.includes('exercício'));
     const colMes = normalizedHeader.findIndex(h => (h.includes('mes') || h.includes('mês') || h.includes('compet')) && !h.includes('ano'));
     const colInd = normalizedHeader.findIndex(h => h.includes('codigo') || h.includes('código') || h.includes('indicador') || h.includes('item'));
@@ -252,6 +301,13 @@ export function parseSpreadsheetBuffer(
     const colUni = normalizedHeader.findIndex(h => h.includes('unidade') || h.includes('medida') || h.includes('und'));
     const colProc = normalizedHeader.findIndex(h => h.includes('processo') || h.includes('sei'));
     const colRef = normalizedHeader.findIndex(h => h.includes('referencia') || h.includes('referência') || h.includes('origem') || h.includes('fatura'));
+    const colOrg = normalizedHeader.findIndex(h =>
+      h.includes('orgao') || h.includes('órgão') ||
+      h.includes('secao') || h.includes('seção') ||
+      h.includes('tribunal') || h.includes('unidade') ||
+      h.includes('foro') || h.includes('sigla') ||
+      h === 'uf'
+    );
 
     // Check if this is a Multi-Year Annual Matrix: columns like "2021", "2022", "2023", "2024", "2025"
     const yearCols: { year: number; colIdx: number }[] = [];
@@ -270,6 +326,11 @@ export function parseSpreadsheetBuffer(
         continue;
       }
       totalRowsProcessed++;
+
+      // Detect per-row organization (or fallback to sheet organization)
+      const cellOrgStr = colOrg >= 0 ? String(row[colOrg] || '').trim() : '';
+      const rowOrg = cellOrgStr ? matchOrganization(cellOrgStr) : undefined;
+      const effectiveOrg = rowOrg || sheetOrg;
 
       // CASE 1: Wide format with Jan-Dez columns
       if (isWideMonthFormat) {
@@ -297,8 +358,11 @@ export function parseSpreadsheetBuffer(
               value: val,
               unit: matched.unit,
               processNumber: '0001245-88.2026.4.01.8012',
-              reference: `Planilha SJRR ${sheetName}`,
-              isAnnualConsolidation: false
+              reference: `Planilha ${effectiveOrg ? effectiveOrg.acronym + ' ' : ''}${sheetName}`,
+              isAnnualConsolidation: false,
+              organizationId: effectiveOrg?.id,
+              organizationAcronym: effectiveOrg?.acronym,
+              organizationName: effectiveOrg?.name
             });
           }
         });
@@ -318,7 +382,10 @@ export function parseSpreadsheetBuffer(
               value: totalVal,
               unit: matched.unit,
               reference: `Total Consolidado ${rowYear}`,
-              isAnnualConsolidation: true
+              isAnnualConsolidation: true,
+              organizationId: effectiveOrg?.id,
+              organizationAcronym: effectiveOrg?.acronym,
+              organizationName: effectiveOrg?.name
             });
           }
         }
@@ -346,7 +413,10 @@ export function parseSpreadsheetBuffer(
               value: val,
               unit: matched.unit,
               reference: `Consolidado Anual ${year}`,
-              isAnnualConsolidation: true
+              isAnnualConsolidation: true,
+              organizationId: effectiveOrg?.id,
+              organizationAcronym: effectiveOrg?.acronym,
+              organizationName: effectiveOrg?.name
             });
 
             // Also approximate monthly average distribution if no granular monthly data provided
@@ -361,7 +431,10 @@ export function parseSpreadsheetBuffer(
                 value: Math.round((val / 12) * 100) / 100,
                 unit: matched.unit,
                 reference: `Rateio Mensal Estimado ${year}`,
-                isAnnualConsolidation: false
+                isAnnualConsolidation: false,
+                organizationId: effectiveOrg?.id,
+                organizationAcronym: effectiveOrg?.acronym,
+                organizationName: effectiveOrg?.name
               });
             }
           }
@@ -414,7 +487,10 @@ export function parseSpreadsheetBuffer(
           unit,
           processNumber: process,
           reference: ref,
-          isAnnualConsolidation: isAnnual
+          isAnnualConsolidation: isAnnual,
+          organizationId: effectiveOrg?.id,
+          organizationAcronym: effectiveOrg?.acronym,
+          organizationName: effectiveOrg?.name
         };
 
         if (isAnnual) {
@@ -431,6 +507,25 @@ export function parseSpreadsheetBuffer(
   const detectedYears = Array.from(new Set(allRows.map(r => r.year))).sort((a, b) => a - b);
   const matchedIndicatorCodes = Array.from(new Set(allRows.map(r => r.indicatorCode))).sort();
 
+  // Aggregate detected organizations
+  const orgCounts = new Map<string, DetectedOrganizationSummary>();
+  allRows.forEach(r => {
+    if (r.organizationId && r.organizationAcronym) {
+      const existing = orgCounts.get(r.organizationId);
+      if (existing) {
+        existing.count++;
+      } else {
+        orgCounts.set(r.organizationId, {
+          id: r.organizationId,
+          acronym: r.organizationAcronym,
+          name: r.organizationName || r.organizationAcronym,
+          count: 1
+        });
+      }
+    }
+  });
+  const detectedOrganizations = Array.from(orgCounts.values()).sort((a, b) => b.count - a.count);
+
   if (allRows.length === 0) {
     warnings.push('Nenhum dado numérico de indicador foi identificado. Verifique se os cabeçalhos contêm colunas como "Indicador", "Ano", "Mês" e "Valor".');
   }
@@ -442,6 +537,7 @@ export function parseSpreadsheetBuffer(
     validMeasurements,
     annualConsolidations,
     detectedYears,
+    detectedOrganizations,
     matchedIndicatorCodes,
     unmatchedRowsCount,
     warnings
@@ -455,7 +551,7 @@ export function parseSpreadsheetBuffer(
 export function prepareMeasurementsForBatchPersistence(
   report: SpreadsheetParseReport,
   indicators: Indicator[],
-  organizationId: string = 'org-sjrr'
+  defaultOrganizationId: string = 'org-sjrr'
 ): IndicatorMeasurement[] {
   const result: IndicatorMeasurement[] = [];
   const now = new Date().toISOString();
@@ -464,10 +560,11 @@ export function prepareMeasurementsForBatchPersistence(
   report.validMeasurements.forEach((row, idx) => {
     if (!row.matchedIndicatorId || row.value === undefined || isNaN(row.value)) return;
     const m = Math.max(1, Math.min(12, row.month || 1));
+    const targetOrgId = row.organizationId || defaultOrganizationId;
     result.push({
       id: `m-imp-${row.year}-${m}-${row.matchedIndicatorId}-${Date.now()}-${idx}`,
       indicatorId: row.matchedIndicatorId,
-      organizationId,
+      organizationId: targetOrgId,
       year: row.year,
       month: m,
       value: row.value,
@@ -477,7 +574,7 @@ export function prepareMeasurementsForBatchPersistence(
       processNumber: row.processNumber || '0001245-88.2026.4.01.8012',
       validationStatus: 'VALIDADO',
       confidenceScore: 100,
-      notes: row.notes || `Importado de planilha (${row.year}/${m})`,
+      notes: row.notes || `Importado de planilha [${row.organizationAcronym || 'PLS'}] (${row.year}/${m})`,
       createdAt: now,
       updatedAt: now
     });
@@ -486,10 +583,13 @@ export function prepareMeasurementsForBatchPersistence(
   // 2. Process annual consolidations that do not have monthly records
   report.annualConsolidations.forEach((row, idx) => {
     if (!row.matchedIndicatorId || row.value === undefined || isNaN(row.value)) return;
+    const targetOrgId = row.organizationId || defaultOrganizationId;
 
-    // Check if validMeasurements already provided monthly records for this indicator & year
+    // Check if validMeasurements already provided monthly records for this indicator & year & org
     const hasMonthlyRecords = report.validMeasurements.some(
-      vm => vm.matchedIndicatorId === row.matchedIndicatorId && vm.year === row.year
+      vm => vm.matchedIndicatorId === row.matchedIndicatorId && 
+            vm.year === row.year && 
+            (vm.organizationId || defaultOrganizationId) === targetOrgId
     );
 
     if (hasMonthlyRecords) {
@@ -509,7 +609,7 @@ export function prepareMeasurementsForBatchPersistence(
       result.push({
         id: `m-imp-${row.year}-12-${row.matchedIndicatorId}-${Date.now()}-${idx}`,
         indicatorId: row.matchedIndicatorId,
-        organizationId,
+        organizationId: targetOrgId,
         year: row.year,
         month: 12,
         value: row.value,
@@ -519,7 +619,7 @@ export function prepareMeasurementsForBatchPersistence(
         processNumber: row.processNumber || '0001245-88.2026.4.01.8012',
         validationStatus: 'VALIDADO',
         confidenceScore: 100,
-        notes: row.notes || `Consolidado Anual Oficial (${row.year})`,
+        notes: row.notes || `Consolidado Anual Oficial [${row.organizationAcronym || 'PLS'}] (${row.year})`,
         createdAt: now,
         updatedAt: now
       });
@@ -540,7 +640,7 @@ export function prepareMeasurementsForBatchPersistence(
         result.push({
           id: `m-imp-${row.year}-${m}-${row.matchedIndicatorId}-${Date.now()}-${idx}`,
           indicatorId: row.matchedIndicatorId,
-          organizationId,
+          organizationId: targetOrgId,
           year: row.year,
           month: m,
           value: val,

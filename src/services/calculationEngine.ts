@@ -236,27 +236,31 @@ export function calculateIndicatorPerformance(
   const baselineValue = target?.baselineValue ?? indicator.baselineValue ?? 0;
   const targetValue = target?.targetValue ?? indicator.targetValue2026 ?? 0;
   const isAnnual = indicator.periodicity === 'ANUAL';
-  const monthlyAverage = !isAnnual && monthsReported > 0 ? accumulatedValue / monthsReported : accumulatedValue;
+  const monthlyAverage = !isAnnual && monthsReported > 0 ? accumulatedValue / monthsReported : (monthsReported > 0 ? accumulatedValue : 0);
 
   // Projection calculation: Extrapolate reported months to full 12 months for monthly indicators
-  // For annual indicators, the reported value is the annual consolidated value
-  const annualProjection = isAnnual
-    ? (monthsReported > 0 ? accumulatedValue : baselineValue)
-    : (monthsReported > 0 ? (accumulatedValue / monthsReported) * 12 : baselineValue);
+  // For years/indicators without measurements, keep projected value at 0 (zerado)
+  const annualProjection = monthsReported === 0
+    ? 0
+    : isAnnual
+      ? accumulatedValue
+      : (accumulatedValue / monthsReported) * 12;
 
-  // Distance to target
-  const distanceToTarget = annualProjection - targetValue;
+  // Distance to target (0 if no measurements exist yet)
+  const distanceToTarget = monthsReported > 0 ? annualProjection - targetValue : 0;
 
   // Required monthly run-rate for remaining months to hit the annual target
   const remainingMonths = isAnnual ? 0 : Math.max(0, 12 - monthsReported);
   const remainingTargetBudget = targetValue - accumulatedValue;
-  const requiredMonthlyRunRate = (!isAnnual && remainingMonths > 0)
+  const requiredMonthlyRunRate = (!isAnnual && remainingMonths > 0 && monthsReported > 0)
     ? remainingTargetBudget / remainingMonths
     : 0;
 
-  // Fulfillment calculation
-  let fulfillmentPercentage = 100;
-  if (targetValue > 0) {
+  // Fulfillment calculation: strictly 0 when no data has been reported yet
+  let fulfillmentPercentage = 0;
+  if (monthsReported === 0) {
+    fulfillmentPercentage = 0;
+  } else if (targetValue > 0) {
     if (indicator.targetDirection === 'MENOR_MELHOR') {
       // For reduction targets: if projection is lower than target, fulfillment > 100%
       // If projection is higher than target, fulfillment decreases

@@ -86,14 +86,25 @@ export function buildFiveYearHistoricalSeries(
   // Sort logically by indicator code
   targetIndicators.sort((a, b) => compareCodes(a.code, b.code));
 
+  // Compute the dynamic 5-year rolling comparative window ending in currentYear
+  const yearsWindow = [
+    currentYear - 4,
+    currentYear - 3,
+    currentYear - 2,
+    currentYear - 1,
+    currentYear
+  ];
+  const startWindowYear = yearsWindow[0];
+  const previousWindowYear = yearsWindow[3];
+
   const seriesList: FiveYearIndicatorSeries[] = [];
 
   targetIndicators.forEach(ind => {
-    const target2026 = targets.find(t => t.indicatorId === ind.id && t.year === currentYear);
+    const targetForCurrentYear = targets.find(t => t.indicatorId === ind.id && t.year === currentYear);
     const targetObj = targets.find(t => t.indicatorId === ind.id);
     const yearsData: Record<number, HistoricalYearData> = {};
 
-    HISTORICAL_YEARS.forEach(yr => {
+    yearsWindow.forEach(yr => {
       const yearMeasurements = measurements.filter(m => m.indicatorId === ind.id && m.year === yr);
       const targetForYear = targets.find(t => t.indicatorId === ind.id && t.year === yr);
       const monthsCount = yearMeasurements.length;
@@ -131,16 +142,16 @@ export function buildFiveYearHistoricalSeries(
       };
     });
 
-    const val2022 = yearsData[2022]?.total || 0;
-    const val2025 = yearsData[2025]?.total || 0;
-    const val2026 = yearsData[2026]?.total || 0;
+    const valStart = yearsData[startWindowYear]?.total || 0;
+    const valPrev = yearsData[previousWindowYear]?.total || 0;
+    const valCurrent = yearsData[currentYear]?.total || 0;
 
-    const fiveYearChangePct = val2022 > 0 
-      ? Number((((val2026 - val2022) / val2022) * 100).toFixed(1)) 
+    const fiveYearChangePct = valStart > 0 
+      ? Number((((valCurrent - valStart) / valStart) * 100).toFixed(1)) 
       : 0;
 
-    const yoyChangePct = val2025 > 0 
-      ? Number((((val2026 - val2025) / val2025) * 100).toFixed(1)) 
+    const yoyChangePct = valPrev > 0 
+      ? Number((((valCurrent - valPrev) / valPrev) * 100).toFixed(1)) 
       : 0;
 
     // Determine if change is improvement or deterioration
@@ -173,7 +184,7 @@ export function buildFiveYearHistoricalSeries(
       fiveYearChangePct,
       yoyChangePct,
       direction,
-      target2026: target2026?.targetValue,
+      target2026: targetForCurrentYear?.targetValue ?? ind.targetValue2026,
       baseline: targetObj ? { year: targetObj.baselineYear, value: targetObj.baselineValue } : undefined
     });
   });

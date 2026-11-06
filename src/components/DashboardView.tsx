@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -22,6 +22,7 @@ import {
   FileText,
   Printer,
   ChevronDown,
+  ChevronUp,
   SlidersHorizontal,
   ArrowUp,
   ArrowDown,
@@ -38,7 +39,18 @@ import {
   Package,
   Coffee,
   Trash2,
-  X
+  X,
+  Phone,
+  BookOpen,
+  Award,
+  ShieldCheck,
+  Plus,
+  Settings2,
+  Maximize2,
+  Minimize2,
+  Layers,
+  Copy,
+  Users
 } from 'lucide-react';
 import {
   Indicator,
@@ -58,6 +70,13 @@ import {
 } from './Charts';
 import { SexenniumBarComparisonCard } from './SexenniumBarComparisonCard';
 import { IndicatorSexenniumBarCard } from './IndicatorSexenniumBarCard';
+import { IDSThermometerCard } from './IDSThermometerCard';
+import {
+  hasGeneralVariablesForYear,
+  getLatestYearWithGeneralVariables,
+  getGeneralVariablesSummary
+} from '../utils/generalVariablesUtils';
+import { getPlsCycleForYear } from '../utils/yearUtils';
 
 interface DashboardViewProps {
   indicators: Indicator[];
@@ -74,9 +93,12 @@ interface DashboardViewProps {
   onOpenDocumentUpload: () => void;
   onOpenChatWithQuery: (q: string) => void;
   onSelectIndicator: (indicator: Indicator) => void;
+  onOpenReplicateModal?: () => void;
 }
 
+// Ordem padrão inicial de cards no Painel Executivo
 const DEFAULT_CARD_ORDER = [
+  'ids_clock',
   'energy',
   'water',
   'fuel',
@@ -85,13 +107,134 @@ const DEFAULT_CARD_ORDER = [
   'paper'
 ];
 
-const CARD_METADATA: Record<string, { title: string; category: string; icon: string }> = {
-  energy: { title: 'Consumo de Energia Elétrica (CEE)', category: 'Utilidades', icon: 'Zap' },
-  water: { title: 'Consumo de Água Potável (CA)', category: 'Utilidades', icon: 'Droplet' },
-  fuel: { title: 'Consumo de Combustível (CG)', category: 'Frota Oficial', icon: 'Fuel' },
-  mileage: { title: 'Quilômetros Rodados (Km)', category: 'Frota Oficial', icon: 'Navigation' },
-  efficiency: { title: 'Rendimento Médio da Frota (Km/L)', category: 'Eficiência', icon: 'Fuel' },
-  paper: { title: 'Consumo de Papel A4 (CPP)', category: 'Desmaterialização', icon: 'FileText' }
+// Metadados dos Cards Curados do Painel Executivo
+const CURATED_CARD_METADATA: Record<string, { title: string; category: string; icon: string; code?: string; unit?: string }> = {
+  ids_clock: {
+    title: 'Relógio & Termômetro do IDS (Resolução CNJ nº 400/2021)',
+    category: 'Governança & IDS',
+    icon: 'Gauge',
+    code: 'CNJ-IDS',
+    unit: '%'
+  },
+  energy: {
+    title: 'Consumo de Energia Elétrica (CEE)',
+    category: 'Utilidades',
+    icon: 'Zap',
+    code: '6.1',
+    unit: 'kWh'
+  },
+  water: {
+    title: 'Consumo de Água Potável (CA)',
+    category: 'Utilidades',
+    icon: 'Droplet',
+    code: '7.1',
+    unit: 'm³'
+  },
+  fuel: {
+    title: 'Consumo de Combustível da Frota (CG)',
+    category: 'Frota Oficial',
+    icon: 'Fuel',
+    code: '14.1',
+    unit: 'litros'
+  },
+  mileage: {
+    title: 'Quilômetros Rodados da Frota (Km)',
+    category: 'Frota Oficial',
+    icon: 'Navigation',
+    code: '13.1',
+    unit: 'km'
+  },
+  efficiency: {
+    title: 'Rendimento Médio da Frota (Km/L)',
+    category: 'Frota Oficial',
+    icon: 'Fuel',
+    code: 'EFIC',
+    unit: 'km/l'
+  },
+  paper: {
+    title: 'Consumo de Papel A4 Próprio (CPP)',
+    category: 'Desmaterialização',
+    icon: 'FileText',
+    code: '2.1',
+    unit: 'resmas'
+  },
+  cups: {
+    title: 'Copos Plásticos Descartáveis (CD)',
+    category: 'Plásticos & Resíduos',
+    icon: 'GlassWater',
+    code: '3.1',
+    unit: 'centenas'
+  },
+  bottles: {
+    title: 'Garrafas Plásticas Descartáveis de Água (GDA)',
+    category: 'Plásticos & Resíduos',
+    icon: 'Package',
+    code: '4.1',
+    unit: 'garrafas'
+  },
+  printing: {
+    title: 'Impressão de Documentos Físicos (QI)',
+    category: 'Desmaterialização',
+    icon: 'Printer',
+    code: '5.1',
+    unit: 'páginas'
+  },
+  telephony: {
+    title: 'Gastos com Telefonia e Comunicações (GTF)',
+    category: 'Utilidades',
+    icon: 'Phone',
+    code: '12.1',
+    unit: 'R$'
+  },
+  waste_recycled: {
+    title: 'Destinação de Resíduos Recicláveis (TMR)',
+    category: 'Gestão de Resíduos',
+    icon: 'Trash2',
+    code: '8.2',
+    unit: 'kg'
+  },
+  clean_energy: {
+    title: 'Geração de Energia Solar Fotovoltaica',
+    category: 'Energia Limpa',
+    icon: 'Sparkles',
+    code: '6.2',
+    unit: 'kWh'
+  },
+  gender_equity: {
+    title: 'Servidoras em Cargos de Direção e Chefia (PSERVCF)',
+    category: 'Gestão de Pessoas',
+    icon: 'Award',
+    code: '17.1',
+    unit: '%'
+  },
+  training: {
+    title: 'Ações de Capacitação em Sustentabilidade (CAP)',
+    category: 'Educação Ambiental',
+    icon: 'BookOpen',
+    code: '16.1',
+    unit: 'ações'
+  },
+  contracts: {
+    title: 'Contratações com Critérios de Sustentabilidade',
+    category: 'Compras Públicas',
+    icon: 'ShieldCheck',
+    code: '15.1',
+    unit: '%'
+  },
+  sexennium: {
+    title: 'Evolução Quinquenal do Sexênio (2021 a 2026)',
+    category: 'Visão Geral',
+    icon: 'BarChart3',
+    code: 'SEXENNIUM',
+    unit: 'painel'
+  },
+  isp: {
+    title: 'Índice de Sustentabilidade Geral (ISP CNJ 400)',
+    category: 'Governança',
+    icon: 'Gauge',
+    code: 'ISP',
+    unit: '%'
+  }
 };
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -108,12 +251,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenSpreadsheetImport,
   onOpenDocumentUpload,
   onOpenChatWithQuery,
-  onSelectIndicator
+  onSelectIndicator,
+  onOpenReplicateModal
 }) => {
   const [selectedThemeFilter, setSelectedThemeFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTabSection, setActiveTabSection] = useState<'CONSUMO_MENSAL' | 'SEXENNIUM' | 'ISP' | 'TRAJETORIA' | 'TODOS'>('CONSUMO_MENSAL');
-  const [sexenniumGalleryCategory, setSexenniumGalleryCategory] = useState<'ALL' | 'MATERIAIS' | 'UTILIDADES' | 'FROTA'>('ALL');
+
+  // Monitorar se o ano selecionado possui dados e variáveis gerais
+  const hasGeneralVarsInCurrentYear = useMemo(() => {
+    return hasGeneralVariablesForYear(measurements, selectedYear);
+  }, [measurements, selectedYear]);
+
+  const latestPrevYearWithData = useMemo(() => {
+    return getLatestYearWithGeneralVariables(measurements, selectedYear);
+  }, [measurements, selectedYear]);
+
+  const currentYearSummary = useMemo(() => {
+    return getGeneralVariablesSummary(measurements, selectedYear);
+  }, [measurements, selectedYear]);
+
+  const activeCycleInfo = useMemo(() => {
+    return getPlsCycleForYear(selectedYear);
+  }, [selectedYear]);
+
+  const isYearEmpty = useMemo(() => {
+    return !measurements.some(m => m.year === selectedYear && m.value !== undefined && m.value > 0);
+  }, [measurements, selectedYear]);
+
+  const showGeneralVariablesBanner = selectedYear > 2026 || isYearEmpty || !hasGeneralVarsInCurrentYear;
+
+  // Controle de exibição do Hero Relógio do IDS
+  const [isHeroIdsExpanded, setIsHeroIdsExpanded] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sispls_hero_ids_expanded');
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return true;
+  });
 
   // Card Reordering & Organization State (Persisted in localStorage)
   const [cardOrder, setCardOrder] = useState<string[]>(() => {
@@ -122,8 +297,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed.filter(id => id !== 'sexennium' && id !== 'isp');
-          if (filtered.length > 0) return filtered;
+          return parsed;
         }
       }
     } catch (e) {}
@@ -150,8 +324,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return '2_COL';
   });
 
+  // Modal de Personalização dos Cards
   const [isReorderModalOpen, setIsReorderModalOpen] = useState<boolean>(false);
+  const [modalActiveTab, setModalActiveTab] = useState<'ACTIVE' | 'CATALOG'>('ACTIVE');
+  const [catalogSearch, setCatalogSearch] = useState<string>('');
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState<string>('ALL');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+
+  const toggleHeroIdsExpanded = () => {
+    setIsHeroIdsExpanded(prev => {
+      const updated = !prev;
+      try {
+        localStorage.setItem('sispls_hero_ids_expanded', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
 
   const toggleLayoutColumns = (cols: '2_COL' | '1_COL') => {
     setLayoutColumns(cols);
@@ -163,6 +351,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const toggleCardVisibility = (id: string) => {
     setHiddenCards(prev => {
       const updated = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id];
+      try {
+        localStorage.setItem('sispls_dashboard_hidden_cards', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const addCardToPanel = (id: string) => {
+    setCardOrder(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try {
+        localStorage.setItem('sispls_dashboard_card_order', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    // Remove dos ocultos se estava oculto
+    setHiddenCards(prev => {
+      const updated = prev.filter(c => c !== id);
+      try {
+        localStorage.setItem('sispls_dashboard_hidden_cards', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const removeCardFromPanel = (id: string) => {
+    setCardOrder(prev => {
+      const updated = prev.filter(c => c !== id);
+      try {
+        localStorage.setItem('sispls_dashboard_card_order', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    setHiddenCards(prev => {
+      const updated = prev.filter(c => c !== id);
       try {
         localStorage.setItem('sispls_dashboard_hidden_cards', JSON.stringify(updated));
       } catch (e) {}
@@ -202,7 +426,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setDraggedCardId(null);
   };
 
-  // Reordering functions
   const moveCard = (id: string, dir: 'up' | 'down') => {
     setCardOrder(prev => {
       const idx = prev.indexOf(id);
@@ -242,14 +465,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
   };
 
-  const applyPreset = (preset: 'DEFAULT' | 'FLEET_FIRST' | 'ENERGY_FIRST' | 'METAS_FIRST') => {
+  const applyPreset = (preset: 'DEFAULT' | 'FLEET_FIRST' | 'ENERGY_FIRST' | 'METAS_FIRST' | 'RESIDUOS_FIRST' | 'GOV_FIRST' | 'ALL_KEY') => {
     let newOrder = [...DEFAULT_CARD_ORDER];
     if (preset === 'FLEET_FIRST') {
-      newOrder = ['fuel', 'mileage', 'efficiency', 'energy', 'water', 'paper'];
+      newOrder = ['ids_clock', 'fuel', 'mileage', 'efficiency', 'energy', 'water', 'paper'];
     } else if (preset === 'ENERGY_FIRST') {
-      newOrder = ['energy', 'water', 'paper', 'fuel', 'mileage', 'efficiency'];
-    } else if (preset === 'METAS_FIRST') {
-      newOrder = ['energy', 'water', 'fuel', 'mileage', 'paper', 'efficiency'];
+      newOrder = ['ids_clock', 'energy', 'clean_energy', 'water', 'paper', 'fuel'];
+    } else if (preset === 'RESIDUOS_FIRST') {
+      newOrder = ['paper', 'cups', 'bottles', 'printing', 'waste_recycled', 'ids_clock'];
+    } else if (preset === 'GOV_FIRST') {
+      newOrder = ['ids_clock', 'isp', 'gender_equity', 'training', 'contracts'];
+    } else if (preset === 'ALL_KEY') {
+      newOrder = ['ids_clock', 'energy', 'water', 'fuel', 'mileage', 'efficiency', 'paper', 'cups', 'bottles', 'printing', 'waste_recycled', 'clean_energy', 'gender_equity', 'training'];
     }
     setCardOrder(newOrder);
     setHiddenCards([]);
@@ -270,78 +497,126 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const visibleCards = cardOrder.filter(id => !hiddenCards.includes(id));
 
+  // Função para resolver os metadados de qualquer card (curado ou qualquer indicador por ID)
+  const getCardMeta = (id: string) => {
+    if (CURATED_CARD_METADATA[id]) {
+      return CURATED_CARD_METADATA[id];
+    }
+    const ind = indicators.find(i => i.id === id);
+    if (ind) {
+      const theme = themes.find(t => t.id === ind.themeId);
+      return {
+        title: `${ind.name} (${ind.code})`,
+        category: theme ? theme.name : 'Indicador Oficial PLS',
+        icon: 'BarChart3',
+        code: ind.code,
+        unit: ind.unit
+      };
+    }
+    return {
+      title: id,
+      category: 'Indicador Geral',
+      icon: 'BarChart3'
+    };
+  };
+
+  // Dynamic current and previous year based on selectedYear (Cycle 2021-2026)
+  const currYear = selectedYear;
+  const prevYear = selectedYear > 2021 ? selectedYear - 1 : 2021;
+
   // Key KPI Counts
   const totalMonitored = performances.length;
   const inCompliance = performances.filter(p => p.result.status === 'EM_CONFORMIDADE' || p.result.status === 'META_ATINGIDA').length;
   const inAttention = performances.filter(p => p.result.status === 'ATENCAO').length;
   const inRisk = performances.filter(p => p.result.status === 'RISCO').length;
 
-  // Active critical alerts (filtered for the currently selected year)
   const activeAlerts = alerts.filter(a => !a.resolved && a.year === selectedYear);
   const [isAlertDismissed, setIsAlertDismissed] = useState<boolean>(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState<boolean>(false);
 
-  // Dynamic current and previous year based on selectedYear (Cycle 2021-2026)
-  const currYear = selectedYear;
-  const prevYear = selectedYear > 2021 ? selectedYear - 1 : 2021;
-
-  // Helper to extract monthly data for current and comparison year
+  // Helper universal to extract monthly data for current and comparison year
   const getSeries = (indicatorId: string) => {
     const dataPrev = Array(12).fill(null);
     const dataCurr = Array(12).fill(null);
 
+    // Mapeamento de apelidos comuns
+    const matchId = (mIndicatorId: string) => {
+      if (mIndicatorId === indicatorId) return true;
+      if (indicatorId === 'indicator-6-1' && mIndicatorId === 'ind-energia-kwh') return true;
+      if (indicatorId === 'indicator-7-1' && mIndicatorId === 'ind-agua-m3') return true;
+      if (indicatorId === 'indicator-2-1' && mIndicatorId === 'ind-papel-resmas') return true;
+      if (indicatorId === 'indicator-3-1' && mIndicatorId === 'ind-copos-centenas') return true;
+      if (indicatorId === 'indicator-4-1' && mIndicatorId === 'ind-garrafas-descartaveis') return true;
+      if (indicatorId === 'indicator-5-1' && mIndicatorId === 'ind-impressao-paginas') return true;
+      if (indicatorId === 'indicator-8-1' && (mIndicatorId === 'ind-residuos-kg' || mIndicatorId === 'ind-residuos-reciclaveis')) return true;
+      if (indicatorId === 'indicator-12-1' && mIndicatorId === 'ind-telefonia-reais') return true;
+      if (indicatorId === 'indicator-14-1' && mIndicatorId === 'ind-combustivel-litros') return true;
+      if (indicatorId === 'indicator-13-1' && mIndicatorId === 'ind-frota-km') return true;
+      return false;
+    };
+
     measurements
-      .filter(m => (m.indicatorId === indicatorId || 
-                   (indicatorId === 'indicator-6-1' && m.indicatorId === 'ind-energia-kwh') ||
-                   (indicatorId === 'indicator-7-1' && m.indicatorId === 'ind-agua-m3') ||
-                   (indicatorId === 'indicator-2-1' && m.indicatorId === 'ind-papel-resmas') ||
-                   (indicatorId === 'indicator-12-1' && m.indicatorId === 'ind-telefonia-reais') ||
-                   (indicatorId === 'indicator-14-1' && m.indicatorId === 'ind-combustivel-litros') ||
-                   (indicatorId === 'indicator-13-1' && m.indicatorId === 'ind-frota-km')) && m.year === prevYear)
+      .filter(m => matchId(m.indicatorId) && m.year === prevYear)
       .forEach(m => {
-        dataPrev[m.month - 1] = m.value;
+        if (m.month >= 1 && m.month <= 12) {
+          dataPrev[m.month - 1] = m.value;
+        }
       });
 
     measurements
-      .filter(m => (m.indicatorId === indicatorId || 
-                   (indicatorId === 'indicator-6-1' && m.indicatorId === 'ind-energia-kwh') ||
-                   (indicatorId === 'indicator-7-1' && m.indicatorId === 'ind-agua-m3') ||
-                   (indicatorId === 'indicator-2-1' && m.indicatorId === 'ind-papel-resmas') ||
-                   (indicatorId === 'indicator-12-1' && m.indicatorId === 'ind-telefonia-reais') ||
-                   (indicatorId === 'indicator-14-1' && m.indicatorId === 'ind-combustivel-litros') ||
-                   (indicatorId === 'indicator-13-1' && m.indicatorId === 'ind-frota-km')) && m.year === currYear)
+      .filter(m => matchId(m.indicatorId) && m.year === currYear)
       .forEach(m => {
-        dataCurr[m.month - 1] = m.value;
+        if (m.month >= 1 && m.month <= 12) {
+          dataCurr[m.month - 1] = m.value;
+        }
       });
 
     return {
       dataPrev,
       dataCurr,
-      data2025: dataPrev, // alias for backwards compatibility
+      data2025: dataPrev,
       data2026: dataCurr
     };
   };
 
-  // Series
+  // Series dos principais eixos
   const energySeries = getSeries('indicator-6-1');
   const fuelSeries = getSeries('indicator-14-1');
   const mileageSeries = getSeries('indicator-13-1');
   const waterSeries = getSeries('indicator-7-1');
   const paperSeries = getSeries('indicator-2-1');
+  const cupsSeries = getSeries('indicator-3-1');
+  const bottlesSeries = getSeries('indicator-4-1');
+  const printSeries = getSeries('indicator-5-1');
+  const telephonySeries = getSeries('indicator-12-1');
+  const wasteSeries = getSeries('indicator-8-1');
+  const cleanEnergySeries = getSeries('indicator-6-2');
+  const genderSeries = getSeries('indicator-17-1');
+  const trainingSeries = getSeries('indicator-16-1');
+  const contractsSeries = getSeries('indicator-15-1');
 
-  // Targets with historical annual progression towards 2026 CNJ goals
+  // Metas anuais com progressão histórica
   const annualTargetByYear: Record<string, Record<number, number>> = {
     'indicator-6-1': { 2021: 246500, 2022: 234200, 2023: 219800, 2024: 208400, 2025: 198200, 2026: 174000 },
     'indicator-14-1': { 2021: 10450, 2022: 9800, 2023: 9250, 2024: 8640, 2025: 8210, 2026: 8160 },
     'indicator-13-1': { 2021: 88200, 2022: 82500, 2023: 78900, 2024: 74200, 2025: 71500, 2026: 68000 },
     'indicator-7-1': { 2021: 2480, 2022: 2360, 2023: 2210, 2024: 2095, 2025: 1980, 2026: 2160 },
-    'indicator-2-1': { 2021: 740, 2022: 660, 2023: 590, 2024: 535, 2025: 485, 2026: 600 }
+    'indicator-2-1': { 2021: 740, 2022: 660, 2023: 590, 2024: 535, 2025: 485, 2026: 600 },
+    'indicator-3-1': { 2021: 50, 2022: 20, 2023: 10, 2024: 0, 2025: 0, 2026: 0 },
+    'indicator-4-1': { 2021: 1200, 2022: 600, 2023: 200, 2024: 0, 2025: 0, 2026: 0 },
+    'indicator-5-1': { 2021: 320000, 2022: 290000, 2023: 260000, 2024: 240000, 2025: 225000, 2026: 216000 },
+    'indicator-12-1': { 2021: 42000, 2022: 38000, 2023: 35000, 2024: 32000, 2025: 29000, 2026: 26000 },
+    'indicator-8-1': { 2021: 3200, 2022: 3600, 2023: 4000, 2024: 4300, 2025: 4500, 2026: 4800 },
+    'indicator-6-2': { 2021: 0, 2022: 5000, 2023: 12000, 2024: 18000, 2025: 24000, 2026: 30000 },
+    'indicator-17-1': { 2021: 40, 2022: 42, 2023: 45, 2024: 48, 2025: 50, 2026: 50 },
+    'indicator-16-1': { 2021: 4, 2022: 6, 2023: 8, 2024: 10, 2025: 12, 2026: 12 },
+    'indicator-15-1': { 2021: 50, 2022: 60, 2023: 70, 2024: 80, 2025: 85, 2026: 90 }
   };
 
   const getTargetForIndicator = (indicatorId: string, year: number, fallback: number) => {
     const fromProps = targets.find(t => t.indicatorId === indicatorId && t.year === year)?.targetValue;
-    if (fromProps) return fromProps;
-    return annualTargetByYear[indicatorId]?.[year] || fallback;
+    if (fromProps !== undefined) return fromProps;
+    return annualTargetByYear[indicatorId]?.[year] ?? fallback;
   };
 
   const energyTarget = getTargetForIndicator('indicator-6-1', selectedYear, 174000);
@@ -349,14 +624,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const mileageTarget = getTargetForIndicator('indicator-13-1', selectedYear, 68000);
   const waterTarget = getTargetForIndicator('indicator-7-1', selectedYear, 2160);
   const paperTarget = getTargetForIndicator('indicator-2-1', selectedYear, 600);
+  const cupsTarget = getTargetForIndicator('indicator-3-1', selectedYear, 0);
+  const bottlesTarget = getTargetForIndicator('indicator-4-1', selectedYear, 0);
+  const printTarget = getTargetForIndicator('indicator-5-1', selectedYear, 216000);
+  const telephonyTarget = getTargetForIndicator('indicator-12-1', selectedYear, 26000);
+  const wasteTarget = getTargetForIndicator('indicator-8-1', selectedYear, 4800);
+  const cleanEnergyTarget = getTargetForIndicator('indicator-6-2', selectedYear, 30000);
+  const genderTarget = getTargetForIndicator('indicator-17-1', selectedYear, 50);
+  const trainingTarget = getTargetForIndicator('indicator-16-1', selectedYear, 12);
+  const contractsTarget = getTargetForIndicator('indicator-15-1', selectedYear, 90);
 
-  const energyMonthlyTarget = Math.round(energyTarget / 12);
-  const fuelMonthlyTarget = Math.round(fuelTarget / 12);
-  const mileageMonthlyTarget = Math.round(mileageTarget / 12);
-  const waterMonthlyTarget = Math.round(waterTarget / 12);
-  const paperMonthlyTarget = Math.round(paperTarget / 12);
-
-  // Comparison period sums (Jan-Ago if 2026, or Jan-Dez if completed year)
   const maxEvalMonth = currYear === 2026 ? 8 : 12;
   const sumEvalPeriod = (series: (number | null)[]) =>
     series.slice(0, maxEvalMonth).filter((v): v is number => v !== null).reduce((a, b) => a + b, 0);
@@ -373,7 +650,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const km25 = sumEvalPeriod(mileageSeries.dataPrev);
   const kmDelta = km25 > 0 ? ((km26 - km25) / km25) * 100 : 0;
 
-  // Sustainability Index Dimensions
   const ispDimensions = [
     { name: 'Energia Elétrica (CEE / CRE)', score: 79, weight: 20, status: 'ATENCAO' as const },
     { name: 'Água e Efluentes (CA / CRA)', score: 95, weight: 15, status: 'EXCELENTE' as const },
@@ -389,59 +665,90 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
   const previousYearIsp = 81.2;
 
-  // Filtered indicators for the bottom table
-  const filteredPerformances = performances.filter(item => {
-    if (selectedThemeFilter !== 'ALL' && item.indicator.themeId !== selectedThemeFilter) {
-      return false;
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        item.indicator.name.toLowerCase().includes(q) ||
-        item.indicator.code.toLowerCase().includes(q) ||
-        (item.indicator.acronym && item.indicator.acronym.toLowerCase().includes(q)) ||
-        (item.indicator.cnjIndicatorCode && item.indicator.cnjIndicatorCode.toLowerCase().includes(q))
-      );
-    }
-    return true;
-  });
+  // Filtragem de indicadores para o catálogo da modal
+  const allAvailableCardsForCatalog = useMemo(() => {
+    // 1. Cards curados
+    const curatedList = Object.entries(CURATED_CARD_METADATA).map(([id, meta]) => ({
+      id,
+      title: meta.title,
+      code: meta.code || 'SYS',
+      category: meta.category,
+      unit: meta.unit || '',
+      isCurated: true
+    }));
 
-  // Helper to extract 6-year bar series (2021-2026) for each indicator
-  const getSexenniumBarsForIndicator = (indicatorId: string, aliases: string[] = [], defaultTarget?: number) => {
-    return [2021, 2022, 2023, 2024, 2025, 2026].map(y => {
-      const yearMeas = measurements.filter(m => (m.indicatorId === indicatorId || aliases.includes(m.indicatorId)) && m.year === y);
-      const validMonthly = yearMeas.filter(m => m.month >= 1 && m.month <= 12 && m.value !== null && m.value !== undefined);
-      const reported = validMonthly.length;
-      const sumVal = validMonthly.reduce((acc, curr) => acc + curr.value, 0);
-
-      let val = sumVal;
-      const isPartial = y === 2026 && reported > 0 && reported < 12;
-      if (isPartial) {
-        val = Math.round((sumVal / reported) * 12);
-      }
+    // 2. Todos os indicadores monitorados
+    const dynamicList = indicators.map(ind => {
+      const theme = themes.find(t => t.id === ind.themeId);
       return {
-        year: y,
-        value: val,
-        isPartial,
-        target: defaultTarget
+        id: ind.id,
+        title: ind.name,
+        code: ind.code,
+        category: theme ? theme.name : 'Indicador Oficial',
+        unit: ind.unit,
+        isCurated: false
       };
     });
-  };
 
-  const paperBars = getSexenniumBarsForIndicator('indicator-2-1', ['ind-papel-resmas', '2.1', 'CPP'], 600);
-  const waterBars = getSexenniumBarsForIndicator('indicator-7-1', ['ind-agua-m3', '7.1', 'CA'], 2160);
-  const cupsBars = getSexenniumBarsForIndicator('indicator-3-1', ['ind-copos-centenas', '3.1', 'CD'], 0);
-  const bottlesBars = getSexenniumBarsForIndicator('indicator-4-1', ['ind-garrafas-descartaveis', '4.1', 'GDA'], 0);
-  const carboysBars = getSexenniumBarsForIndicator('indicator-4-2', ['ind-garrafoes-20l', '4.2', 'GAR'], 1800);
-  const printBars = getSexenniumBarsForIndicator('indicator-5-1', ['ind-impressao-paginas', '5.1', 'QI'], 216000);
-  const energyBars = getSexenniumBarsForIndicator('indicator-6-1', ['ind-energia-kwh', '6.1', 'CEE'], 174000);
-  const fuelBars = getSexenniumBarsForIndicator('indicator-14-1', ['ind-combustivel-litros', '14.1', 'CG'], 8160);
-  const mileageBars = getSexenniumBarsForIndicator('indicator-13-1', ['ind-frota-km', '13.1'], 68000);
-  const recycleBars = getSexenniumBarsForIndicator('indicator-8-1', ['ind-residuos-kg', '8.1', '8.6', 'TMR'], 4560);
+    // Combinar evitando duplicação de IDs
+    const seen = new Set<string>();
+    const combined: Array<{ id: string; title: string; code: string; category: string; unit: string; isCurated: boolean }> = [];
 
-  // Render individual card by ID
+    curatedList.forEach(item => {
+      seen.add(item.id);
+      combined.push(item);
+    });
+
+    dynamicList.forEach(item => {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        combined.push(item);
+      }
+    });
+
+    return combined;
+  }, [indicators, themes]);
+
+  const filteredCatalogCards = useMemo(() => {
+    return allAvailableCardsForCatalog.filter(card => {
+      if (catalogCategoryFilter !== 'ALL' && !card.category.toLowerCase().includes(catalogCategoryFilter.toLowerCase())) {
+        return false;
+      }
+      if (catalogSearch.trim()) {
+        const q = catalogSearch.toLowerCase();
+        return (
+          card.title.toLowerCase().includes(q) ||
+          card.code.toLowerCase().includes(q) ||
+          card.category.toLowerCase().includes(q) ||
+          card.id.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [allAvailableCardsForCatalog, catalogCategoryFilter, catalogSearch]);
+
+  // Render individual card by ID (Curated or Dynamic from any Indicator)
   const renderCardById = (cardId: string) => {
+    const cardIndex = visibleCards.indexOf(cardId);
+    const cardNumber = cardIndex !== -1 ? cardIndex + 1 : undefined;
+    const totalCards = visibleCards.length;
+    const isFirst = cardIndex === 0;
+    const isLast = cardIndex === totalCards - 1;
+
     switch (cardId) {
+      case 'ids_clock':
+        return (
+          <div key="ids_clock" className={layoutColumns === '2_COL' ? 'lg:col-span-2' : ''}>
+            <IDSThermometerCard
+              measurements={measurements}
+              currentYear={selectedYear}
+              onYearSelect={setSelectedYear}
+              initialViewMode="CLOCK"
+              defaultExpanded={false}
+            />
+          </div>
+        );
+
       case 'energy':
         return (
           <MonthlyConsumptionLineChart
@@ -453,11 +760,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             data2026={energySeries.dataCurr}
             currentYear={currYear}
             previousYear={prevYear}
-            monthlyTarget={energyMonthlyTarget}
+            monthlyTarget={Math.round(energyTarget / 12)}
             annualTarget={energyTarget}
             icon={<Zap className="w-5 h-5 text-amber-600" />}
             primaryColor="amber"
             invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
           />
         );
 
@@ -472,11 +787,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             data2026={waterSeries.dataCurr}
             currentYear={currYear}
             previousYear={prevYear}
-            monthlyTarget={waterMonthlyTarget}
+            monthlyTarget={Math.round(waterTarget / 12)}
             annualTarget={waterTarget}
             icon={<Droplet className="w-5 h-5 text-cyan-600" />}
             primaryColor="cyan"
             invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
           />
         );
 
@@ -491,11 +814,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             data2026={fuelSeries.dataCurr}
             currentYear={currYear}
             previousYear={prevYear}
-            monthlyTarget={fuelMonthlyTarget}
+            monthlyTarget={Math.round(fuelTarget / 12)}
             annualTarget={fuelTarget}
             icon={<Fuel className="w-5 h-5 text-orange-600" />}
             primaryColor="orange"
             invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
           />
         );
 
@@ -510,11 +841,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             data2026={mileageSeries.dataCurr}
             currentYear={currYear}
             previousYear={prevYear}
-            monthlyTarget={mileageMonthlyTarget}
+            monthlyTarget={Math.round(mileageTarget / 12)}
             annualTarget={mileageTarget}
             icon={<Navigation className="w-5 h-5 text-blue-600" />}
             primaryColor="blue"
             invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
           />
         );
 
@@ -542,11 +881,262 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             data2026={paperSeries.dataCurr}
             currentYear={currYear}
             previousYear={prevYear}
-            monthlyTarget={paperMonthlyTarget}
+            monthlyTarget={Math.round(paperTarget / 12)}
             annualTarget={paperTarget}
             icon={<FileText className="w-5 h-5 text-emerald-600" />}
             primaryColor="emerald"
             invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'cups':
+        return (
+          <MonthlyConsumptionLineChart
+            key="cups"
+            title="Consumo de Copos Descartáveis Mês a Mês (CD)"
+            code="3.1"
+            unit="centenas"
+            data2025={cupsSeries.dataPrev}
+            data2026={cupsSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={cupsTarget > 0 ? Math.round(cupsTarget / 12) : 0}
+            annualTarget={cupsTarget}
+            icon={<GlassWater className="w-5 h-5 text-teal-600" />}
+            primaryColor="cyan"
+            invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'bottles':
+        return (
+          <MonthlyConsumptionLineChart
+            key="bottles"
+            title="Garrafas Plásticas Descartáveis Mês a Mês (GDA)"
+            code="4.1"
+            unit="garrafas"
+            data2025={bottlesSeries.dataPrev}
+            data2026={bottlesSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={bottlesTarget > 0 ? Math.round(bottlesTarget / 12) : 0}
+            annualTarget={bottlesTarget}
+            icon={<Package className="w-5 h-5 text-teal-600" />}
+            primaryColor="cyan"
+            invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'printing':
+        return (
+          <MonthlyConsumptionLineChart
+            key="printing"
+            title="Impressão de Documentos Físicos Mês a Mês (QI)"
+            code="5.1"
+            unit="páginas"
+            data2025={printSeries.dataPrev}
+            data2026={printSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={Math.round(printTarget / 12)}
+            annualTarget={printTarget}
+            icon={<Printer className="w-5 h-5 text-blue-600" />}
+            primaryColor="blue"
+            invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'telephony':
+        return (
+          <MonthlyConsumptionLineChart
+            key="telephony"
+            title="Gastos com Telefonia e Telecomunicações Mês a Mês (GTF)"
+            code="12.1"
+            unit="R$"
+            data2025={telephonySeries.dataPrev}
+            data2026={telephonySeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={Math.round(telephonyTarget / 12)}
+            annualTarget={telephonyTarget}
+            icon={<Phone className="w-5 h-5 text-amber-600" />}
+            primaryColor="amber"
+            invertGoodDirection={true}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'waste_recycled':
+        return (
+          <MonthlyConsumptionLineChart
+            key="waste_recycled"
+            title="Destinação de Resíduos Recicláveis Mês a Mês (TMR)"
+            code="8.2"
+            unit="kg"
+            data2025={wasteSeries.dataPrev}
+            data2026={wasteSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={Math.round(wasteTarget / 12)}
+            annualTarget={wasteTarget}
+            icon={<Trash2 className="w-5 h-5 text-emerald-600" />}
+            primaryColor="emerald"
+            invertGoodDirection={false}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'clean_energy':
+        return (
+          <MonthlyConsumptionLineChart
+            key="clean_energy"
+            title="Geração de Energia Solar Fotovoltaica Mês a Mês"
+            code="6.2"
+            unit="kWh"
+            data2025={cleanEnergySeries.dataPrev}
+            data2026={cleanEnergySeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={Math.round(cleanEnergyTarget / 12)}
+            annualTarget={cleanEnergyTarget}
+            icon={<Sparkles className="w-5 h-5 text-emerald-600" />}
+            primaryColor="emerald"
+            invertGoodDirection={false}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'gender_equity':
+        return (
+          <MonthlyConsumptionLineChart
+            key="gender_equity"
+            title="Servidoras em Cargos de Direção e Chefia (PSERVCF)"
+            code="17.1"
+            unit="%"
+            data2025={genderSeries.dataPrev}
+            data2026={genderSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={genderTarget}
+            annualTarget={genderTarget}
+            icon={<Award className="w-5 h-5 text-purple-600" />}
+            primaryColor="purple"
+            invertGoodDirection={false}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'training':
+        return (
+          <MonthlyConsumptionLineChart
+            key="training"
+            title="Ações de Capacitação em Sustentabilidade (CAP)"
+            code="16.1"
+            unit="ações"
+            data2025={trainingSeries.dataPrev}
+            data2026={trainingSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={trainingTarget > 0 ? Math.round(trainingTarget / 12) : 1}
+            annualTarget={trainingTarget}
+            icon={<BookOpen className="w-5 h-5 text-emerald-600" />}
+            primaryColor="emerald"
+            invertGoodDirection={false}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
+          />
+        );
+
+      case 'contracts':
+        return (
+          <MonthlyConsumptionLineChart
+            key="contracts"
+            title="Contratações com Critérios de Sustentabilidade"
+            code="15.1"
+            unit="%"
+            data2025={contractsSeries.dataPrev}
+            data2026={contractsSeries.dataCurr}
+            currentYear={currYear}
+            previousYear={prevYear}
+            monthlyTarget={contractsTarget}
+            annualTarget={contractsTarget}
+            icon={<ShieldCheck className="w-5 h-5 text-emerald-600" />}
+            primaryColor="emerald"
+            invertGoodDirection={false}
+            onMoveUp={() => moveCard(cardId, 'up')}
+            onMoveDown={() => moveCard(cardId, 'down')}
+            onMoveToTop={() => moveToTop(cardId)}
+            onMoveToBottom={() => moveToBottom(cardId)}
+            isFirst={isFirst}
+            isLast={isLast}
+            cardNumber={cardNumber}
+            totalCards={totalCards}
           />
         );
 
@@ -576,14 +1166,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         );
 
-      default:
+      default: {
+        // Suporte Dinâmico a Qualquer Indicador Selecionado pelo Usuário
+        const ind = indicators.find(i => i.id === cardId);
+        if (ind) {
+          const dynamicSeries = getSeries(ind.id);
+          const indTarget = getTargetForIndicator(ind.id, selectedYear, 0);
+          const monthlyTarget = indTarget > 0 ? Math.round(indTarget / 12) : undefined;
+          const isLowerBetter = ind.targetDirection === 'MENOR_MELHOR';
+
+          return (
+            <MonthlyConsumptionLineChart
+              key={ind.id}
+              title={`${ind.name} Mês a Mês`}
+              code={ind.code}
+              unit={ind.unit}
+              data2025={dynamicSeries.dataPrev}
+              data2026={dynamicSeries.dataCurr}
+              currentYear={currYear}
+              previousYear={prevYear}
+              monthlyTarget={monthlyTarget}
+              annualTarget={indTarget > 0 ? indTarget : undefined}
+              icon={<BarChart3 className="w-5 h-5 text-emerald-600" />}
+              primaryColor="emerald"
+              invertGoodDirection={isLowerBetter}
+              onMoveUp={() => moveCard(cardId, 'up')}
+              onMoveDown={() => moveCard(cardId, 'down')}
+              onMoveToTop={() => moveToTop(cardId)}
+              onMoveToBottom={() => moveToBottom(cardId)}
+              isFirst={isFirst}
+              isLast={isLast}
+              cardNumber={cardNumber}
+              totalCards={totalCards}
+            />
+          );
+        }
         return null;
+      }
     }
   };
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Clean Top Header */}
+      {/* 1. Top Header com Controles Executivos */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
         <div>
           <div className="text-xs font-semibold text-emerald-800 tracking-wider uppercase">
@@ -595,14 +1220,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               : `Acompanhamento Executivo (${selectedYear})`}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {activeTabSection === 'SEXENNIUM'
-              ? 'Análise comparativa das metas de papel, água, copos, garrafas, impressões, energia e frota.'
-              : 'Desempenho mensal em relação às metas homologadas pelo CNJ.'}
+            Painel executivo com o Relógio do IDS, metas da Resolução CNJ nº 400/2021 e gráficos customizáveis.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Year Selector */}
+          {/* Seletor de Ano */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs">
             {[2021, 2022, 2023, 2024, 2025, 2026].map(y => (
               <button
@@ -613,7 +1236,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setActiveTabSection('CONSUMO_MENSAL');
                   }
                 }}
-                className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                className={`px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
                   activeTabSection !== 'SEXENNIUM' && selectedYear === y
                     ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
@@ -624,20 +1247,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ))}
           </div>
 
-          {/* Quick Action: Lançar Mês */}
+          {/* Botão Personalizar Cards */}
+          <button
+            onClick={() => setIsReorderModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+            title="Escolha quais gráficos e indicadores vão aparecer no painel"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Personalizar Painel</span>
+          </button>
+
+          {/* Lançar Mês */}
           <button
             onClick={() => onOpenDataIngestion()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors shadow-xs cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>Lançar Mês</span>
           </button>
 
-          {/* Dropdown for Secondary Tools */}
+          {/* Dropdown de Ações Complementares */}
           <div className="relative">
             <button
               onClick={() => setShowActionsDropdown(!showActionsDropdown)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors border border-slate-200"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors border border-slate-200 cursor-pointer"
             >
               <span>Ações</span>
               <ChevronDown className="w-3 h-3 text-slate-500" />
@@ -655,7 +1288,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       onOpenSpreadsheetImport();
                       setShowActionsDropdown(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Importar Planilha</span>
@@ -665,7 +1298,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       onOpenDocumentUpload();
                       setShowActionsDropdown(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
                   >
                     <UploadCloud className="w-4 h-4 text-blue-600" />
                     <span>Fatura / OCR</span>
@@ -675,17 +1308,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       setIsReorderModalOpen(true);
                       setShowActionsDropdown(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
                   >
                     <SlidersHorizontal className="w-4 h-4 text-slate-600" />
-                    <span>Personalizar Cards</span>
+                    <span>Escolher Gráficos</span>
                   </button>
                   <button
                     onClick={() => {
-                      onOpenChatWithQuery(`Faça uma análise executiva detalhada do consumo mês a mês em ${selectedYear}.`);
+                      onOpenChatWithQuery(`Faça uma análise executiva detalhada do consumo e do Relógio do IDS em ${selectedYear}.`);
                       setShowActionsDropdown(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-amber-500" />
                     <span>Diagnóstico IA</span>
@@ -697,7 +1330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Discreet Dismissible Alert Banner */}
+      {/* Alerta Pontual */}
       {activeAlerts.length > 0 && !isAlertDismissed && (
         <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200/90 text-xs text-amber-900 transition-all">
           <div className="flex items-center gap-2">
@@ -709,13 +1342,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center gap-3 flex-shrink-0">
             <button
               onClick={() => onOpenChatWithQuery(`Explique a anomalia de consumo em ${selectedYear}.`)}
-              className="font-semibold underline hover:text-amber-950"
+              className="font-semibold underline hover:text-amber-950 cursor-pointer"
             >
               Ver Detalhes
             </button>
             <button
               onClick={() => setIsAlertDismissed(true)}
-              className="p-1 rounded text-amber-600 hover:text-amber-900"
+              className="p-1 rounded text-amber-600 hover:text-amber-900 cursor-pointer"
               title="Fechar aviso"
             >
               <X className="w-3.5 h-3.5" />
@@ -724,7 +1357,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Strategic KPI Summary Cards */}
+      {/* Banner de Gestão de Variáveis Gerais para Anos Futuros / Sem Dados */}
+      {showGeneralVariablesBanner && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4.5 rounded-2xl bg-gradient-to-r from-emerald-900 to-teal-900 text-white shadow-xs border border-emerald-700/60 transition-all">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-white/10 text-emerald-300">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white">Exercício de {selectedYear} • {isYearEmpty ? 'Dados Zerados' : 'Lançamento Progressivo'}</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+                  {activeCycleInfo.cycleNumber}º Ciclo PLS ({activeCycleInfo.cycle})
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/90 mt-1 max-w-2xl leading-relaxed">
+                As informações deste exercício permanecem <strong>zeradas</strong> para serem alimentadas conforme os fatos geradores ocorrerem.
+                {hasGeneralVarsInCurrentYear ? (
+                  <span className="text-emerald-300 font-semibold block mt-0.5">
+                    ✓ Variáveis Gerais cadastradas (Área: {currentYearSummary.areaTotalM2.toLocaleString('pt-BR')} m² · FTT: {currentYearSummary.fttTotal} pessoas · {currentYearSummary.magistrados} magistrados · {currentYearSummary.servidoresEfetivos} servidores).
+                  </span>
+                ) : (
+                  <span className="block mt-0.5">
+                    Você pode <strong>repetir as Variáveis Gerais</strong> (Área Construída, FTT, Magistrados, Servidores, Terceirizados) a partir do exercício de <strong>{latestPrevYearWithData || (selectedYear - 1)}</strong> para calibrar os denominadores per capita e por m².
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+            {onOpenReplicateModal && (
+              <button
+                type="button"
+                onClick={onOpenReplicateModal}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                title="Copiar e ajustar Variáveis Gerais do exercício anterior"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{hasGeneralVarsInCurrentYear ? 'Ajustar / Repetir Variáveis' : `Repetir Variáveis de ${latestPrevYearWithData || (selectedYear - 1)}`}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpenDataIngestion()}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors cursor-pointer"
+            >
+              Lançar Dados
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Placar Estratégico de Indicadores (KPI Summary) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Energia */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
@@ -737,11 +1422,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${
-                energyDelta <= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                energy26 === 0
+                  ? 'text-slate-500 bg-slate-100 border border-slate-200'
+                  : energyDelta <= 0
+                  ? 'text-emerald-700 bg-emerald-50'
+                  : 'text-rose-700 bg-rose-50'
               }`}
             >
-              {energyDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              {energyDelta > 0 ? `+${energyDelta.toFixed(1)}%` : `${energyDelta.toFixed(1)}%`} vs {prevYear}
+              {energy26 === 0 ? (
+                <span>Aguardando dados de {selectedYear}</span>
+              ) : (
+                <>
+                  {energyDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                  {energyDelta > 0 ? `+${energyDelta.toFixed(1)}%` : `${energyDelta.toFixed(1)}%`} vs {prevYear}
+                </>
+              )}
             </span>
           </div>
           <div className="mt-3">
@@ -750,8 +1445,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-normal text-slate-400">kWh</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-              <span>Média: <strong>{Math.round(energy26 / maxEvalMonth).toLocaleString('pt-BR')}</strong> kWh/mês</span>
-              <span>Meta: <strong>{energyMonthlyTarget.toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Média: <strong>{energy26 > 0 ? Math.round(energy26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> kWh/mês</span>
+              <span>Meta: <strong>{Math.round(energyTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
             </div>
           </div>
         </div>
@@ -767,11 +1462,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${
-                fuelDelta <= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                fuel26 === 0
+                  ? 'text-slate-500 bg-slate-100 border border-slate-200'
+                  : fuelDelta <= 0
+                  ? 'text-emerald-700 bg-emerald-50'
+                  : 'text-rose-700 bg-rose-50'
               }`}
             >
-              {fuelDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              {fuelDelta > 0 ? `+${fuelDelta.toFixed(1)}%` : `${fuelDelta.toFixed(1)}%`} vs {prevYear}
+              {fuel26 === 0 ? (
+                <span>Aguardando dados de {selectedYear}</span>
+              ) : (
+                <>
+                  {fuelDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                  {fuelDelta > 0 ? `+${fuelDelta.toFixed(1)}%` : `${fuelDelta.toFixed(1)}%`} vs {prevYear}
+                </>
+              )}
             </span>
           </div>
           <div className="mt-3">
@@ -780,8 +1485,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-normal text-slate-400">litros</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-              <span>Média: <strong>{Math.round(fuel26 / maxEvalMonth).toLocaleString('pt-BR')}</strong> L/mês</span>
-              <span>Meta: <strong>{fuelMonthlyTarget.toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Média: <strong>{fuel26 > 0 ? Math.round(fuel26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> L/mês</span>
+              <span>Meta: <strong>{Math.round(fuelTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
             </div>
           </div>
         </div>
@@ -797,11 +1502,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${
-                kmDelta <= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'
+                km26 === 0
+                  ? 'text-slate-500 bg-slate-100 border border-slate-200'
+                  : kmDelta <= 0
+                  ? 'text-emerald-700 bg-emerald-50'
+                  : 'text-rose-700 bg-rose-50'
               }`}
             >
-              {kmDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              {kmDelta > 0 ? `+${kmDelta.toFixed(1)}%` : `${kmDelta.toFixed(1)}%`} vs {prevYear}
+              {km26 === 0 ? (
+                <span>Aguardando dados de {selectedYear}</span>
+              ) : (
+                <>
+                  {kmDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                  {kmDelta > 0 ? `+${kmDelta.toFixed(1)}%` : `${kmDelta.toFixed(1)}%`} vs {prevYear}
+                </>
+              )}
             </span>
           </div>
           <div className="mt-3">
@@ -810,13 +1525,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-xs font-normal text-slate-400">km</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-              <span>Média: <strong>{Math.round(km26 / maxEvalMonth).toLocaleString('pt-BR')}</strong> km/mês</span>
-              <span>Meta: <strong>{mileageMonthlyTarget.toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Média: <strong>{km26 > 0 ? Math.round(km26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> km/mês</span>
+              <span>Meta: <strong>{Math.round(mileageTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
             </div>
           </div>
         </div>
 
-        {/* KPI 4: Índice Geral ISP */}
+        {/* KPI 4: Índice Geral do CNJ */}
         <div className="bg-white p-4.5 rounded-2xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -842,22 +1557,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* 3. RELÓGIO DO IDS DO CNJ NO TOPO DO PAINEL EXECUTIVO */}
+      {activeTabSection === 'CONSUMO_MENSAL' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                Relógio do IDS do CNJ — Visão Executiva Institucional
+              </h3>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                onClick={toggleHeroIdsExpanded}
+                className="text-slate-500 hover:text-slate-900 font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                {isHeroIdsExpanded ? (
+                  <>
+                    <Minimize2 className="w-3.5 h-3.5" />
+                    <span>Minimizar Relógio</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Expandir Relógio</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {isHeroIdsExpanded && (
+            <IDSThermometerCard
+              measurements={measurements}
+              currentYear={selectedYear}
+              onYearSelect={setSelectedYear}
+              initialViewMode="CLOCK"
+              defaultExpanded={false}
+            />
+          )}
+        </div>
+      )}
+
+      {/* 4. Abas de Navegação das Seções */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTabSection('CONSUMO_MENSAL')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTabSection === 'CONSUMO_MENSAL'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            Consumo Mês a Mês
+            Gráficos Executivos ({visibleCards.length})
           </button>
           <button
             onClick={() => setActiveTabSection('SEXENNIUM')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTabSection === 'SEXENNIUM'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -867,7 +1624,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
           <button
             onClick={() => setActiveTabSection('ISP')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTabSection === 'ISP'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -877,7 +1634,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
           <button
             onClick={() => setActiveTabSection('TRAJETORIA')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTabSection === 'TRAJETORIA'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -887,7 +1644,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
           <button
             onClick={() => setActiveTabSection('TODOS')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTabSection === 'TODOS'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -899,10 +1656,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {activeTabSection === 'CONSUMO_MENSAL' && (
           <div className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => setIsReorderModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold transition-colors cursor-pointer"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Editar Gráficos ({visibleCards.length})</span>
+            </button>
+
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
               <button
                 onClick={() => toggleLayoutColumns('2_COL')}
-                className={`p-1.5 rounded-md transition-all ${
+                className={`p-1.5 rounded-md transition-all cursor-pointer ${
                   layoutColumns === '2_COL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
                 title="2 Colunas"
@@ -911,7 +1676,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 onClick={() => toggleLayoutColumns('1_COL')}
-                className={`p-1.5 rounded-md transition-all ${
+                className={`p-1.5 rounded-md transition-all cursor-pointer ${
                   layoutColumns === '1_COL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
                 title="1 Coluna"
@@ -923,10 +1688,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         )}
       </div>
 
-      {/* SECTION 1: GRÁFICOS DE CONSUMO MÊS A MÊS */}
+      {/* 5. SEÇÃO: GRÁFICOS EDITÁVEIS DO PAINEL EXECUTIVO */}
       {activeTabSection === 'CONSUMO_MENSAL' && (
         <div className="space-y-6">
-          {/* Cards Grid */}
           {visibleCards.length > 0 ? (
             <div
               className={
@@ -940,22 +1704,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ) : (
             <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
               <EyeOff className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-              <h4 className="text-base font-bold text-slate-800">Todos os cards estão ocultos</h4>
+              <h4 className="text-base font-bold text-slate-800">Nenhum gráfico está visível no painel</h4>
               <p className="text-xs text-slate-500 mt-1 mb-4 max-w-md mx-auto">
-                Você ocultou todos os gráficos de consumo no painel. Clique no botão abaixo para restaurar todos os cards visíveis.
+                Você pode escolher quais gráficos e indicadores deseja visualizar no painel executivo.
               </p>
-              <button
-                onClick={showAllCards}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs"
-              >
-                Exibir Todos os Cards
-              </button>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setIsReorderModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Escolher Indicadores no Catálogo</span>
+                </button>
+                <button
+                  onClick={showAllCards}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  Reexibir Todos os Cards
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* SECTION 2: BARRAS DE COMPARAÇÃO ANO A ANO DO SEXÊNIO (2021 A 2026) */}
+      {/* SEÇÃO: SEXÊNIO */}
       {activeTabSection === 'SEXENNIUM' && (
         <div className="space-y-4">
           <SexenniumBarComparisonCard
@@ -968,7 +1741,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* SECTION: GOVERNANÇA & ÍNDICE DE SUSTENTABILIDADE (ISP - RESOLUÇÃO CNJ 400) */}
+      {/* SEÇÃO: ISP */}
       {activeTabSection === 'ISP' && (
         <div className="space-y-6">
           <SustainabilityIndexCard
@@ -981,187 +1754,141 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* SECTION 3: TRAJETÓRIA DE ALCANCE & FORECAST */}
+      {/* SEÇÃO: TRAJETÓRIA */}
       {activeTabSection === 'TRAJETORIA' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TrajectoryForecastChart
-              title="Trajetória de Alcance — Energia Elétrica"
-              indicatorCode="6.1 — CEE"
-              unit="kWh"
-              monthlyActual2026={energySeries.data2026}
-              annualTarget={energyTarget}
-            />
-
-            <TrajectoryForecastChart
-              title="Trajetória de Alcance — Combustível da Frota"
-              indicatorCode="14.1 — CG"
-              unit="litros"
-              monthlyActual2026={fuelSeries.data2026}
-              annualTarget={fuelTarget}
-            />
-
-            <TrajectoryForecastChart
-              title="Trajetória de Alcance — Quilômetros Rodados"
-              indicatorCode="13.1 — Km"
-              unit="km"
-              monthlyActual2026={mileageSeries.data2026}
-              annualTarget={mileageTarget}
-            />
-
-            <TrajectoryForecastChart
-              title="Trajetória de Alcance — Consumo de Água"
-              indicatorCode="7.1 — CA"
-              unit="m³"
-              monthlyActual2026={waterSeries.data2026}
-              annualTarget={waterTarget}
-            />
-          </div>
+          <TrajectoryForecastChart
+            title="Consumo Total de Energia Elétrica (CEE) — Meta Quinquenal"
+            indicatorCode="6.1"
+            unit="kWh"
+            monthlyActual2026={energySeries.dataCurr}
+            annualTarget={energyTarget}
+          />
+          <TrajectoryForecastChart
+            title="Consumo Total de Combustível da Frota (CG) — Meta Quinquenal"
+            indicatorCode="14.1"
+            unit="litros"
+            monthlyActual2026={fuelSeries.dataCurr}
+            annualTarget={fuelTarget}
+          />
         </div>
       )}
 
-      {/* SECTION 3: TABELA COMPLETA DE INDICADORES CNJ */}
-      {activeTabSection === 'TODOS' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-slate-50/60">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Painel Consolidado de Indicadores e Metas — Exercício {selectedYear}
-              </h3>
-              <p className="text-xs text-slate-500">
-                {filteredPerformances.length} indicadores com baseline de 2025 e projeção para 2026.
-              </p>
-            </div>
+      {/* SEÇÃO: TODOS OS INDICADORES */}
+      {activeTabSection === 'TODOS' && (() => {
+        const filteredPerformances = performances.filter(item => {
+          if (selectedThemeFilter !== 'ALL' && item.indicator.themeId !== selectedThemeFilter) {
+            return false;
+          }
+          if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            return (
+              item.indicator.name.toLowerCase().includes(q) ||
+              item.indicator.code.toLowerCase().includes(q) ||
+              (item.indicator.acronym && item.indicator.acronym.toLowerCase().includes(q)) ||
+              (item.indicator.cnjIndicatorCode && item.indicator.cnjIndicatorCode.toLowerCase().includes(q))
+            );
+          }
+          return true;
+        });
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Buscar código ou nome..."
-                  className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 w-44"
-                />
+        return (
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="relative w-full md:w-72">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar por nome, código ou sigla..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={selectedThemeFilter}
-                  onChange={e => setSelectedThemeFilter(e.target.value)}
-                  className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+              <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
+                <button
+                  onClick={() => setSelectedThemeFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer ${
+                    selectedThemeFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  <option value="ALL">Todos os Temas ({themes.length})</option>
-                  {themes.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                  Todos ({performances.length})
+                </button>
+                {themes.slice(0, 6).map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedThemeFilter(t.id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer ${
+                      selectedThemeFilter === t.id ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Código / Indicador</th>
-                  <th className="py-3 px-3">Unidade</th>
-                  <th className="py-3 px-3 text-right">Baseline (2025)</th>
-                  <th className="py-3 px-3 text-right">Meta ({selectedYear})</th>
-                  <th className="py-3 px-3 text-right">Realizado (Jan-Ago)</th>
-                  <th className="py-3 px-3 text-right">Projeção Anual</th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredPerformances.map(item => {
-                  const ind = item.indicator;
-                  const res = item.result;
-                  const isOverBudget = ind.targetDirection === 'MENOR_MELHOR' && res.annualProjection > res.targetValue;
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Código</th>
+                    <th className="py-3 px-4">Indicador</th>
+                    <th className="py-3 px-4">Unidade</th>
+                    <th className="py-3 px-4 text-right">Meta {selectedYear}</th>
+                    <th className="py-3 px-4 text-right">Realizado</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredPerformances.map(({ indicator, target, result }) => {
+                  const isInPanel = cardOrder.includes(indicator.id);
 
                   return (
-                    <tr
-                      key={ind.id}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer"
-                      onClick={() => onSelectIndicator(ind)}
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
-                            {ind.code}
-                          </span>
-                          <div>
-                            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                              {ind.name}
-                              {ind.acronym && (
-                                <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1 rounded">
-                                  {ind.acronym}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {ind.periodicity} • {ind.responsibleUnit || 'Gestão Socioambiental'}
-                            </div>
-                          </div>
-                        </div>
+                    <tr key={indicator.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-4 font-mono font-bold text-slate-700">
+                        {indicator.code}
                       </td>
-
-                      <td className="py-3 px-3 font-mono text-slate-600">{ind.unit}</td>
-
-                      <td className="py-3 px-3 text-right font-mono text-slate-600">
-                        {res.baselineValue.toLocaleString('pt-BR')}
-                      </td>
-
-                      <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800">
-                        {res.targetValue.toLocaleString('pt-BR')}
-                      </td>
-
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                        {res.accumulatedValue.toLocaleString('pt-BR')}
-                      </td>
-
-                      <td className="py-3 px-3 text-right font-mono">
-                        <span
-                          className={`font-semibold ${
-                            isOverBudget ? 'text-rose-700' : 'text-emerald-700'
-                          }`}
+                      <td className="py-2.5 px-4">
+                        <button
+                          onClick={() => onSelectIndicator(indicator)}
+                          className="font-bold text-slate-900 hover:text-emerald-700 text-left cursor-pointer"
                         >
-                          {res.annualProjection.toLocaleString('pt-BR')}
-                        </span>
+                          {indicator.name}
+                        </button>
                       </td>
-
-                      <td className="py-3 px-3 text-center">
-                        <StatusPill status={res.status} />
+                      <td className="py-2.5 px-4 text-slate-500 font-mono">
+                        {indicator.unit}
                       </td>
-
-                      <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="py-2.5 px-4 text-right font-mono">
+                        {target ? target.targetValue.toLocaleString('pt-BR') : '—'}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold">
+                        {result.accumulatedValue ? result.accumulatedValue.toLocaleString('pt-BR') : '—'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center">
+                        <StatusPill status={result.status} />
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        {isInPanel ? (
                           <button
-                            onClick={() => onSelectIndicator(ind)}
-                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold"
-                            title="Ver detalhes e fórmulas"
+                            onClick={() => removeCardFromPanel(indicator.id)}
+                            className="px-2 py-1 rounded-md text-[11px] font-bold text-rose-700 hover:bg-rose-50 border border-rose-200 cursor-pointer"
                           >
-                            Detalhes
+                            Remover do Painel
                           </button>
+                        ) : (
                           <button
-                            onClick={() => onOpenDataIngestion(ind.id)}
-                            className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-semibold"
-                            title="Lançar valor"
+                            onClick={() => addCardToPanel(indicator.id)}
+                            className="px-2 py-1 rounded-md text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 border border-emerald-300 cursor-pointer"
                           >
-                            + Dado
+                            + Exibir no Painel
                           </button>
-                          <button
-                            onClick={() => onOpenChatWithQuery(`Analise o indicador ${ind.name} (${ind.code}) e a meta de ${selectedYear}`)}
-                            className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700"
-                            title="Perguntar à IA sobre este indicador"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1170,205 +1897,357 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </table>
           </div>
         </div>
-      )}
+      );
+    })()}
 
       {/* =========================================================================
-          MODAL DE PERSONALIZAÇÃO & REORDENAÇÃO DOS CARDS
-          ========================================================================= */}
+          MODAL DE PERSONALIZAÇÃO COMPLETA DOS CARDS E INDICADORES DO PAINEL
+      ========================================================================= */}
       {isReorderModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-slate-900 text-white">
-                  <SlidersHorizontal className="w-4 h-4" />
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 via-white to-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shadow-2xs">
+                  <SlidersHorizontal className="w-5 h-5 text-emerald-700" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Organização dos Cards do Painel
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    Personalizar Painel Executivo
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Defina a ordem em que os gráficos de consumo serão exibidos.
+                    Escolha quais gráficos e indicadores vão aparecer no painel e ajuste sua sequência.
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => setIsReorderModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            {/* Presets Row */}
-            <div className="p-4 border-b border-slate-100 bg-white">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-2">
-                Predefinições Rápidas de Sequência:
+            {/* Presets Rápidos */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">
+                Predefinições Rápidas de Gráficos:
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                 <button
                   onClick={() => applyPreset('DEFAULT')}
-                  className="p-2 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left font-semibold text-slate-800 transition-colors"
+                  className="p-2 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left font-semibold text-slate-800 transition-colors bg-white cursor-pointer"
                 >
-                  <span className="block text-[10px] text-slate-400 font-normal">Padrão</span>
+                  <span className="block text-[9px] text-slate-400 font-normal">Padrão CNJ</span>
                   🎯 Institucional
                 </button>
                 <button
-                  onClick={() => applyPreset('FLEET_FIRST')}
-                  className="p-2 rounded-xl border border-slate-200 hover:border-orange-500 hover:bg-orange-50/40 text-left font-semibold text-slate-800 transition-colors"
+                  onClick={() => applyPreset('GOV_FIRST')}
+                  className="p-2 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left font-semibold text-slate-800 transition-colors bg-white cursor-pointer"
                 >
-                  <span className="block text-[10px] text-slate-400 font-normal">Foco Frota</span>
-                  🚗 Combustível / Km
+                  <span className="block text-[9px] text-slate-400 font-normal">Eixo Governança</span>
+                  ⏱️ Relógio IDS & Metas
                 </button>
                 <button
                   onClick={() => applyPreset('ENERGY_FIRST')}
-                  className="p-2 rounded-xl border border-slate-200 hover:border-amber-500 hover:bg-amber-50/40 text-left font-semibold text-slate-800 transition-colors"
+                  className="p-2 rounded-xl border border-slate-200 hover:border-amber-500 hover:bg-amber-50/50 text-left font-semibold text-slate-800 transition-colors bg-white cursor-pointer"
                 >
-                  <span className="block text-[10px] text-slate-400 font-normal">Utilidades</span>
-                  ⚡ Energia & Água
+                  <span className="block text-[9px] text-slate-400 font-normal">Eixo Utilidades</span>
+                  ⚡ Energia & Solar
                 </button>
                 <button
-                  onClick={() => applyPreset('METAS_FIRST')}
-                  className="p-2 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/40 text-left font-semibold text-slate-800 transition-colors"
+                  onClick={() => applyPreset('RESIDUOS_FIRST')}
+                  className="p-2 rounded-xl border border-slate-200 hover:border-teal-500 hover:bg-teal-50/50 text-left font-semibold text-slate-800 transition-colors bg-white cursor-pointer"
                 >
-                  <span className="block text-[10px] text-slate-400 font-normal">Governança</span>
-                  📊 ISP & Metas
+                  <span className="block text-[9px] text-slate-400 font-normal">Desmaterialização</span>
+                  ♻️ Papel, Copos & Resíduos
+                </button>
+                <button
+                  onClick={() => applyPreset('ALL_KEY')}
+                  className="p-2 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-left font-semibold text-slate-800 transition-colors bg-white cursor-pointer"
+                >
+                  <span className="block text-[9px] text-slate-400 font-normal">Visão Ampla</span>
+                  📊 Todos os Principais
                 </button>
               </div>
             </div>
 
-            {/* Card Order List with HTML5 Drag & Drop and Visibility Toggles */}
-            <div className="p-4 max-h-96 overflow-y-auto space-y-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                  Cards e Sequência (arraste ou use as setas):
+            {/* Abas da Modal: Cards Ativos vs Catálogo Completo */}
+            <div className="flex border-b border-slate-200 px-4 pt-2 bg-white">
+              <button
+                onClick={() => setModalActiveTab('ACTIVE')}
+                className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  modalActiveTab === 'ACTIVE'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>Gráficos Ativos no Painel</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-mono">
+                  {cardOrder.length} ({visibleCards.length} visíveis)
                 </span>
-                <span className="text-[11px] text-slate-400 font-mono">
-                  {cardOrder.length - hiddenCards.length} de {cardOrder.length} visíveis
+              </button>
+
+              <button
+                onClick={() => setModalActiveTab('CATALOG')}
+                className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  modalActiveTab === 'CATALOG'
+                    ? 'border-emerald-600 text-emerald-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Catálogo de Indicadores & Gráficos</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-mono">
+                  {allAvailableCardsForCatalog.length}
                 </span>
-              </div>
+              </button>
+            </div>
 
-              {cardOrder.map((id, index) => {
-                const meta = CARD_METADATA[id] || { title: id, category: 'Geral', icon: 'BarChart' };
-                const isFirst = index === 0;
-                const isLast = index === cardOrder.length - 1;
-                const isHidden = hiddenCards.includes(id);
-                const isBeingDragged = draggedCardId === id;
+            {/* Conteúdo da Aba 1: Gráficos Ativos (Reordenação, Ocultar, Excluir) */}
+            {modalActiveTab === 'ACTIVE' && (
+              <div className="p-4 overflow-y-auto space-y-2 flex-1 max-h-[50vh]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                    Arraste ou use as setas para definir a ordem dos gráficos:
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {visibleCards.length} de {cardOrder.length} visíveis
+                  </span>
+                </div>
 
-                return (
-                  <div
-                    key={id}
-                    draggable
-                    onDragStart={() => handleDragStart(id)}
-                    onDragOver={handleDragOver}
-                    onDrop={() => handleDrop(id)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
-                      isBeingDragged
-                        ? 'border-emerald-500 bg-emerald-50/60 shadow-md'
-                        : isHidden
-                        ? 'border-slate-200 bg-slate-50/60 opacity-60'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="text-slate-400 hover:text-slate-600 p-0.5" title="Arraste para mover">
-                        <GripVertical className="w-4 h-4" />
+                {cardOrder.map((id, index) => {
+                  const meta = getCardMeta(id);
+                  const isFirst = index === 0;
+                  const isLast = index === cardOrder.length - 1;
+                  const isHidden = hiddenCards.includes(id);
+                  const isBeingDragged = draggedCardId === id;
+
+                  return (
+                    <div
+                      key={id}
+                      draggable
+                      onDragStart={() => handleDragStart(id)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(id)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
+                        isBeingDragged
+                          ? 'border-emerald-500 bg-emerald-50/60 shadow-md'
+                          : isHidden
+                          ? 'border-slate-200 bg-slate-50/60 opacity-60'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-2xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="text-slate-400 hover:text-slate-600 p-0.5" title="Arraste para mover">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
+                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold font-mono text-[11px] flex items-center justify-center shrink-0">
+                          {index + 1}
+                        </span>
+
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className={`text-xs font-bold ${isHidden ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                              {meta.title}
+                            </h4>
+                            {id === 'ids_clock' && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">
+                                Relógio Oficial
+                              </span>
+                            )}
+                            {isHidden && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-600 font-bold">
+                                Oculto
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">{meta.category}</span>
+                        </div>
                       </div>
 
-                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-bold font-mono text-[11px] flex items-center justify-center">
-                        {index + 1}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Alternar Visibilidade */}
+                        <button
+                          onClick={() => toggleCardVisibility(id)}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            isHidden
+                              ? 'border-slate-200 bg-slate-100 text-slate-400 hover:text-slate-700'
+                              : 'border-slate-200 bg-white text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                          title={isHidden ? 'Exibir no painel' : 'Ocultar do painel'}
+                        >
+                          {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
 
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h4 className={`text-xs font-bold ${isHidden ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
-                            {meta.title}
-                          </h4>
-                          {isHidden && (
-                            <span className="text-[9px] font-mono px-1 rounded bg-slate-200 text-slate-600">
-                              Oculto
-                            </span>
+                        {/* Mover Topo */}
+                        <button
+                          onClick={() => moveToTop(id)}
+                          disabled={isFirst}
+                          className={`p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer ${
+                            isFirst ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                          title="Mover para o topo"
+                        >
+                          <ChevronsUp className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Mover Cima */}
+                        <button
+                          onClick={() => moveCard(id, 'up')}
+                          disabled={isFirst}
+                          className={`p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer ${
+                            isFirst ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                          title="Subir posição"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Mover Baixo */}
+                        <button
+                          onClick={() => moveCard(id, 'down')}
+                          disabled={isLast}
+                          className={`p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer ${
+                            isLast ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                          title="Descer posição"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Mover Fim */}
+                        <button
+                          onClick={() => moveToBottom(id)}
+                          disabled={isLast}
+                          className={`p-1.5 rounded-lg border border-slate-200 transition-colors cursor-pointer ${
+                            isLast ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                          title="Mover para o final"
+                        >
+                          <ChevronsDown className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Excluir do painel */}
+                        <button
+                          onClick={() => removeCardFromPanel(id)}
+                          className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ml-1"
+                          title="Remover este gráfico do painel executivo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Conteúdo da Aba 2: Catálogo de Indicadores & Gráficos */}
+            {modalActiveTab === 'CATALOG' && (
+              <div className="p-4 flex-1 flex flex-col max-h-[50vh] overflow-hidden space-y-3">
+                {/* Busca e Filtros de Categoria */}
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <div className="relative flex-1 w-full">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por código, indicador, resíduo, energia..."
+                      value={catalogSearch}
+                      onChange={e => setCatalogSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <select
+                    value={catalogCategoryFilter}
+                    onChange={e => setCatalogCategoryFilter(e.target.value)}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden text-slate-700 font-semibold w-full sm:w-auto"
+                  >
+                    <option value="ALL">Todas as Categorias</option>
+                    <option value="Utilidades">Utilidades & Energia</option>
+                    <option value="Desmaterialização">Desmaterialização & Papel</option>
+                    <option value="Resíduos">Resíduos & Plásticos</option>
+                    <option value="Frota">Frota & Mobilidade</option>
+                    <option value="Pessoas">Gestão de Pessoas</option>
+                    <option value="Governança">Governança & IDS</option>
+                  </select>
+                </div>
+
+                {/* Lista do Catálogo com Rolagem */}
+                <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+                  {filteredCatalogCards.map(card => {
+                    const isAlreadyInPanel = cardOrder.includes(card.id);
+
+                    return (
+                      <div
+                        key={card.id}
+                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                          isAlreadyInPanel
+                            ? 'border-emerald-200 bg-emerald-50/30'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                            isAlreadyInPanel ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {card.code.slice(0, 4)}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-xs font-bold text-slate-900">
+                                {card.title}
+                              </h4>
+                              {card.id === 'ids_clock' && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">
+                                  Relógio Oficial
+                                </span>
+                              )}
+                              <span className="text-[10px] font-mono text-slate-400">
+                                ({card.unit || 'indicador'})
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block">{card.category}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          {isAlreadyInPanel ? (
+                            <button
+                              onClick={() => removeCardFromPanel(card.id)}
+                              className="px-3 py-1.5 rounded-xl border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Remover</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => addCardToPanel(card.id)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Adicionar ao Painel</span>
+                            </button>
                           )}
                         </div>
-                        <span className="text-[10px] text-slate-400 block">{meta.category}</span>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {/* Toggle Visibility */}
-                      <button
-                        onClick={() => toggleCardVisibility(id)}
-                        className={`p-1.5 rounded-lg border transition-colors ${
-                          isHidden
-                            ? 'border-slate-200 bg-slate-100 text-slate-400 hover:text-slate-700'
-                            : 'border-slate-200 bg-white text-emerald-700 hover:bg-emerald-50'
-                        }`}
-                        title={isHidden ? 'Exibir este card no painel' : 'Ocultar este card do painel'}
-                      >
-                        {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-
-                      {/* Move to Top */}
-                      <button
-                        onClick={() => moveToTop(id)}
-                        disabled={isFirst}
-                        className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                          isFirst ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Mover direto para o topo"
-                      >
-                        <ChevronsUp className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Move Up */}
-                      <button
-                        onClick={() => moveCard(id, 'up')}
-                        disabled={isFirst}
-                        className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                          isFirst ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Subir uma posição"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Move Down */}
-                      <button
-                        onClick={() => moveCard(id, 'down')}
-                        disabled={isLast}
-                        className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                          isLast ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Descer uma posição"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Move to Bottom */}
-                      <button
-                        onClick={() => moveToBottom(id)}
-                        disabled={isLast}
-                        className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
-                          isLast ? 'text-slate-300 cursor-not-allowed bg-slate-50' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                        }`}
-                        title="Mover direto para o final"
-                      >
-                        <ChevronsDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
                   onClick={resetOrder}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   title="Voltar à ordem padrão institucional"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1378,7 +2257,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {hiddenCards.length > 0 && (
                   <button
                     onClick={showAllCards}
-                    className="text-xs font-semibold text-emerald-700 hover:underline"
+                    className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
                   >
                     Reexibir todos ({hiddenCards.length})
                   </button>
@@ -1387,7 +2266,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <button
                 onClick={() => setIsReorderModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 Concluir
