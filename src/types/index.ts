@@ -14,6 +14,20 @@ export interface Organization {
   isConsolidated?: boolean;
   /** Ordem de exibição nos seletores. */
   displayOrder?: number;
+  /** Área territorial de jurisdição (km²), usada no IDS (gastos de transporte por km²). */
+  jurisdictionAreaKm2?: number;
+}
+
+/**
+ * Variável complementar anual do IDS vinda da fonte anual do CNJ, que não é um
+ * indicador lançado mensalmente no iPLS (ex.: FTT, área total, TMR consolidado).
+ */
+export interface IDSComplement {
+  organizationId: string;
+  year: number;
+  field: 'ftt' | 'mtotal' | 'areakm' | 'redgee3' | 'tmr' | 'gcgraf' | 'pservcf' | 'pdesembpf';
+  value: number;
+  source: string;
 }
 
 export type UserRole = 

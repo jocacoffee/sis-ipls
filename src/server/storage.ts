@@ -16,7 +16,8 @@ import {
   PLSJudMapping,
   SEIConnector,
   AuditLog,
-  InconsistencyAlert
+  InconsistencyAlert,
+  IDSComplement
 } from '../types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -57,6 +58,7 @@ export interface AppDatabase {
   seiConnectors: SEIConnector[];
   auditLogs: AuditLog[];
   alerts: InconsistencyAlert[];
+  idsComplements: IDSComplement[];
   lastSavedAt: string;
 }
 
@@ -104,6 +106,7 @@ class StorageEngine {
           seiConnectors: parsed.seiConnectors || [...INITIAL_SEI_CONNECTORS],
           auditLogs: parsed.auditLogs || [...INITIAL_AUDIT_LOGS],
           alerts: parsed.alerts || [...INITIAL_ALERTS],
+          idsComplements: parsed.idsComplements || [],
           lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
         };
 
@@ -134,6 +137,7 @@ class StorageEngine {
       seiConnectors: [...INITIAL_SEI_CONNECTORS],
       auditLogs: [...INITIAL_AUDIT_LOGS],
       alerts: [...INITIAL_ALERTS],
+      idsComplements: [],
       lastSavedAt: new Date().toISOString()
     };
 

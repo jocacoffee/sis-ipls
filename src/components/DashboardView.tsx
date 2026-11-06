@@ -59,7 +59,9 @@ import {
   ActionPlan,
   PLSTheme,
   InconsistencyAlert,
-  IndicatorCalculationResult
+  IndicatorCalculationResult,
+  Organization,
+  IDSComplement
 } from '../types';
 import {
   MonthlyConsumptionLineChart,
@@ -95,6 +97,8 @@ interface DashboardViewProps {
   onSelectIndicator: (indicator: Indicator) => void;
   onOpenReplicateModal?: () => void;
   organizationLabel?: string;
+  organization?: Organization;
+  idsComplements?: IDSComplement[];
 }
 
 // Ordem padrão inicial de cards no Painel Executivo
@@ -254,7 +258,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenChatWithQuery,
   onSelectIndicator,
   onOpenReplicateModal,
-  organizationLabel = 'SJRR / TRF1'
+  organizationLabel = 'SJRR / TRF1',
+  organization,
+  idsComplements = []
 }) => {
   const [selectedThemeFilter, setSelectedThemeFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -725,6 +731,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div key="ids_clock" className={layoutColumns === '2_COL' ? 'lg:col-span-2' : ''}>
             <IDSThermometerCard
               measurements={measurements}
+              indicators={indicators}
+              idsComplements={idsComplements}
+              organization={organization}
               currentYear={selectedYear}
               onYearSelect={setSelectedYear}
               initialViewMode="CLOCK"
@@ -1574,6 +1583,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {isHeroIdsExpanded && (
             <IDSThermometerCard
               measurements={measurements}
+              indicators={indicators}
+              idsComplements={idsComplements}
+              organization={organization}
               currentYear={selectedYear}
               onYearSelect={setSelectedYear}
               initialViewMode="CLOCK"

@@ -8,11 +8,13 @@ import {
   Layers,
   Search
 } from 'lucide-react';
-import { Indicator, IndicatorMeasurement, PLSTheme } from '../types';
+import { IDSComplement, Indicator, IndicatorMeasurement, Organization, PLSTheme } from '../types';
 import { IDSThermometerCard } from './IDSThermometerCard';
 import { getSystemAvailableYears } from '../utils/yearUtils';
 
 interface YearComparisonViewProps {
+  organization?: Organization;
+  idsComplements?: IDSComplement[];
   indicators: Indicator[];
   measurements: IndicatorMeasurement[];
   themes: PLSTheme[];
@@ -21,7 +23,9 @@ interface YearComparisonViewProps {
 export const YearComparisonView: React.FC<YearComparisonViewProps> = ({
   indicators,
   measurements,
-  themes
+  themes,
+  organization,
+  idsComplements = []
 }) => {
   const currentCalYear = new Date().getFullYear();
   const availableYears = React.useMemo(() => {
@@ -134,6 +138,9 @@ export const YearComparisonView: React.FC<YearComparisonViewProps> = ({
       {/* Termômetro e Relógio do IDS Oficial do CNJ com Comparativo Histórico */}
       <IDSThermometerCard
         measurements={measurements}
+        indicators={indicators}
+        idsComplements={idsComplements}
+        organization={organization}
         currentYear={targetYear}
         onYearSelect={setTargetYear}
         initialViewMode="COMBINED"

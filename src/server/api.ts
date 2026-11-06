@@ -114,6 +114,7 @@ export function createApiRouter() {
       targets: scoped.targets,
       measurements: scoped.measurements,
       selectedOrgId: orgId,
+      idsComplements: (db.idsComplements || []).filter(c => c.organizationId === orgId),
       documents: db.documents,
       actionPlans: db.actionPlans,
       emissionSources: db.emissionSources,

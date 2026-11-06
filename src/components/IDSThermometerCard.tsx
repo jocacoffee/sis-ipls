@@ -22,17 +22,33 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react';
-import { IndicatorMeasurement } from '../types';
+import { IDSComplement, Indicator, IndicatorMeasurement, Organization } from '../types';
 import {
+  BENCHMARK_STATUS,
   calculateCNJIDS,
   calculateMultiYearCNJIDS,
   CNJIDSResult,
   CNJSubIndicatorItem,
-  SJRR_INSTITUTIONAL_PARAMS
+  IDSContext,
+  scopeForOrganization
 } from '../services/idsCalculator';
+
+/** Formata o resultado bruto de um subindicador (n.d. quando não há dado). */
+const fmtRaw = (sub: CNJSubIndicatorItem | undefined, digits = 1) =>
+  !sub || !sub.available
+    ? 'n.d.'
+    : sub.rawValue >= 1000
+      ? sub.rawValue.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+      : sub.rawValue.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 interface IDSThermometerCardProps {
   measurements: IndicatorMeasurement[];
+  /** Catálogo de indicadores (para localizar CEE, CA, FTT etc. pela sigla). */
+  indicators?: Indicator[];
+  /** Variáveis complementares da fonte anual CNJ do órgão selecionado. */
+  idsComplements?: IDSComplement[];
+  /** Órgão selecionado (define o escopo: seção = 13 indicadores; tribunal/consolidado = 14). */
+  organization?: Organization;
   currentYear?: number;
   onYearSelect?: (year: number) => void;
   className?: string;
@@ -64,6 +80,9 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 
 export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
   measurements,
+  indicators = [],
+  idsComplements = [],
+  organization,
   currentYear = 2026,
   onYearSelect,
   className = '',
@@ -73,7 +92,12 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
   showBreakdownToggle = true
 }) => {
   const [selectedDisplayYear, setSelectedDisplayYear] = useState<number>(currentYear);
-  const [scope, setScope] = useState<'JUSTICA_FEDERAL_1GRAU' | 'TRIBUNAL_REGIONAL_2GRAU'>('JUSTICA_FEDERAL_1GRAU');
+  // Escopo definido pelo órgão: seção judiciária (13 indicadores) ou tribunal/consolidado (14)
+  const scope = scopeForOrganization(organization);
+  const idsContext: IDSContext = useMemo(
+    () => ({ indicators, complements: idsComplements, organization }),
+    [indicators, idsComplements, organization]
+  );
   const [viewMode, setViewMode] = useState<'CLOCK' | 'THERMOMETER' | 'COMBINED'>(initialViewMode);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState<boolean>(defaultExpanded);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
@@ -91,8 +115,8 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
 
   // Cálculo da Série Quinquenal oficial com os dados reais
   const multiYear = useMemo(() => {
-    return calculateMultiYearCNJIDS(measurements, selectedDisplayYear, scope);
-  }, [measurements, selectedDisplayYear, scope]);
+    return calculateMultiYearCNJIDS(measurements, selectedDisplayYear, scope, idsContext);
+  }, [measurements, selectedDisplayYear, scope, idsContext]);
 
   // Cálculo com simulação ativa se o usuário estiver simulando no ano selecionado
   const activeResult: CNJIDSResult = useMemo(() => {
@@ -105,25 +129,29 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
     const rawCcItem = baseRes.subIndicators.find(i => i.key === 'cc_ftt');
     const rawPservItem = baseRes.subIndicators.find(i => i.key === 'pservcf');
 
-    const simulatedCee = rawCeeItem ? rawCeeItem.rawValue * (1 - simEnergyReduction / 100) * SJRR_INSTITUTIONAL_PARAMS.ftt : undefined;
+    const baseCee = baseRes.inputs.cee;
+    const simulatedCee = rawCeeItem?.available && baseCee !== null ? baseCee * (1 - simEnergyReduction / 100) : undefined;
     const simulatedCc = simZeroPlasticCups ? 0 : undefined;
-    const simulatedPservcf = rawPservItem ? (rawPservItem.rawValue + simPservcfBoost) / 100 : undefined;
+    const simulatedPservcf = rawPservItem?.available ? (rawPservItem.rawValue + simPservcfBoost) / 100 : undefined;
 
     return calculateCNJIDS(measurements, selectedDisplayYear, {
       scope,
+      context: idsContext,
       customValues: {
         cee: simulatedCee,
         cc: simulatedCc,
         pservcf: simulatedPservcf
       }
     });
-  }, [multiYear.currentResult, isSimulatorOpen, simEnergyReduction, simZeroPlasticCups, simPservcfBoost, measurements, selectedDisplayYear, scope]);
+  }, [multiYear.currentResult, isSimulatorOpen, simEnergyReduction, simZeroPlasticCups, simPservcfBoost, measurements, selectedDisplayYear, scope, idsContext]);
 
   const score = activeResult.idsScore;
   const classification = activeResult.classification;
   const previousYear = selectedDisplayYear - 1;
   const prevResult = multiYear.history.find(h => h.year === previousYear);
-  const delta = prevResult ? Math.round((score - prevResult.idsScore) * 10) / 10 : null;
+  const delta = prevResult && prevResult.hasScore && activeResult.hasScore
+    ? Math.round((score - prevResult.idsScore) * 10) / 10
+    : null;
 
   // Parâmetros do Relógio / Gauge (Sweep de 240°, de -120° a +120°)
   // Score 0% -> -120°, Score 50% -> 0°, Score 80% -> +72°, Score 100% -> +120°
@@ -326,7 +354,7 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
               fill="#0f172a"
               className="font-mono tracking-tight"
             >
-              {score.toFixed(1)}%
+              {activeResult.hasScore ? `${score.toFixed(1)}%` : 'n.d.'}
             </text>
           </g>
         </svg>
@@ -516,30 +544,12 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
             </button>
           </div>
 
-          {/* Seletor de Escopo: 1º Grau vs 2º Grau */}
-          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700 text-xs">
-            <button
-              onClick={() => setScope('JUSTICA_FEDERAL_1GRAU')}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                scope === 'JUSTICA_FEDERAL_1GRAU'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
-              }`}
-              title="13 Indicadores aplicáveis a Seções Judiciárias (1º Grau)"
-            >
-              SJRR (1º Grau)
-            </button>
-            <button
-              onClick={() => setScope('TRIBUNAL_REGIONAL_2GRAU')}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                scope === 'TRIBUNAL_REGIONAL_2GRAU'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
-              }`}
-              title="14 Indicadores com promoção de desembargadoras (Tribunais de 2º Grau)"
-            >
-              TRF1 (2º Grau)
-            </button>
+          {/* Escopo definido pelo órgão selecionado */}
+          <div
+            className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 px-2.5 py-1 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200"
+            title={scope === 'JUSTICA_FEDERAL_1GRAU' ? '13 indicadores aplicáveis a seções judiciárias' : '14 indicadores (inclui desembargadoras)'}
+          >
+            {organization?.acronym || 'Órgão'} · {scope === 'JUSTICA_FEDERAL_1GRAU' ? '1º grau (13 ind.)' : 'Tribunal (14 ind.)'}
           </div>
 
           {/* Botão Simulador */}
@@ -579,6 +589,21 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
               </div>
             </div>
           )}
+
+          {/* Cobertura e natureza do cálculo */}
+          <div className="mt-2 w-full max-w-md text-center space-y-1">
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold">
+              Cobertura: {activeResult.coverage.available}/{activeResult.coverage.total} indicadores com dados
+            </div>
+            {BENCHMARK_STATUS === 'PROVISORIO' && (
+              <div className="text-[10px] leading-snug text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                Estimativa interna: padronização com faixas de referência provisórias. O IDS oficial depende dos limites nacionais do CNJ.
+              </div>
+            )}
+            {activeResult.notes.map((n, i) => (
+              <div key={i} className="text-[10px] leading-snug text-slate-500">{n}</div>
+            ))}
+          </div>
 
           {/* Informações adicionais do mostrador */}
           <div className="mt-3 text-center">
@@ -684,7 +709,7 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
                     )}
 
                     <span className="font-mono text-xs font-black text-slate-900 dark:text-white">
-                      {item.idsScore.toFixed(1)}%
+                      {item.hasScore ? `${item.idsScore.toFixed(1)}%` : 'n.d.'}
                     </span>
 
                     <span className={`text-[9px] font-mono mt-0.5 ${item.deltaYoY !== undefined && item.deltaYoY >= 0 ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
@@ -701,27 +726,27 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 shadow-2xs">
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Energia (cre)</span>
               <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                {activeResult.subIndicators.find(i => i.key === 'cre')?.rawValue.toFixed(0)} kWh/p
+                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'cre'), 0)} kWh/p
               </div>
               <div className="text-[9px] text-emerald-700 dark:text-emerald-400 mt-0.5 font-semibold">
-                Nota: {(activeResult.subIndicators.find(i => i.key === 'cre')?.normalizedValue || 0).toFixed(2)} (AHP: 1.71)
+                Nota: {(activeResult.subIndicators.find(i => i.key === 'cre')?.normalizedValue || 0).toFixed(2)} (AHP: 1,71)
               </div>
             </div>
 
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 shadow-2xs">
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Água (cra)</span>
               <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                {activeResult.subIndicators.find(i => i.key === 'cra')?.rawValue.toFixed(1)} m³/p
+                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'cra'), 1)} m³/p
               </div>
               <div className="text-[9px] text-emerald-700 dark:text-emerald-400 mt-0.5 font-semibold">
-                Nota: {(activeResult.subIndicators.find(i => i.key === 'cra')?.normalizedValue || 0).toFixed(2)} (AHP: 1.71)
+                Nota: {(activeResult.subIndicators.find(i => i.key === 'cra')?.normalizedValue || 0).toFixed(2)} (AHP: 1,71)
               </div>
             </div>
 
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 shadow-2xs">
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Copos (cc)</span>
               <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                {activeResult.subIndicators.find(i => i.key === 'cc_ftt')?.rawValue === 0 ? '0 copos' : `${activeResult.subIndicators.find(i => i.key === 'cc_ftt')?.rawValue.toFixed(0)} c/p`}
+                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'cc_ftt'), 1)} copos/p
               </div>
               <div className="text-[9px] text-emerald-700 dark:text-emerald-400 mt-0.5 font-semibold">
                 Nota: {(activeResult.subIndicators.find(i => i.key === 'cc_ftt')?.normalizedValue || 0).toFixed(2)} (AHP: 0.96)
@@ -731,7 +756,7 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 shadow-2xs">
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Mulheres Chefia</span>
               <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                {activeResult.subIndicators.find(i => i.key === 'pservcf')?.rawValue.toFixed(1)}%
+                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'pservcf'), 1)}%
               </div>
               <div className="text-[9px] text-emerald-700 dark:text-emerald-400 mt-0.5 font-semibold">
                 Nota: {(activeResult.subIndicators.find(i => i.key === 'pservcf')?.normalizedValue || 0).toFixed(2)} (AHP: 0.96)
@@ -875,10 +900,10 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
                         </td>
                         <td className="py-2 px-3 font-sans font-medium text-slate-900 dark:text-white">
                           <div>{sub.name}</div>
-                          <div className="text-[10px] text-slate-400 font-sans">{sub.description}</div>
+                          <div className="text-[10px] text-slate-400 font-sans">{sub.available ? sub.description : sub.note}</div>
                         </td>
                         <td className="py-2 px-3 text-right text-slate-800 dark:text-slate-200 font-bold">
-                          {sub.rawValue >= 1000 ? sub.rawValue.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : sub.rawValue.toFixed(2)} {sub.unit}
+                          {sub.available ? `${fmtRaw(sub, 2)} ${sub.unit}` : <span title={sub.note}>n.d.</span>}
                         </td>
                         <td className="py-2 px-3 text-center text-slate-400 text-[11px]">
                           [{sub.minRef} – {sub.maxRef}]
@@ -912,7 +937,7 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
                       Soma dos Pesos: {activeResult.totalWeights.toFixed(2)} | IDS Final ({selectedDisplayYear}):
                     </td>
                     <td colSpan={2} className="py-2.5 px-3 text-right font-mono text-sm text-emerald-700 dark:text-emerald-400">
-                      {activeResult.idsScore.toFixed(1)}%
+                      {activeResult.hasScore ? `${activeResult.idsScore.toFixed(1)}%` : 'n.d.'}
                     </td>
                   </tr>
                 </tfoot>

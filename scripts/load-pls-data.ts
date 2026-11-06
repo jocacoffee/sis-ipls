@@ -26,9 +26,11 @@ import type {
   IndicatorMeasurement,
   InconsistencyAlert,
   Organization,
-  AuditLog
+  AuditLog,
+  IDSComplement
 } from '../src/types';
 import { buildConsolidatedMeasurements, CONSOLIDATED_ORG_ID } from '../src/services/orgScope';
+import { calculateCNJIDS } from '../src/services/idsCalculator';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -122,6 +124,18 @@ const fonteNum = (src: string, campo: string): number => {
   return vals[0]?.v ?? 0;
 };
 
+// Área territorial de jurisdição (km²) para o IDS (gastos de transporte por km²).
+// Seções: área da UF segundo o IBGE (valores aproximados; ajustáveis no cadastro do órgão).
+// 2º grau e consolidado: área da 1ª Região informada na fonte anual do CNJ (areakm).
+const IBGE_AREA_KM2: Record<string, number> = {
+  SJAC: 164123.7, SJAM: 1559255.9, SJAP: 142470.8, SJBA: 564760.4, SJDF: 5760.8,
+  SJGO: 340242.9, SJMA: 329651.5, SJMT: 903208.4, SJPA: 1245870.7, SJPI: 251755.5,
+  SJRO: 237765.2, SJRR: 223644.5, SJTO: 277423.6, SJMG: 586513.9
+};
+const regionAreaKm2 = Number(
+  fonte.find(r => r.orgao_id === 'TRF1' && r.campo === 'areakm' && r.valor !== '')?.valor || 0
+);
+
 const organizations: Organization[] = bundle.orgaos.map((o, idx) => {
   const [id, name] = ORG_NAMES[o.id];
   const consolidated = o.id === 'TRF1';
@@ -138,7 +152,8 @@ const organizations: Organization[] = bundle.orgaos.map((o, idx) => {
     totalFloorAreaM2: Math.round(fonteNum(o.id, 'mtotal')) || existing?.totalFloorAreaM2 || 0,
     totalMagistratesStaff: Math.round(fonteNum(o.id, 'ftt')) || existing?.totalMagistratesStaff || 0,
     isConsolidated: consolidated,
-    displayOrder: idx
+    displayOrder: idx,
+    jurisdictionAreaKm2: IBGE_AREA_KM2[o.id] ?? (regionAreaKm2 || undefined)
   } as Organization;
 });
 if (organizations.some(o => o.isConsolidated && o.id !== CONSOLIDATED_ORG_ID)) {
@@ -269,6 +284,19 @@ for (const r of fonte) {
   fonteLoaded.set(ind.acronym!, (fonteLoaded.get(ind.acronym!) || 0) + 1);
 }
 
+// Variáveis complementares do IDS (fonte anual CNJ), inclusive as do total regional (TRF1),
+// que alimentam o IDS do consolidado. SJMG fica de fora.
+const IDS_FIELDS: IDSComplement['field'][] = ['ftt', 'mtotal', 'areakm', 'redgee3', 'tmr', 'gcgraf', 'pservcf', 'pdesembpf'];
+const idsComplements: IDSComplement[] = fonte
+  .filter(r => r.valor !== '' && r.orgao_id !== 'SJMG' && (IDS_FIELDS as string[]).includes(r.campo))
+  .map(r => ({
+    organizationId: orgByCode.get(r.orgao_id)!,
+    year: Number(r.ano),
+    field: r.campo as IDSComplement['field'],
+    value: Number(r.valor),
+    source: 'Fonte anual CNJ (pls_totais_ids)'
+  }));
+
 // ---------------------------------------------------------------- 4. alertas de qualidade
 const SEV: Record<string, InconsistencyAlert['severity']> = { alta: 'CRITICA', media: 'ATENCAO', baixa: 'INFO' };
 const TYPE: Record<string, InconsistencyAlert['type']> = {
@@ -333,6 +361,30 @@ for (const [k, v] of expected) {
   const c = consolidated.find(x => x.indicatorId === id && x.year === Number(y) && x.month === Number(mm));
   if (!c || Math.abs(c.value - v) > 0.01) errors.push(`Consolidado ${k}: ${c?.value} ≠ ${v}`);
 }
+// IDS do consolidado 2025: numeradores e denominadores devem reproduzir o "Mapa IDS" da planilha
+{
+  const ids = calculateCNJIDS(consolidated, 2025, {
+    context: {
+      indicators,
+      complements: idsComplements.filter(c => c.organizationId === CONSOLIDATED_ORG_ID),
+      organization: organizations.find(o => o.id === CONSOLIDATED_ORG_ID)
+    }
+  });
+  const expectedIds: Record<string, [number, number]> = {
+    cre: [13897579.42, 10308], crem2: [13897579.42, 451314], cra: [99300.1, 10308], cram2: [99300.1, 451314],
+    upv: [10308, 381], cc_ftt: [62163, 10308], gtransm2: [2792697.12, 6251221.395], gp_ftt: [177871.66, 10308],
+    tmr_ftt: [96262.281, 10308], ced_ftt: [61226, 10308], glinha_ftt: [1571879.87, 10308], qei_ftt: [3194, 10308],
+    pservcf: [0.505718548, 1], pdesembpf: [0.323529412, 1]
+  };
+  for (const [key, [num, den]] of Object.entries(expectedIds)) {
+    const sub = ids.subIndicators.find(x => x.key === key);
+    if (!sub || !sub.available) { errors.push(`IDS 2025 ${key}: indisponível`); continue; }
+    if (Math.abs((sub.numerator ?? NaN) - num) > 0.01 || Math.abs((sub.denominator ?? NaN) - den) > 0.001) {
+      errors.push(`IDS 2025 ${key}: ${sub.numerator}/${sub.denominator}, esperado ${num}/${den}`);
+    }
+  }
+  console.log(`IDS consolidado 2025 (referências provisórias): ${ids.idsScore}% — ${ids.coverage.available}/${ids.coverage.total} indicadores`);
+}
 for (const o of organizations) {
   if (!o.isConsolidated && !measurements.some(m => m.organizationId === o.id)) errors.push(`Órgão sem dados: ${o.id}`);
 }
@@ -341,7 +393,7 @@ console.log(`Órgãos: ${organizations.length} | Indicadores: ${indicators.lengt
 console.log(`Criados: ${created.join(', ')}`);
 console.log(`Medições: ${measurements.length} (planilha mensal ${bundle.valores_mensais.length}, anual ${bundle.valores_anuais.length}, fonte anual ${measurements.length - bundle.valores_mensais.length - bundle.valores_anuais.length})`);
 console.log(`Complementos da fonte anual: ${[...fonteLoaded.entries()].map(([k, v]) => `${k}(${v})`).join(' ')}`);
-console.log(`Alertas importados: ${alerts.length}`);
+console.log(`Alertas importados: ${alerts.length} | Complementos IDS: ${idsComplements.length}`);
 console.log(`Conferência: ${checked} linhas de controle + ${expected.size} consolidados mensais`);
 if (errors.length) {
   console.error(`\n✗ ${errors.length} divergência(s). Nada foi gravado.`);
@@ -384,6 +436,7 @@ const out = {
   measurements,
   ghgCalculations: [],
   alerts,
+  idsComplements,
   auditLogs: [audit, ...db.auditLogs],
   lastSavedAt: now
 };

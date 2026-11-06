@@ -14,7 +14,8 @@ import {
   SEIConnector,
   AuditLog,
   InconsistencyAlert,
-  IndicatorCalculationResult
+  IndicatorCalculationResult,
+  IDSComplement
 } from './types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -110,6 +111,7 @@ export function App() {
     loadLocalData(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS)
   );
   const [alerts, setAlerts] = useState<InconsistencyAlert[]>(INITIAL_ALERTS);
+  const [idsComplements, setIdsComplements] = useState<IDSComplement[]>([]);
 
   // Modals state
   const [selectedIndicatorForDetail, setSelectedIndicatorForDetail] = useState<Indicator | null>(null);
@@ -289,6 +291,7 @@ export function App() {
           saveLocalData(STORAGE_KEYS.AUDIT_LOGS, data.auditLogs);
         }
         if (data.alerts) setAlerts(data.alerts);
+        setIdsComplements(Array.isArray(data.idsComplements) ? data.idsComplements : []);
       })
       .catch(err => {
         console.log('[iPLS] Servidor inicializando ou modo autônomo ativo:', err);
@@ -1032,6 +1035,8 @@ export function App() {
         </div>
         {activeTab === 'dashboard' && (
           <DashboardView
+            organization={currentOrg}
+            idsComplements={idsComplements}
             organizationLabel={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : undefined}
             indicators={indicators}
             measurements={measurements}
@@ -1178,6 +1183,8 @@ export function App() {
 
         {activeTab === 'year-comparison' && (
           <YearComparisonView
+            organization={currentOrg}
+            idsComplements={idsComplements}
             indicators={indicators}
             measurements={measurements}
             themes={themes}
