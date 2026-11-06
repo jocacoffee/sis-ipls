@@ -38,6 +38,8 @@ services:
     volumes:
       # Fonte da importação inicial (data/database.json) e arquivos de carga
       - ./data:/app/data
+      # Certificados da AC interna (ex.: AC Raiz TRF1) para o LDAPS
+      - ./certs:/app/certs:ro
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s

@@ -9,3 +9,6 @@ coverage/
 
 # Backups locais gerados pela carga de dados
 data/backups/
+
+# Certificados da AC interna (específicos de cada instalação)
+certs/
