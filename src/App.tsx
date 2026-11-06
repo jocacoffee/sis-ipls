@@ -1273,6 +1273,7 @@ export function App() {
         {activeTab === 'reports' && (
           <AnnualReportView
             organizationName={currentOrg.name}
+            organizationId={selectedOrgId}
             selectedYear={selectedYear}
             indicators={indicators}
             measurements={measurements}

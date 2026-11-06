@@ -8,7 +8,6 @@ import {
 } from './geminiService';
 import { calculateIndicatorPerformance, detectMeasurementInconsistencies } from '../services/calculationEngine';
 import { buildFiveYearHistoricalSeries, getFiveYearSummaryStats } from '../services/historicalAnalytics';
-import { queryInstitutionalAI } from '../services/aiService';
 import { extractDataFromDocument } from '../services/documentExtractor';
 import { IndicatorMeasurement, AuditLog, PLSDocument, InconsistencyAlert } from '../types';
 import {
@@ -20,6 +19,7 @@ import {
   scopeTargets
 } from '../services/orgScope';
 import { canManageOrg, canWriteOrg, currentUser, requireLogin, requireRole } from './auth';
+import { defaultAIProvider, publicAIConfig } from './localLLM';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -545,10 +545,15 @@ export function createApiRouter() {
       query,
       year = 2026,
       orgId = 'org-sjrr',
-      provider = 'gemini',
-      localConfig,
       conversationHistory = []
     } = req.body;
+    // Provedor e endereço da IA são do servidor; só o administrador pode testar outro endpoint/modelo
+    const isAdmin = currentUser()?.role === 'ADMIN';
+    const requested = req.body.provider;
+    const provider = requested === 'heuristic' || (isAdmin && (requested === 'local' || requested === 'gemini'))
+      ? requested
+      : defaultAIProvider();
+    const localConfig = isAdmin && req.body.localConfig?.endpoint ? req.body.localConfig : undefined;
 
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ error: 'Mensagem vazia.' });
@@ -570,30 +575,23 @@ export function createApiRouter() {
           indicators: db.indicators,
           measurements: scoped.measurements,
           targets: scoped.targets,
-          actionPlans: db.actionPlans,
+          actionPlans: db.actionPlans.filter(a => (a.organizationId || LEGACY_DEFAULT_ORG_ID) === org.id),
           documents: db.documents,
-          alerts: db.alerts
+          alerts: db.alerts.filter(a => !a.organizationId || a.organizationId === org.id)
         }
       });
 
       return res.json(responseMessage);
     } catch (err: any) {
-      console.error('[API] Erro ao processar chat RAG:', err);
-      // Fallback: grounded deterministic institutional reasoning engine
-      const fallbackAnswer = await queryInstitutionalAI(query, {
-        organizationName: org.name,
-        organizationId: org.id,
-        year: Number(year),
-        indicators: db.indicators,
-        measurements: scoped.measurements,
-        targets: scoped.targets,
-        actionPlans: db.actionPlans,
-        documents: db.documents,
-        alerts: db.alerts
-      });
-      return res.json(fallbackAnswer);
+      console.error('[API] Erro ao processar chat:', err);
+      return res.status(500).json({ error: 'Não foi possível processar a pergunta. Tente novamente.' });
     }
   };
+
+  // Configuração pública da IA (sem segredos)
+  router.get('/ai/config', (_req: Request, res: Response) => {
+    res.json(publicAIConfig());
+  });
 
   router.post('/chat', requireLogin, handleChatRequest);
   router.post('/ai/chat', requireLogin, handleChatRequest);
@@ -650,9 +648,10 @@ export function createApiRouter() {
         indicators: db.indicators,
         measurements: scoped.measurements,
         targets: scoped.targets,
-        actionPlans: db.actionPlans,
-        alerts: db.alerts,
-        fiveYearSeries
+        actionPlans: db.actionPlans.filter(a => (a.organizationId || LEGACY_DEFAULT_ORG_ID) === org.id),
+        alerts: db.alerts.filter(a => !a.organizationId || a.organizationId === org.id),
+        fiveYearSeries,
+        provider: defaultAIProvider()
       });
 
       logAudit(

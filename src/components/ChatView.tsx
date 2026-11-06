@@ -39,7 +39,6 @@ import {
   AIProviderMode,
   LocalAIConfig
 } from '../types';
-import { queryInstitutionalAI } from '../services/aiService';
 
 interface ChatViewProps {
   organizationName: string;
@@ -76,10 +75,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onClearInitialQuery
 }) => {
   // AI Provider & Local AI settings
-  const [providerMode, setProviderMode] = useState<AIProviderMode>(() => {
-    const saved = localStorage.getItem('ipls_ai_provider');
-    return (saved as AIProviderMode) || 'gemini';
-  });
+  const [providerMode, setProviderMode] = useState<AIProviderMode>('local');
+  const [serverAI, setServerAI] = useState<{ defaultProvider: AIProviderMode; localModel: string | null; localAvailable: boolean } | null>(null);
+  useEffect(() => {
+    fetch('/api/ai/config')
+      .then(r => r.json())
+      .then(cfg => {
+        setServerAI(cfg);
+        setProviderMode(cfg.defaultProvider);
+      })
+      .catch(() => setProviderMode('heuristic'));
+  }, []);
 
   const [localConfig, setLocalConfig] = useState<LocalAIConfig>(() => {
     try {
@@ -104,16 +110,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
       id: 'welcome',
       sender: 'assistant',
       timestamp: new Date().toISOString(),
-      text: `Olá! Eu sou a **Inteligência Artificial Analítica do PLS**, assistente oficial de governança e sustentabilidade da **${organizationName}**.\n\nMinhas análises combinam o **conhecimento normativo do CNJ (Resoluções nº 400/2021 e nº 594/2024)**, faturas e processos do SEI, o inventário de GEE e todas as medições auditadas dos 21 temas do PLS.\n\nVocê pode alternar entre a **API do Gemini (Nuvem com RAG)** e a **IA Local (On-Premise na rede da SJRR)** nos seletores acima.\n\nComo posso apoiar sua análise hoje?`,
+      text: `Olá! Sou o assistente de análise do PLS da **${organizationName}**.\n\nRespondo com base nas medições registradas no iPLS e nas Resoluções CNJ nº 400/2021 e nº 594/2024. Quando um dado não estiver no sistema, eu aviso.\n\nComo posso ajudar?`,
       suggestedQuestions: [
-        'Como está o panorama geral de metas do PLS da SJRR?',
-        'Qual foi o consumo de energia elétrica em agosto e a causa do pico?',
-        'Qual é o balanço de copos plásticos descartáveis na SJRR?',
-        'Como está a conformidade da Resolução CNJ 594/2024 (Justiça Carbono Zero)?',
-        'Quais são os principais riscos e ações prioritárias no momento?'
+        'Como evoluiu o consumo de energia elétrica de 2021 a 2025?',
+        'Quais indicadores têm alertas de qualidade de dados?',
+        'Como está o consumo de papel no exercício atual?',
+        'Quais dados existem sobre a Resolução CNJ 594/2024 (Justiça Carbono Zero)?'
       ],
-      providerUsed: 'gemini',
-      modelUsed: 'Google Gemini 3.8 Flash (RAG Ativo)'
+      providerUsed: 'local',
+      modelUsed: 'Assistente iPLS'
     }
   ]);
 
@@ -205,7 +210,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
           year: selectedYear,
           orgId: organizationId,
           provider: providerMode,
-          localConfig,
           conversationHistory
         })
       });
@@ -214,40 +218,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
         const aiResponse: ChatMessage = await res.json();
         setMessages(prev => [...prev, aiResponse]);
       } else {
-        throw new Error(`HTTP ${res.status}`);
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          res.status === 401
+            ? 'Entre com seu usuário de rede (botão "Entrar", na barra lateral) para usar o chat.'
+            : body.error || `Falha no servidor (HTTP ${res.status}).`
+        );
       }
-    } catch (err) {
-      console.warn('[ChatView] Erro ao chamar servidor, acionando fallback institucional offline:', err);
-      try {
-        const fallbackResponse = await queryInstitutionalAI(q, {
-          organizationName,
-          organizationId,
-          year: selectedYear,
-          indicators,
-          measurements,
-          targets,
-          actionPlans,
-          documents,
-          alerts
-        });
-        setMessages(prev => [
-          ...prev,
-          {
-            ...fallbackResponse,
-            providerUsed: 'heuristic',
-            modelUsed: 'Motor Analítico Offline SJRR'
-          }
-        ]);
-      } catch (fallbackErr) {
-        const errorMsg: ChatMessage = {
+    } catch (err: any) {
+      // Sem resposta inventada: apenas informa o erro
+      setMessages(prev => [
+        ...prev,
+        {
           id: `err-${Date.now()}`,
           sender: 'assistant',
           timestamp: new Date().toISOString(),
-          text: 'Ocorreu um erro ao consultar os dados estruturados do PLS. Por favor, tente novamente.',
+          text: `> ⚠️ ${err?.message || 'Não foi possível consultar o servidor. Tente novamente.'}`,
           providerUsed: providerMode
-        };
-        setMessages(prev => [...prev, errorMsg]);
-      }
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -350,7 +339,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {providerMode === 'local' && (
             <>
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              <span><strong>Modo IA Local SJRR:</strong> Conectando em <code>{localConfig.endpoint}</code> (Modelo: <strong>{localConfig.model}</strong>) com RAG institucional injetado.</span>
+              <span><strong>IA local:</strong> modelo <strong>{serverAI?.localModel || 'não configurado'}</strong>, configurado no servidor do iPLS, com RAG institucional injetado.</span>
             </>
           )}
           {providerMode === 'heuristic' && (
@@ -497,7 +486,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
             <div className="text-xs text-slate-600 dark:text-slate-300">
               {providerMode === 'gemini' && 'Consultando API do Gemini com RAG normativo do CNJ e medições do PLS...'}
-              {providerMode === 'local' && `Processando na IA Local da SJRR (${localConfig.model})...`}
+              {providerMode === 'local' && `Processando na IA local (${serverAI?.localModel || 'modelo do servidor'})... modelos locais podem levar até 1–2 minutos.`}
               {providerMode === 'heuristic' && 'Analisando banco de dados relacional e normativas do CNJ...'}
             </div>
           </div>

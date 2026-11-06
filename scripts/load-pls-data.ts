@@ -226,6 +226,9 @@ for (const s of bundle.indicadores) {
   ind.consolidation = s.consolidacao === 'soma' ? 'SOMA' : 'NENHUMA';
   // Periodicidade segue a planilha oficial (ex.: kWhI é mensal)
   ind.periodicity = s.periodicidade === 'mensal' ? 'MENSAL' : 'ANUAL';
+  // A unidade também: os valores carregados estão na unidade da planilha
+  // (ex.: CC em centos, DImp e DOB em kg)
+  ind.unit = s.unidade;
   indBySrc.set(s.codigo, ind);
 }
 // Metas passam a ser por órgão: remove as metas de demonstração gravadas no catálogo

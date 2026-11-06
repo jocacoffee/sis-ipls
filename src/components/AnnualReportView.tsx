@@ -55,6 +55,7 @@ import { getPlsCycleForYear } from '../utils/yearUtils';
 
 interface AnnualReportViewProps {
   organizationName: string;
+  organizationId?: string;
   selectedYear: number;
   indicators: Indicator[];
   measurements: IndicatorMeasurement[];
@@ -67,6 +68,7 @@ interface AnnualReportViewProps {
 
 export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
   organizationName,
+  organizationId = 'org-sjrr',
   selectedYear,
   indicators,
   measurements,
@@ -289,7 +291,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           year: selectedYear,
-          orgId: 'org-sjrr',
+          orgId: organizationId,
           customFocus: focusPrompt
         })
       });

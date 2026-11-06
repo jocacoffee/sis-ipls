@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { callLocalLLM, extractJson, localLLMSettings, responseBudget } from './localLLM';
 import {
   Indicator,
   IndicatorMeasurement,
@@ -15,7 +16,6 @@ import {
 } from '../types';
 import { queryRAGKnowledge } from '../services/ragEngine';
 import { calculateIndicatorPerformance } from '../services/calculationEngine';
-import { queryInstitutionalAI } from '../services/aiService';
 
 let aiClient: GoogleGenAI | null = null;
 
@@ -60,6 +60,7 @@ export interface AnnualReportGenerationContext {
   actionPlans: ActionPlan[];
   alerts: InconsistencyAlert[];
   fiveYearSeries: FiveYearIndicatorSeries[];
+  provider?: AIProviderMode;
 }
 
 export async function generateGeminiExecutiveAnalysis(
@@ -127,55 +128,62 @@ Solicitação da Gestão / Usuário:
   }
 }
 
-/**
- * Generates official Annual Follow-up Report with Gemini LLM integration,
- * grounded on the current year's actual audited data, 5-year historical series (2022-2026),
- * action plans, and regulatory compliance (CNJ Res. 400/2021 Art. 22 & CNJ Res. 594/2024).
- */
-export async function generateGeminiAnnualReport(
-  context: AnnualReportGenerationContext
-): Promise<AnnualReportAIData> {
-  const ai = getGeminiClient();
 
-  // Prepare grounded historical and current year synthesis
-  const historicalSummary = context.fiveYearSeries.map(s => ({
-    indicador: `${s.code} - ${s.name}`,
-    unidade: s.unit,
-    serie5Anos: {
-      '2022': s.years[2022]?.total ?? 'N/D',
-      '2023': s.years[2023]?.total ?? 'N/D',
-      '2024': s.years[2024]?.total ?? 'N/D',
-      '2025': s.years[2025]?.total ?? 'N/D',
-      '2026 (Real/Proj)': s.years[2026]?.total ?? 'N/D'
-    },
-    meta2026: s.target2026 ?? 'Sem meta fixada',
-    variacaoQuinquenal: `${s.fiveYearChangePct > 0 ? '+' : ''}${s.fiveYearChangePct}%`,
-    variacaoYoY: `${s.yoyChangePct > 0 ? '+' : ''}${s.yoyChangePct}%`,
-    evolucao: s.direction
-  }));
+/** Indicadores mensais e anuais principais usados no relatório (siglas do catálogo). */
+const REPORT_KEY_ACRONYMS = new Set([
+  'CPP', 'GPP', 'CPC', 'CC', 'GCD', 'CED', 'CER', 'GAED', 'GAER', 'QI', 'CEE', 'GEE', 'kWhI', 'CA', 'GA',
+  'DPa', 'DPl', 'DMt', 'DVd', 'GTF', 'GTM', 'QEI', 'GLB', 'GV', 'Km', 'GC', 'CG', 'CD', 'ACR', 'ACS', 'PCS',
+  'FTT', 'DEI/DEl', 'DImp', 'GEE-Esc3', 'GEE1e2'
+]);
 
-  const activeAlerts = context.alerts.filter(a => !a.resolved);
-  const actionsSummary = context.actionPlans.map(a => ({
-    titulo: a.title,
-    eixo: a.eixoTematico || a.responsibleUnit || 'Sustentabilidade',
-    status: a.status,
-    progresso: `${a.percentageComplete}%`,
-    unidade: a.responsibleUnit
-  }));
+const round2 = (v: number) => (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100);
 
-  if (ai) {
-    try {
-      const systemInstruction = `Você é o Redator Técnico e Consultor de Sustentabilidade da Justiça Federal (TRF1 / Seção Judiciária de Roraima - SJRR), encarregado de redigir o RELATÓRIO ANUAL DE ACOMPANHAMENTO DO PLANO DE LOGÍSTICA SUSTENTÁVEL (Art. 22 da Resolução CNJ nº 400/2021 e Resolução CNJ nº 594/2024 - Programa Justiça Carbono Zero).
+/** Série histórica resumida: só indicadores principais com dados no período. */
+export function summarizeSeriesForReport(context: AnnualReportGenerationContext) {
+  const years = Array.from({ length: 5 }, (_, i) => context.year - 4 + i);
+  return context.fiveYearSeries
+    .filter(s => REPORT_KEY_ACRONYMS.has(s.acronym || '') || REPORT_KEY_ACRONYMS.has(s.code))
+    .filter(s => years.some(y => (s.years[y]?.monthsReported ?? 0) > 0))
+    .map(s => {
+      const serie: Record<string, number | string> = {};
+      years.forEach(y => {
+        const d = s.years[y];
+        serie[String(y)] = d && d.monthsReported > 0 ? round2(d.total) : 'n/d';
+      });
+      const cur = s.years[context.year];
+      const val = (y: number) => (typeof serie[String(y)] === 'number' ? (serie[String(y)] as number) : null);
+      const variation = (from: number | null, to: number | null) =>
+        from === null || to === null ? 'n/d' : from === 0 ? (to === 0 ? '0%' : 'n/d (base zero)') : `${to >= from ? '+' : ''}${(Math.round(((to - from) / from) * 1000) / 10).toLocaleString('pt-BR')}%`;
+      const firstYear = years.find(y => val(y) !== null) ?? years[0];
+      return {
+        ind: `${s.acronym || s.code} - ${s.name}`,
+        un: s.unit,
+        serie,
+        [`var_${firstYear}_${context.year}`]: variation(val(firstYear), val(context.year)),
+        [`var_${context.year - 1}_${context.year}`]: variation(val(context.year - 1), val(context.year)),
+        mensal: context.indicators.find(i => i.id === s.indicatorId)?.periodicity === 'MENSAL',
+        mesesNoAno: cur?.monthsReported ?? 0,
+        meta: s.target2026 ?? null
+      };
+    });
+}
+
+/** Instruções do relatório anual (compartilhadas entre Gemini e IA local). */
+export function buildReportSystemInstruction(context: AnnualReportGenerationContext): string {
+  return `Você é o Redator Técnico e Consultor de Sustentabilidade da Justiça Federal da 1ª Região, encarregado de redigir o RELATÓRIO ANUAL DE ACOMPANHAMENTO DO PLANO DE LOGÍSTICA SUSTENTÁVEL (Art. 22 da Resolução CNJ nº 400/2021 e Resolução CNJ nº 594/2024 - Programa Justiça Carbono Zero).
 
 Sua tarefa é gerar um relatório analítico de alto nível, fundamentado nos dados reais auditados do ano corrente (${context.year}) e na série histórica comparativa dos últimos 5 anos (${context.year - 4} a ${context.year}).
 
 Diretrizes de redação:
 1. Tom formal, institucional, rigoroso e propositivo, adequado para publicação oficial no portal do CNJ e apreciação pela Diretoria do Foro.
-2. Destaque expressamente:
-   - Os avanços acumulados de ${context.year - 4} a ${context.year} (ex: eliminação total de copos plásticos descartáveis; redução sustentada de resmas de papel e impressões per capita; expansão da reciclagem com a associação de catadores).
-   - As anomalias e desafios enfrentados no ano corrente (${context.year}), detalhando as causas e as medidas corretivas adotadas.
-   - A governança das 14 ações socioambientais do PLS e o alinhamento com a Resolução CNJ nº 594/2024 (Justiça Carbono Zero: emissões de Escopo 1, 2 e 3 e meta de neutralidade até 2030).
-3. Responda em JSON rigoroso com a estrutura exata:
+2. Não cite artigos, parágrafos ou incisos de normas. Use EXCLUSIVAMENTE os números fornecidos nos dados abaixo. NÃO FAÇA CONTAS: para variações use somente os campos var_AAAA_AAAA já calculados (se for "n/d", não informe variação). Copie os valores exatamente da série do ano correspondente. Não invente valores, causas, ações, contratos, processos ou fatos que não estejam nos dados; quando um dado não existir, diga que não foi informado.
+3. Destaque:
+   - A evolução de ${context.year - 4} a ${context.year} dos indicadores com dados (aumentos e reduções, em números e percentuais).
+   - Os pontos de atenção do ano corrente (${context.year}) que constam nos alertas fornecidos.
+   - As ações do plano de ação informadas (se houver) e o alinhamento com a Resolução CNJ nº 594/2024 (Justiça Carbono Zero), sem atribuir resultados não informados.
+4. Se o exercício estiver incompleto, deixe claro que os valores são parciais.
+5a. Seja conciso: resumo executivo com no máximo 120 palavras; cada seção com no máximo 110 palavras; listas com no máximo 4 itens curtos (até 25 palavras cada).
+5. Responda SOMENTE com um JSON válido (sem texto antes ou depois), com a estrutura exata:
 {
   "executiveSummary": "string concisa com o resumo executivo de 2 parágrafos",
   "keyAchievements": ["conquista 1", "conquista 2", "conquista 3", "conquista 4"],
@@ -227,19 +235,98 @@ Diretrizes de redação:
     }
   ]
 }`;
+}
 
-      const userPrompt = `Por favor, elabore o Relatório Anual de Acompanhamento do PLS para a ${context.organizationName}, exercício ${context.year}.
+/** Dados do relatório anual enviados ao modelo. */
+export function buildReportUserPrompt(
+  context: AnnualReportGenerationContext,
+  historicalSummary: unknown[],
+  actionsSummary: unknown[],
+  activeAlerts: InconsistencyAlert[]
+): string {
+  return `Por favor, elabore o Relatório Anual de Acompanhamento do PLS para a ${context.organizationName}, exercício ${context.year}.
 
 Diretriz Adicional do Usuário: ${context.customFocus || 'Abordagem abrangente e analítica completa conforme Resoluções CNJ 400/2021 e 594/2024'}.
 
 DADOS AUDITADOS DA SÉRIE HISTÓRICA DOS ÚLTIMOS 5 ANOS (${context.year - 4} - ${context.year}):
-${JSON.stringify(historicalSummary, null, 2)}
+${JSON.stringify(historicalSummary)}
 
 AÇÕES SOCIOAMBIENTAIS EM ANDAMENTO:
-${JSON.stringify(actionsSummary, null, 2)}
+${JSON.stringify(actionsSummary)}
 
 ALERTAS E PONTOS DE ATENÇÃO AUDITADOS:
-${JSON.stringify(activeAlerts.map(a => `${a.indicatorName}: ${a.message}`), null, 2)}`;
+${JSON.stringify(activeAlerts.slice(0, 40).map(a => `${a.indicatorName}: ${a.message}`))}`;
+}
+
+/**
+ * Generates official Annual Follow-up Report with Gemini LLM integration,
+ * grounded on the current year's actual audited data, 5-year historical series (2022-2026),
+ * action plans, and regulatory compliance (CNJ Res. 400/2021 Art. 22 & CNJ Res. 594/2024).
+ */
+export async function generateGeminiAnnualReport(
+  context: AnnualReportGenerationContext
+): Promise<AnnualReportAIData> {
+  const ai = getGeminiClient();
+
+  // Resumo compacto (cabe no contexto de modelos locais de 8k tokens):
+  // indicadores mensais + anuais principais, com dados no período, números arredondados
+  const historicalSummary = summarizeSeriesForReport(context);
+
+  const activeAlerts = context.alerts
+    .filter(a => !a.resolved)
+    .sort((a, b) => (a.severity === 'CRITICA' ? 0 : a.severity === 'ATENCAO' ? 1 : 2) - (b.severity === 'CRITICA' ? 0 : b.severity === 'ATENCAO' ? 1 : 2))
+    .slice(0, 12);
+  const actionsSummary = context.actionPlans.map(a => ({
+    titulo: a.title,
+    eixo: a.eixoTematico || a.responsibleUnit || 'Sustentabilidade',
+    status: a.status,
+    progresso: `${a.percentageComplete}%`,
+    unidade: a.responsibleUnit
+  }));
+
+  const reportSystemInstruction = (): string => buildReportSystemInstruction(context);
+  const reportUserPrompt = (): string => buildReportUserPrompt(context, historicalSummary, actionsSummary, activeAlerts);
+
+  if (context.provider === 'local') {
+    try {
+      const sysText = reportSystemInstruction();
+      const userText = reportUserPrompt();
+      const budget = responseBudget(sysText.length + userText.length, 4000);
+      if (budget < 1800) {
+        throw new Error(
+          `Contexto do modelo insuficiente para o relatório (${localLLMSettings().contextTokens} tokens). ` +
+          'Aumente o "Context Length" do modelo no LM Studio (recomendado: 16384) e ajuste LOCAL_AI_CONTEXT_TOKENS.'
+        );
+      }
+      const { text, model } = await callLocalLLM(
+        [
+          { role: 'system', content: sysText },
+          { role: 'user', content: userText }
+        ],
+        { timeoutMs: localLLMSettings().reportTimeoutMs, maxTokens: budget }
+      );
+      const parsed = extractJson(text);
+      return {
+        sections: parsed.sections || [],
+        executiveSummary: parsed.executiveSummary || '',
+        keyAchievements: parsed.keyAchievements || [],
+        criticalAlerts: parsed.criticalAlerts || [],
+        priorityRecommendations: parsed.priorityRecommendations || [],
+        historicalHighlights: parsed.historicalHighlights || [],
+        generatedAt: new Date().toISOString(),
+        aiModel: `IA local (${model})`
+      };
+    } catch (err) {
+      console.warn('[LocalAI] Falha ao gerar o relatório anual com a IA local; usando o motor determinístico:', err);
+      return generateDeterministicAnnualReport(context);
+    }
+  }
+
+  if (ai) {
+    try {
+      const systemInstruction = reportSystemInstruction();
+
+      const userPrompt = reportUserPrompt();
 
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
@@ -274,96 +361,80 @@ ${JSON.stringify(activeAlerts.map(a => `${a.indicatorName}: ${a.message}`), null
 }
 
 /**
- * Deterministic fallback report generator to ensure 100% reliability
+ * Relatório de reserva (quando não há IA disponível): apenas fatos calculados dos
+ * dados do órgão, sem narrativa inventada.
  */
 function generateDeterministicAnnualReport(
   context: AnnualReportGenerationContext
 ): AnnualReportAIData {
-  const e61 = context.fiveYearSeries.find(s => s.code === '6.1');
-  const w71 = context.fiveYearSeries.find(s => s.code === '7.1');
-  const p21 = context.fiveYearSeries.find(s => s.code === '2.1');
-  const c31 = context.fiveYearSeries.find(s => s.code === '3.1');
-  const r86 = context.fiveYearSeries.find(s => s.code === '8.6');
-  const g204 = context.fiveYearSeries.find(s => s.code === '20.4');
-  const pcs = context.fiveYearSeries.find(s => s.code === '16.3');
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const years = Array.from({ length: 5 }, (_, i) => context.year - 4 + i);
+  const rows = summarizeSeriesForReport(context);
+  const first = years[0];
+  // FTT é denominador (força de trabalho), não resultado de gestão: fica fora do ranking
+  const changes = rows
+    .filter(r => !r.ind.startsWith('FTT'))
+    .map(r => {
+      const a = r.serie[String(first)];
+      const b = r.serie[String(context.year)];
+      return typeof a === 'number' && typeof b === 'number' && a > 0
+        ? { r, a, b, pct: Math.round(((b - a) / a) * 1000) / 10 }
+        : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x);
+  const reductions = changes.filter(c => c.pct < 0).sort((x, y) => x.pct - y.pct).slice(0, 4);
+  const increases = changes.filter(c => c.pct > 0).sort((x, y) => y.pct - x.pct).slice(0, 3);
+  const current = rows.filter(r => typeof r.serie[String(context.year)] === 'number');
+  const partial = current.filter(r => r.mensal && r.mesesNoAno > 0 && r.mesesNoAno < 12);
+  const alerts = context.alerts.filter(a => !a.resolved);
+  const line = (c: (typeof changes)[number]) => `${c.r.ind}: ${fmt(c.a)} → ${fmt(c.b)} ${c.r.un} (${c.pct > 0 ? '+' : ''}${c.pct}%)`;
+
+  const table = current
+    .map(r => `• ${r.ind}: ${fmt(r.serie[String(context.year)] as number)} ${r.un}${r.mensal && r.mesesNoAno > 0 && r.mesesNoAno < 12 ? ` (${r.mesesNoAno} meses)` : ''}`)
+    .join('\n');
 
   const sections: AnnualReportSection[] = [
-    {
-      id: 1,
-      title: '1. Apresentação e Compromisso Institucional',
-      category: 'INSTITUCIONAL',
-      statusBadge: 'Auditado',
-      content: `O presente Relatório Anual de Acompanhamento do Plano de Logística Sustentável (PLS) consolida os resultados institucionais, operacionais e socioambientais da ${context.organizationName} referentes ao exercício de ${context.year}, em estrito cumprimento ao Art. 22 da Resolução CNJ nº 400/2021 e às exigências do Programa Justiça Carbono Zero formalizado pela Resolução CNJ nº 594/2024.\n\nEste documento consagra a maturidade do Ciclo Estratégico 2021–2026, evidenciando o compromisso inarredável da Direção do Foro, da Comissão Gestora do PLS e de todos os magistrados e servidores com a legalidade estrita, a economicidade dos recursos orçamentários, a desmaterialização de processos e a preservação do bioma amazônico em Roraima.`
-    },
-    {
-      id: 2,
-      title: '2. Metodologia de Coleta, Auditoria e Integridade dos Dados',
-      category: 'METODOLOGIA',
-      statusBadge: 'Conformidade 100%',
-      content: `A metodologia de apuração dos indicadores adota integração direta com os sistemas corporativos do TRF1 e da SJRR, englobando medições auditadas extraídas do Sistema Eletrônico de Informações (SEI), faturas das concessionárias Roraima Energia S.A. e Companhia de Águas e Esgotos de Roraima (CAER), relatórios telemétricos de frota oficial, atestos do almoxarifado e manifestos de destinação de resíduos sólidos emitidos pela associação parceira Terra Viva.\n\nTodas as medições passaram por dupla checagem por fiscais técnicos e foram submetidas ao módulo de auditoria contínua do iPLS, garantindo rastreabilidade comprobatória contra duplicidades ou lançamentos fora da conformidade temporal.`
-    },
-    {
-      id: 3,
-      title: `3. Avaliação de Desempenho e Metas do Ano Corrente (${context.year})`,
-      category: 'DESEMPENHO',
-      statusBadge: 'Metas Auditadas',
-      content: `No exercício corrente de ${context.year}, a Seção Judiciária alcançou avanços substanciais em diversas frentes logísticas. Destaca-se a erradicação absoluta (100%) no consumo de copos descartáveis e recipientes de plástico de uso único, mantendo-se o consumo zerado em todas as dependências do edifício-sede.\n\nEm contrapartida, o monitoramento contínuo identificou um desvio atípico no consumo de energia elétrica na competência de agosto/${context.year} (21.450 kWh), decorrente de avaria mecânica no chiller principal do sistema central de climatização sob temperaturas extremas registradas em Boa Vista. O acionamento corretivo emergencial da Secretaria de Infraestrutura reverteu o consumo nos meses subsequentes para os parâmetros regulamentares da meta.`
-    },
-    {
-      id: 4,
-      title: `4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (${context.year - 4} a ${context.year})`,
-      category: 'HISTORICO',
-      statusBadge: 'Série Quinquenal',
-      content: `A análise retrospectiva dos últimos 5 anos (${context.year - 4} a ${context.year}), detalhada nos gráficos comparativos deste relatório, demonstra a efetividade das políticas de sustentabilidade implementadas pela SJRR:\n\n• Consumo de Energia Elétrica: Evoluiu de ${e61?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '182.400'} kWh em ${context.year - 4} para ${e61?.years[context.year]?.total.toLocaleString('pt-BR')} kWh em ${context.year} (${e61?.fiveYearChangePct}%), refletindo a substituição de luminárias LED e sensores de presença.\n• Consumo de Água: Reduziu de ${w71?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '2.850'} m³ em ${context.year - 4} para ${w71?.years[context.year]?.total.toLocaleString('pt-BR')} m³ em ${context.year} (${w71?.fiveYearChangePct}%), fruto da modernização hidrossanitária com arejadores automáticos.\n• Desmaterialização (Papel A4): Decréscimo pronunciado de ${p21?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '1.120'} resmas em ${context.year - 4} para ${p21?.years[context.year]?.total.toLocaleString('pt-BR')} resmas em ${context.year} (${p21?.fiveYearChangePct}%), consolidando a cultura 100% digital do SEI.\n• Coleta Seletiva Cidadã: Crescimento de ${r86?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '3.790'} kg em ${context.year - 4} para ${r86?.years[context.year]?.total.toLocaleString('pt-BR')} kg em ${context.year} (+${r86?.fiveYearChangePct}%), fortalecendo a inclusão socioprodutiva de catadores.\n• Emissões Totais de GEE: Queda consistente de ${g204?.years[context.year - 4]?.total.toLocaleString('pt-BR') || '158,4'} tCO2e em ${context.year - 4} para ${g204?.years[context.year]?.total.toLocaleString('pt-BR') || '102,0'} tCO2e em ${context.year} (${g204?.fiveYearChangePct}%), pavimentando o compromisso de descarbonização.`
-    },
-    {
-      id: 5,
-      title: '5. Execução do Plano de Ação Socioambiental e Desafios Estruturais',
-      category: 'PLANO_ACAO',
-      statusBadge: '14 Ações em Gestão',
-      content: `O Plano de Ação Socioambiental da SJRR conta com 14 iniciativas estruturantes alinhadas aos eixos temáticos do PLS. Registra-se avançado estágio de execução na substituição de luminárias por tecnologia LED (100%), na campanha Edifício Resíduo Zero Plástico (100%) e na consolidação da destinação de resíduos de informática e baterias (100%).\n\nEntre as prioridades para conclusão até o fim do exercício destacam-se a migração definitiva para telefonia VoIP em nuvem com desligamento de troncos legados e o processo licitatório para expansão do sistema fotovoltaico no estacionamento solar.`
-    },
-    {
-      id: 6,
-      title: '6. Balanço do Programa Justiça Carbono Zero (Resolução CNJ nº 594/2024)',
-      category: 'DESCARBONIZACAO',
-      statusBadge: 'CNJ 594/2024',
-      content: `Em consonância com a Resolução CNJ nº 594/2024, a SJRR mantém inventário anual de emissões de Gases de Efeito Estufa (GEE) abrangendo os Escopos 1 (frota oficial e gerador), Escopo 2 (eletricidade adquirida da rede de Roraima) e Escopo 3 (deslocamentos aéreos a serviço e resíduos terceirizados).\n\nEm ${context.year}, as emissões brutas totalizaram 102,0 tCO2e, alcançando a marca de 0,31 tCO2e per capita (redução de 35,4% frente a 2022). Paralelamente, foram promovidas ações de compensação florestal de 25,0 tCO2e via plantio de mudas nativas da flora amazônica em parceria com o Instituto Chico Mendes de Conservação da Biodiversidade (ICMBio).`
-    },
-    {
-      id: 7,
-      title: '7. Conclusão, Recomendações e Diretrizes para o Próximo Exercício',
-      category: 'CONCLUSAO',
-      statusBadge: 'Diretrizes 2027',
-      content: `Os resultados apurados no exercício de ${context.year} e na série histórica quinquenal demonstram que a Seção Judiciária de Roraima consolidou padrões de excelência em gestão sustentável. Para assegurar a transição contínua para o próximo ciclo estratégico, recomenda-se:\n\n1. Conclusão tempestiva do projeto de retrofit dos chillers com fluido refrigerante ecológico de baixo potencial de aquecimento global (GWP);\n2. Elevação da proporção de contratações públicas com critérios de sustentabilidade para patamar superior a 75%, conforme Lei nº 14.133/2021;\n3. Implantação de sistema de telemetria predial em tempo real para prevenção de novos picos de consumo atípico;\n4. Fortalecimento contínuo da capacitação socioambiental dos servidores e magistrados.`
-    }
+    { id: 1, title: '1. Apresentação', category: 'INSTITUCIONAL', statusBadge: 'Dados do iPLS',
+      content: `Relatório de acompanhamento do Plano de Logística Sustentável da ${context.organizationName}, exercício ${context.year}, elaborado a partir dos dados registrados no iPLS (Resoluções CNJ nº 400/2021 e nº 594/2024).\n\nEste texto foi gerado automaticamente sem IA e contém apenas números calculados dos dados. A análise qualitativa deve ser complementada pela unidade.` },
+    { id: 2, title: '2. Base de dados', category: 'METODOLOGIA',
+      content: `Foram considerados ${rows.length} indicadores principais com dados entre ${first} e ${context.year}.${partial.length ? ` No exercício, ${partial.length} indicador(es) mensal(is) têm meses não informados.` : ''} Há ${alerts.length} alerta(s) de qualidade de dados ativo(s) para o órgão.` },
+    { id: 3, title: `3. Resultados de ${context.year}`, category: 'DESEMPENHO',
+      content: table || 'Não há dados registrados para o exercício.' },
+    { id: 4, title: `4. Evolução ${first}–${context.year}`, category: 'HISTORICO',
+      content: [
+        reductions.length ? `Maiores reduções:\n${reductions.map(c => `• ${line(c)}`).join('\n')}` : '',
+        increases.length ? `Maiores aumentos:\n${increases.map(c => `• ${line(c)}`).join('\n')}` : ''
+      ].filter(Boolean).join('\n\n') || `Não há dados suficientes em ${first} e ${context.year} para comparação.` },
+    { id: 5, title: '5. Plano de ação', category: 'PLANO_ACAO',
+      content: context.actionPlans.length
+        ? context.actionPlans.map(a => `• ${a.title} — ${a.status}, ${a.percentageComplete}%`).join('\n')
+        : 'Nenhuma ação cadastrada no iPLS para o órgão.' },
+    { id: 6, title: '6. Justiça Carbono Zero (Resolução CNJ nº 594/2024)', category: 'DESCARBONIZACAO',
+      content: (() => {
+        const gee = rows.filter(r => /GEE-Esc3|GEE1e2/.test(r.ind));
+        return gee.length
+          ? gee.map(r => `• ${r.ind}: ${years.map(y => `${y}: ${typeof r.serie[String(y)] === 'number' ? fmt(r.serie[String(y)] as number) : 'n/d'}`).join('; ')} ${r.un}`).join('\n')
+          : 'Não há dados de inventário de emissões registrados para o órgão.';
+      })() },
+    { id: 7, title: '7. Pontos de atenção', category: 'CONCLUSAO',
+      content: alerts.length
+        ? alerts.slice(0, 15).map(a => `• ${a.indicatorName} (${a.year}${a.month ? `/${a.month}` : ''}): ${a.message}`).join('\n')
+        : 'Nenhum alerta de qualidade de dados ativo.' }
   ];
 
   return {
     sections,
-    executiveSummary: `A Seção Judiciária de Roraima encerra o exercício de ${context.year} com expressiva consolidação dos indicadores socioambientais do PLS. A série histórica dos últimos 5 anos (${context.year - 4} a ${context.year}) evidencia reduções consistentes no consumo de energia elétrica (${e61?.fiveYearChangePct}%), água (${w71?.fiveYearChangePct}%), papel A4 (${p21?.fiveYearChangePct}%) e nas emissões globais de GEE (${g204?.fiveYearChangePct}%), além da erradicação completa do uso de copos descartáveis plásticos.\n\nMesmo diante do pico atípico de consumo energético registrado em agosto/${context.year} por intempéries climáticas e manutenção dos chillers, as respostas gerenciais tempestivas garantiram a conformidade institucional com as Resoluções CNJ nº 400/2021 e nº 594/2024.`,
-    keyAchievements: [
-      'Erradicação de 100% no uso de copos e plásticos descartáveis na SJRR (consumo zero)',
-      `Redução de ${p21?.fiveYearChangePct}% no consumo de resmas de papel nos últimos 5 anos`,
-      `Expansão de +${r86?.fiveYearChangePct}% na destinação de materiais recicláveis à Associação Terra Viva`,
-      `Queda de ${g204?.fiveYearChangePct}% nas emissões de GEE (Programa Justiça Carbono Zero CNJ 594/2024)`
-    ],
-    criticalAlerts: [
-      `Pico de 21.450 kWh em agosto/${context.year} devido a falha do chiller central durante severa estiagem`,
-      `Troncos de telefonia fixa analógica demandando cancelamento definitivo para redução de despesas`
-    ],
+    executiveSummary: `Relatório gerado sem IA para a ${context.organizationName} (${context.year}), apenas com números do iPLS. ${reductions.length ? `Maior redução no período: ${line(reductions[0])}.` : ''} ${increases.length ? `Maior aumento: ${line(increases[0])}.` : ''}`.trim(),
+    keyAchievements: reductions.map(line),
+    criticalAlerts: alerts.filter(a => a.severity === 'CRITICA').slice(0, 5).map(a => `${a.indicatorName}: ${a.message}`),
     priorityRecommendations: [
-      'Execução prioritária do Retrofit do Sistema de Climatização (Ação act-01)',
-      'Migração integral para Telefonia VoIP em nuvem para eliminar custos de linhas fixas legadas',
-      'Manutenção do teto de consumo per capita de papel e incentivo ao processo 100% eletrônico'
+      'Confirmar com as unidades os valores sinalizados nos alertas de qualidade de dados.',
+      'Cadastrar metas do exercício para os indicadores sem meta.',
+      partial.length ? 'Completar os meses não informados dos indicadores mensais.' : 'Manter a regularidade dos lançamentos mensais.'
     ],
-    historicalHighlights: [
-      '2022: Início do monitoramento rigoroso pós-pandemia e estabelecimento de linhas de base',
-      '2024: Adoção do Novo Plano de Logística Sustentável com critérios da Lei 14.133/2021',
-      '2026: Consolidação da descarbonização e índice de conformidade superior a 85%'
-    ],
+    historicalHighlights: increases.map(line),
     generatedAt: new Date().toISOString(),
-    aiModel: 'Motor Analítico Institucional Grounded (iPLS SJRR)'
+    aiModel: 'Sem IA (somente dados do iPLS)'
   };
 }
 
@@ -469,13 +540,10 @@ export async function executeRAGChatQuery(
 
   const queryLower = query.toLowerCase().trim();
 
-  // 1. RAG Retrieval: Knowledge chunks
-  const retrievedChunks = queryRAGKnowledge({
-    organizationId: context.organizationId,
-    year: context.year,
-    query,
-    limit: 4
-  });
+  // 1. Base de conhecimento: a base embutida (ragEngine) era de DEMONSTRAÇÃO (faturas,
+  //    processos SEI e trechos normativos fictícios) e foi desativada. Reative quando
+  //    houver documentos reais carregados no iPLS.
+  const retrievedChunks: ReturnType<typeof queryRAGKnowledge> = [];
 
   // 2. RAG Retrieval: Calculated performance for all indicators
   const calculatedIndicators = context.indicators.map(ind => {
@@ -516,7 +584,12 @@ export async function executeRAGChatQuery(
       );
 
   // 3. Active alerts and relevant action plans
-  const activeAlerts = context.alerts.filter(a => !a.resolved);
+  const sevRank = (a: InconsistencyAlert) => (a.severity === 'CRITICA' ? 0 : a.severity === 'ATENCAO' ? 1 : 2);
+  const shownIds = new Set(displayedIndicators.map(i => i.indicator.id));
+  const activeAlerts = context.alerts
+    .filter(a => !a.resolved && (a.year === context.year || a.year === context.year - 1))
+    .sort((a, b) => Number(!shownIds.has(a.indicatorId)) - Number(!shownIds.has(b.indicatorId)) || sevRank(a) - sevRank(b))
+    .slice(0, 10);
   const relevantActions = context.actionPlans.filter(a =>
     queryLower.includes('ação') ||
     queryLower.includes('plano') ||
@@ -541,68 +614,85 @@ export async function executeRAGChatQuery(
     title: `Base de Dados Estruturada do iPLS (${context.organizationName})`,
     reference: `Medições auditadas e atestos até o exercício ${context.year}`,
     type: 'DADO_ESTRUTURADO',
-    details: 'Valores reais extraídos do SEI e concessionárias de serviços públicos'
+    details: 'Medições do órgão registradas no iPLS (Painel Unificado de Sustentabilidade da JF1 e lançamentos)'
   });
 
   if (relevantActions.length > 0) {
     sources.push({
-      title: 'Plano de Ação Socioambiental da SJRR',
-      reference: `14 Iniciativas Estruturantes (${context.year})`,
+      title: `Plano de Ação Socioambiental (${context.organizationName})`,
+      reference: `${relevantActions.length} ação(ões) relacionada(s) (${context.year})`,
       type: 'DOCUMENTO',
       details: 'Monitoramento contínuo de metas físicas e cronogramas executivos'
     });
   }
 
   // 5. System instructions for judicial AI grounding
-  const systemInstruction = `Você é o Assessor Especialista em Inteligência Socioambiental e Governança do Plano de Logística Sustentável (PLS) da Justiça Federal — Seção Judiciária de Roraima (SJRR) e TRF1.
-Sua missão é fornecer respostas precisas, analíticas e rigorosamente fundamentadas nas normativas do Conselho Nacional de Justiça (Resolução CNJ nº 400/2021 e Resolução CNJ nº 594/2024 - Programa Justiça Carbono Zero) e nos dados estruturados reais do sistema iPLS.
+  const systemInstruction = `Você é o assessor de sustentabilidade e governança do Plano de Logística Sustentável (PLS) da Justiça Federal da 1ª Região, respondendo sobre o órgão: ${context.organizationName}.
+Fundamente as respostas nas normas do CNJ (Resolução CNJ nº 400/2021 e Resolução CNJ nº 594/2024 - Programa Justiça Carbono Zero) e nos dados do sistema iPLS fornecidos no CONTEXTO.
 
-Diretrizes obrigatórias:
-1. Responda em Português do Brasil com linguagem executiva apropriada para Diretores de Foro, Juízes Federais e Coordenadores da Comissão Gestora do PLS.
-2. Fundamente suas respostas nos números e metas reais fornecidos no CONTEXTO RAG abaixo (não invente números; use sempre os dados auditados).
-3. Seja transparente: mencione os artigos das Resoluções CNJ ou processos SEI quando pertinente.
-4. Quando falar de energia elétrica (6.1): destaque que a meta anual é 174.000 kWh (-5% vs baseline 2025 de 183.150 kWh). Mencione que em agosto/2026 houve um pico atípico de 21.450 kWh causado por pane mecânica no chiller durante estiagem e calor extremo em Boa Vista, prontamente contornado pela Seção de Infraestrutura.
-5. Quando falar de copos plásticos (3.1): ressalte o alcance de 100% da meta de erradicação absoluta (zero copos descartáveis adquiridos ou consumidos), conforme o Art. 11 da Res. CNJ 400/2021.
-6. Quando falar de emissões ou descarbonização (20.4): cite a Resolução CNJ nº 594/2024 (Justiça Carbono Zero), o inventário projetado de 102,0 tCO2e (0,31 tCO2e per capita) e a descarbonização acumulada de 35,6% frente a 2022.
-7. Quando falar de compras sustentáveis (16.3): ressalte o cumprimento de 75% dos editais com critérios socioambientais (Lei nº 14.133/2021).
-8. Use formatação Markdown clara (títulos, negrito, listas com marcadores e pequenas tabelas quando couber).`;
+Regras obrigatórias:
+1. Responda em português do Brasil, com linguagem executiva, objetiva e clara.
+2. Use SOMENTE os números do CONTEXTO. Nunca invente valores, metas, causas, contratos, processos SEI ou eventos. Se a informação não estiver no contexto, diga claramente que ela não está disponível no iPLS.
+3. Quando não houver meta cadastrada (meta 0), diga que o órgão ainda não cadastrou meta, em vez de avaliar cumprimento.
+4. Se o exercício estiver em andamento, deixe claro que os valores são parciais (meses informados).
+5. Refira-se às Resoluções do CNJ apenas pelo número (ex.: Resolução CNJ nº 400/2021). NÃO cite artigos, parágrafos, incisos ou processos, nem descreva o que a norma determina, a menos que o trecho esteja no CONTEXTO.
+7. Não mencione ações, projetos ou obras que não estejam listados no CONTEXTO.
+6. Use Markdown (títulos curtos, negrito, listas e pequenas tabelas quando ajudar).`;
 
-  const contextPrompt = `=== CONTEXTO INSTITUCIONAL DO iPLS (SJRR - ${context.year}) ===
+  const contextPrompt = `=== CONTEXTO DO iPLS (${context.organizationName} - ${context.year}) ===
 Órgão: ${context.organizationName}
 Exercício de Referência: ${context.year}
 
-[1. CONHECIMENTO NORMATIVO RECUPERADO (RAG)]
-${retrievedChunks.map(c => `• ${c.documentTitle} (${c.section}):\n"${c.content}"`).join('\n\n')}
+[1. DOCUMENTOS NORMATIVOS]
+${retrievedChunks.length ? retrievedChunks.map(c => `• ${c.documentTitle} (${c.section}):\n"${c.content}"`).join('\n\n') : 'Nenhum documento normativo carregado no iPLS (cite as resoluções apenas pelo número).'}
 
 [2. DADOS ESTRUTURADOS DE INDICADORES AUDITADOS]
 ${displayedIndicators.map(i => {
   const ind = i.indicator;
   const res = i.result;
-  return `• ${ind.code} - ${ind.name} (Unid: ${ind.unit}):
-  - Linha de Base: ${res.baselineValue.toLocaleString('pt-BR')} ${ind.unit}
-  - Meta ${context.year}: ${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}
-  - Realizado Acumulado: ${res.accumulatedValue.toLocaleString('pt-BR')} ${ind.unit}
-  - Projeção Anual: ${res.annualProjection.toLocaleString('pt-BR')} ${ind.unit}
-  - Situação: ${res.status} (${res.statusReason})`;
+  const hasData = res.monthsReported > 0;
+  const isMonthly = ind.periodicity === 'MENSAL';
+  const coverage = !hasData
+    ? 'sem dados informados no exercício'
+    : isMonthly
+      ? `${res.monthsReported} de 12 meses informados${res.monthsReported < 12 ? ' (exercício parcial)' : ' (exercício completo)'}`
+      : 'valor anual informado';
+  const lines = [
+    `• ${ind.code} - ${ind.name} (${ind.acronym || ''}; unidade: ${ind.unit}; ${isMonthly ? 'mensal' : 'anual'})`,
+    `  - Cobertura: ${coverage}`
+  ];
+  if (hasData) {
+    lines.push(`  - Realizado no exercício: ${res.accumulatedValue.toLocaleString('pt-BR')} ${ind.unit}`);
+    if (isMonthly && res.monthsReported < 12) {
+      lines.push(`  - Projeção para 12 meses: ${res.annualProjection.toLocaleString('pt-BR')} ${ind.unit}`);
+    }
+  }
+  if (i.target) {
+    lines.push(`  - Meta ${context.year}: ${res.targetValue.toLocaleString('pt-BR')} ${ind.unit} (linha de base: ${res.baselineValue.toLocaleString('pt-BR')})`);
+    if (hasData) lines.push(`  - Situação frente à meta: ${res.status} (${res.statusReason})`);
+  } else {
+    lines.push(`  - Meta ${context.year}: NÃO CADASTRADA (não avalie cumprimento de meta)`);
+  }
+  return lines.join('\n');
 }).join('\n')}
 
 [3. ALERTAS E INCONSISTÊNCIAS ATIVAS]
 ${activeAlerts.length > 0 ? activeAlerts.map(a => `• [${a.severity}] ${a.indicatorName}: ${a.message} (Ação sugerida: ${a.suggestedAction})`).join('\n') : 'Nenhuma inconformidade crítica pendente.'}
 
 [4. AÇÕES EM EXECUÇÃO NO PLANO DE AÇÃO]
-${relevantActions.length > 0 ? relevantActions.map(a => `• [${a.status}] ${a.title} - Progresso: ${a.percentageComplete}% (Resp: ${a.responsibleUnit})`).join('\n') : '14 ações socioambientais sob governança da Comissão do PLS.'}
+${relevantActions.length > 0 ? relevantActions.map(a => `• [${a.status}] ${a.title} - Progresso: ${a.percentageComplete}% (Resp: ${a.responsibleUnit})`).join('\n') : 'Nenhuma ação do plano de ação relacionada à pergunta.'}
 
 Pergunta do Usuário / Gestor:
 "${query}"`;
 
   // Dynamic suggested follow-up questions
   const suggestedQuestions: string[] = [];
-  if (queryLower.includes('energia') || queryLower.includes('chiller')) {
-    suggestedQuestions.push('Quanto precisamos economizar nos próximos meses para atingir a meta de energia?');
-    suggestedQuestions.push('Qual é a situação da Ação 01 (Retrofit dos Chillers)?');
+  if (queryLower.includes('energia')) {
+    suggestedQuestions.push('Como evoluiu o consumo de energia nos últimos anos?');
+    suggestedQuestions.push('Qual foi a energia injetada na rede (kWhI) no exercício?');
   } else if (queryLower.includes('carbono') || queryLower.includes('gee')) {
     suggestedQuestions.push('Qual é o balanço dos Escopos 1, 2 e 3 na Resolução CNJ 594/2024?');
-    suggestedQuestions.push('Quais ações de compensação florestal foram realizadas?');
+    suggestedQuestions.push('Quais dados de inventário de GEE estão disponíveis?');
   } else {
     suggestedQuestions.push('Quais indicadores estão em risco de não atingir a meta?');
     suggestedQuestions.push('Como está a evolução da desmaterialização de papel e processos?');
@@ -662,75 +752,41 @@ Pergunta do Usuário / Gestor:
   // Connects to local Ollama / vLLM / LM Studio / Local internal endpoint
   // =========================================================================
   if (provider === 'local') {
-    const endpoint = (localConfig?.endpoint || 'http://localhost:11434/v1').replace(/\/$/, '');
-    const model = localConfig?.model || 'llama3.3';
-
+    const settings = localLLMSettings();
+    const model = localConfig?.model || settings.model;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout for local models
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (localConfig?.apiKey && localConfig.apiKey.trim()) {
-        headers['Authorization'] = `Bearer ${localConfig.apiKey.trim()}`;
-      }
-
-      const messagesPayload = [
-        { role: 'system', content: systemInstruction },
-        ...conversationHistory.slice(-4).map(h => ({
-          role: h.role === 'assistant' ? 'assistant' : 'user',
-          content: h.content
-        })),
-        { role: 'user', content: contextPrompt }
-      ];
-
-      const localResponse = await fetch(`${endpoint}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          messages: messagesPayload,
-          temperature: localConfig?.temperature ?? 0.2
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (localResponse.ok) {
-        const json = await localResponse.json();
-        const content = json.choices?.[0]?.message?.content;
-
-        if (content && content.trim().length > 0) {
-          return {
-            id: `msg-${Date.now()}`,
-            sender: 'assistant',
-            timestamp: new Date().toISOString(),
-            text: content,
-            sources,
-            suggestedQuestions,
-            providerUsed: 'local',
-            modelUsed: `IA Local SJRR (${model})`
-          };
-        }
-      } else {
-        const errorText = await localResponse.text().catch(() => '');
-        console.warn(`[LocalAI] Servidor local retornou erro ${localResponse.status}:`, errorText);
-      }
-    } catch (err: any) {
-      console.warn(`[LocalAI] Falha na conexão com endpoint local (${endpoint}):`, err?.message);
-
-      // Return informative diagnostic with fallback
-      const fallbackMsg = await queryInstitutionalAI(query, context);
-
+      const { text, model: usedModel } = await callLocalLLM(
+        [
+          { role: 'system', content: systemInstruction },
+          ...conversationHistory.slice(-4).map(h => ({
+            role: (h.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+            content: h.content
+          })),
+          { role: 'user', content: contextPrompt }
+        ],
+        { overrides: localConfig }
+      );
       return {
         id: `msg-${Date.now()}`,
         sender: 'assistant',
         timestamp: new Date().toISOString(),
-        text: `> ⚠️ **Aviso de Conexão com a IA Local da SJRR:** Não foi possível contactar o servidor em \`${endpoint}\` (${err?.message || 'Serviço offline'}). Exibindo resposta através do **Motor RAG Heurístico Interno**.\n\n${fallbackMsg.text}`,
+        text,
         sources,
         suggestedQuestions,
         providerUsed: 'local',
-        modelUsed: `IA Local (${model} - Fallback Heurístico)`
+        modelUsed: `IA local (${usedModel})`
+      };
+    } catch (err: any) {
+      console.warn('[LocalAI] Falha na IA local:', err?.message);
+      return {
+        id: `msg-${Date.now()}`,
+        sender: 'assistant',
+        timestamp: new Date().toISOString(),
+        text: `> ⚠️ **IA local indisponível:** ${err?.message || 'serviço offline'}.\n\n${factualFallbackText(context, displayedIndicators)}`,
+        sources,
+        suggestedQuestions,
+        providerUsed: 'local',
+        modelUsed: `IA local (${model || 'não configurada'}) — resposta do motor interno`
       };
     }
   }
@@ -738,12 +794,38 @@ Pergunta do Usuário / Gestor:
   // =========================================================================
   // EXECUTION MODE 3: HEURISTIC GROUNDED RAG ENGINE (OFFLINE FALLBACK)
   // =========================================================================
-  const heuristicMsg = await queryInstitutionalAI(query, context);
-
   return {
-    ...heuristicMsg,
-    sources: [...sources, ...(heuristicMsg.sources || [])],
+    id: `msg-${Date.now()}`,
+    sender: 'assistant',
+    timestamp: new Date().toISOString(),
+    text: factualFallbackText(context, displayedIndicators),
+    sources,
+    suggestedQuestions,
     providerUsed: 'heuristic',
-    modelUsed: 'Motor Heurístico RAG (Offline SJRR)'
+    modelUsed: 'Sem IA (somente dados do iPLS)'
   };
+}
+
+/** Resposta sem IA: apenas os números do iPLS para os indicadores relacionados à pergunta. */
+export function factualFallbackText(
+  context: { organizationName: string; year: number; alerts: InconsistencyAlert[] },
+  items: { indicator: Indicator; target?: IndicatorTarget; result: ReturnType<typeof calculateIndicatorPerformance> }[]
+): string {
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const rows = items
+    .filter(i => i.result.monthsReported > 0)
+    .map(i => {
+      const r = i.result;
+      const ind = i.indicator;
+      const mensal = ind.periodicity === 'MENSAL';
+      const cobertura = mensal ? ` (${r.monthsReported}/12 meses)` : '';
+      const meta = i.target ? ` · meta ${fmt(r.targetValue)} ${ind.unit}` : ' · sem meta cadastrada';
+      return `| ${ind.acronym || ind.code} — ${ind.name} | ${fmt(r.accumulatedValue)} ${ind.unit}${cobertura}${meta} |`;
+    });
+  const alerts = context.alerts.filter(a => !a.resolved && items.some(i => i.indicator.id === a.indicatorId)).slice(0, 5);
+  return [
+    `**Dados do iPLS — ${context.organizationName}, ${context.year}** (resposta sem IA, apenas números registrados)`,
+    rows.length ? `\n| Indicador | Valor no exercício |\n|---|---|\n${rows.join('\n')}` : '\nNão há dados registrados no exercício para os indicadores relacionados à pergunta.',
+    alerts.length ? `\n**Alertas de qualidade de dados:**\n${alerts.map(a => `- ${a.indicatorName}: ${a.message}`).join('\n')}` : ''
+  ].join('\n');
 }

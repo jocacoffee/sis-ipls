@@ -16,6 +16,16 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # IA local compatível com a API da OpenAI (LM Studio, Ollama, vLLM)
+      - AI_PROVIDER=${AI_PROVIDER:-}
+      - LOCAL_AI_ENDPOINT=${LOCAL_AI_ENDPOINT:-}
+      - LOCAL_AI_MODEL=${LOCAL_AI_MODEL:-}
+      - LOCAL_AI_API_KEY=${LOCAL_AI_API_KEY:-}
+      - LOCAL_AI_TEMPERATURE=${LOCAL_AI_TEMPERATURE:-}
+      - LOCAL_AI_MAX_TOKENS=${LOCAL_AI_MAX_TOKENS:-}
+      - LOCAL_AI_TIMEOUT_S=${LOCAL_AI_TIMEOUT_S:-}
+      - LOCAL_AI_REPORT_TIMEOUT_S=${LOCAL_AI_REPORT_TIMEOUT_S:-}
+      - LOCAL_AI_CONTEXT_TOKENS=${LOCAL_AI_CONTEXT_TOKENS:-}
       # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
       # vazio, a base é importada de data/database.json.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:-<senha-do-banco>}@postgres:5432/${POSTGRES_DB:-ipls_db}
