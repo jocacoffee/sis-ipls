@@ -94,6 +94,7 @@ interface DashboardViewProps {
   onOpenChatWithQuery: (q: string) => void;
   onSelectIndicator: (indicator: Indicator) => void;
   onOpenReplicateModal?: () => void;
+  organizationLabel?: string;
 }
 
 // Ordem padrão inicial de cards no Painel Executivo
@@ -252,7 +253,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenDocumentUpload,
   onOpenChatWithQuery,
   onSelectIndicator,
-  onOpenReplicateModal
+  onOpenReplicateModal,
+  organizationLabel = 'SJRR / TRF1'
 }) => {
   const [selectedThemeFilter, setSelectedThemeFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -596,28 +598,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const contractsSeries = getSeries('indicator-15-1');
 
   // Metas anuais com progressão histórica
-  const annualTargetByYear: Record<string, Record<number, number>> = {
-    'indicator-6-1': { 2021: 246500, 2022: 234200, 2023: 219800, 2024: 208400, 2025: 198200, 2026: 174000 },
-    'indicator-14-1': { 2021: 10450, 2022: 9800, 2023: 9250, 2024: 8640, 2025: 8210, 2026: 8160 },
-    'indicator-13-1': { 2021: 88200, 2022: 82500, 2023: 78900, 2024: 74200, 2025: 71500, 2026: 68000 },
-    'indicator-7-1': { 2021: 2480, 2022: 2360, 2023: 2210, 2024: 2095, 2025: 1980, 2026: 2160 },
-    'indicator-2-1': { 2021: 740, 2022: 660, 2023: 590, 2024: 535, 2025: 485, 2026: 600 },
-    'indicator-3-1': { 2021: 50, 2022: 20, 2023: 10, 2024: 0, 2025: 0, 2026: 0 },
-    'indicator-4-1': { 2021: 1200, 2022: 600, 2023: 200, 2024: 0, 2025: 0, 2026: 0 },
-    'indicator-5-1': { 2021: 320000, 2022: 290000, 2023: 260000, 2024: 240000, 2025: 225000, 2026: 216000 },
-    'indicator-12-1': { 2021: 42000, 2022: 38000, 2023: 35000, 2024: 32000, 2025: 29000, 2026: 26000 },
-    'indicator-8-1': { 2021: 3200, 2022: 3600, 2023: 4000, 2024: 4300, 2025: 4500, 2026: 4800 },
-    'indicator-6-2': { 2021: 0, 2022: 5000, 2023: 12000, 2024: 18000, 2025: 24000, 2026: 30000 },
-    'indicator-17-1': { 2021: 40, 2022: 42, 2023: 45, 2024: 48, 2025: 50, 2026: 50 },
-    'indicator-16-1': { 2021: 4, 2022: 6, 2023: 8, 2024: 10, 2025: 12, 2026: 12 },
-    'indicator-15-1': { 2021: 50, 2022: 60, 2023: 70, 2024: 80, 2025: 85, 2026: 90 }
-  };
 
-  const getTargetForIndicator = (indicatorId: string, year: number, fallback: number) => {
-    const fromProps = targets.find(t => t.indicatorId === indicatorId && t.year === year)?.targetValue;
-    if (fromProps !== undefined) return fromProps;
-    return annualTargetByYear[indicatorId]?.[year] ?? fallback;
-  };
+  // Somente metas cadastradas para o órgão selecionado (sem valores fixos de demonstração)
+  const getTargetForIndicator = (indicatorId: string, year: number, _fallback?: number) =>
+    targets.find(t => t.indicatorId === indicatorId && t.year === year)?.targetValue ?? 0;
 
   const energyTarget = getTargetForIndicator('indicator-6-1', selectedYear, 174000);
   const fuelTarget = getTargetForIndicator('indicator-14-1', selectedYear, 8160);
@@ -1212,7 +1196,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
         <div>
           <div className="text-xs font-semibold text-emerald-800 tracking-wider uppercase">
-            Plano de Logística Sustentável · SJRR / TRF1
+            Plano de Logística Sustentável · {organizationLabel}
           </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">
             {activeTabSection === 'SEXENNIUM'

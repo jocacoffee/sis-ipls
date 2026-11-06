@@ -1,0 +1,132 @@
+severidade,tipo,tabela,orgao_id,indicador,ano,mes,valor,descricao
+alta,area_zerada,fonte_anual_bruta,,,,,29,"mtotal (área total, m²) = 0 para todos os órgãos em 2024 e 2025 (e SJPI em 2022); indicadores por m² não são calculáveis por órgão"
+alta,metodologia_ftt,fonte_anual_bruta,,,2024,,12503,"FTT por órgão em 2024 é fracionária e soma 4256, muito abaixo do total regional (12503); FTT do 2º grau = 39 (era 2553 em 2023)"
+alta,metodologia_ftt,fonte_anual_bruta,,,2025,,10308,"FTT por órgão em 2025 é fracionária e soma 5419, muito abaixo do total regional (10308); FTT do 2º grau = 681 (era 2553 em 2023)"
+alta,percentual_acima_100,valores_anuais,SJAM,PRAS,2025,,1.152376886,Percentual de 115.2% (acima de 100%)
+alta,percentual_acima_100,valores_anuais,TRF1_2G,PRAS,2024,,1.846153846,Percentual de 184.6% (acima de 100%)
+alta,percentual_acima_100,valores_anuais,TRF1_2G,PRQV,2024,,4.755555556,Percentual de 475.6% (acima de 100%)
+alta,valor_invalido,valores_mensais,SJMT,CPC,2026,7,"','",Célula com texto em vez de número; descartada (tratada como não informada)
+media,lacuna_mensal,valores_mensais,SJDF,kWhI,2026,,.......xx...,Meses intermediários não informados (x = informado)
+media,lacuna_mensal,valores_mensais,SJRR,DPl,2026,,xxx.xxxx....,Meses intermediários não informados (x = informado)
+media,salto_anual,valores_anuais,SJAC,GRef,2025,,5058300.41,Fora da faixa de 10x da mediana 2021–2025 (3.348e+05)
+media,salto_anual,valores_anuais,SJAC,PAS,2022,,20,Fora da faixa de 10x da mediana 2021–2025 (1)
+media,salto_anual,valores_anuais,SJAC,PRAS,2022,,0.115606936,Fora da faixa de 10x da mediana 2021–2025 (0.009899)
+media,salto_anual,valores_anuais,SJAM,DEl,2024,,58,Fora da faixa de 10x da mediana 2021–2025 (603)
+media,salto_anual,valores_anuais,SJAM,GRef,2023,,34294.72,Fora da faixa de 10x da mediana 2021–2025 (4.701e+05)
+media,salto_anual,valores_anuais,SJAM,PRAS,2024,,0.022127613,Fora da faixa de 10x da mediana 2021–2025 (0.2329)
+media,salto_anual,valores_anuais,SJAP,ACS,2024,,1,Fora da faixa de 10x da mediana 2021–2025 (45)
+media,salto_anual,valores_anuais,SJAP,ACS,2025,,2,Fora da faixa de 10x da mediana 2021–2025 (45)
+media,salto_anual,valores_anuais,SJAP,PCS,2024,,0.020408163,Fora da faixa de 10x da mediana 2021–2025 (0.9375)
+media,salto_anual,valores_anuais,SJAP,PCS,2025,,0.038461538,Fora da faixa de 10x da mediana 2021–2025 (0.9375)
+media,salto_anual,valores_anuais,SJBA,GVe,2024,,3735,Fora da faixa de 10x da mediana 2021–2025 (2.544e+05)
+media,salto_anual,valores_anuais,SJDF,DImp,2025,,3,Fora da faixa de 10x da mediana 2021–2025 (66)
+media,salto_anual,valores_anuais,SJDF,PRAS,2025,,0.560172438,Fora da faixa de 10x da mediana 2021–2025 (0.04177)
+media,salto_anual,valores_anuais,SJGO,PAS,2024,,5,Fora da faixa de 10x da mediana 2021–2025 (146)
+media,salto_anual,valores_anuais,SJGO,PAS,2025,,6,Fora da faixa de 10x da mediana 2021–2025 (146)
+media,salto_anual,valores_anuais,SJGO,PRAS,2024,,0.00962436,Fora da faixa de 10x da mediana 2021–2025 (0.1315)
+media,salto_anual,valores_anuais,SJGO,PRAS,2025,,0.01057108,Fora da faixa de 10x da mediana 2021–2025 (0.1315)
+media,salto_anual,valores_anuais,SJMA,ACS,2025,,1,Fora da faixa de 10x da mediana 2021–2025 (20)
+media,salto_anual,valores_anuais,SJMA,PCS,2025,,0.020408163,Fora da faixa de 10x da mediana 2021–2025 (0.5484)
+media,salto_anual,valores_anuais,SJMA,QIP,2023,,37.20351759,Fora da faixa de 10x da mediana 2021–2025 (767.1)
+media,salto_anual,valores_anuais,SJMA,QVM,2024,,1,Fora da faixa de 10x da mediana 2021–2025 (13)
+media,salto_anual,valores_anuais,SJMA,QVM,2025,,1,Fora da faixa de 10x da mediana 2021–2025 (13)
+media,salto_anual,valores_anuais,SJMA,UVM,2025,,32.51506849,Fora da faixa de 10x da mediana 2021–2025 (2.769)
+media,salto_anual,valores_anuais,SJMT,GLB,2021,,15652.89,Fora da faixa de 10x da mediana 2021–2025 (2.283e+06)
+media,salto_anual,valores_anuais,SJMT,GLB,2022,,19621.91,Fora da faixa de 10x da mediana 2021–2025 (2.283e+06)
+media,salto_anual,valores_anuais,SJMT,GRL,2021,,0.389753492,Fora da faixa de 10x da mediana 2021–2025 (76.43)
+media,salto_anual,valores_anuais,SJMT,GRL,2022,,0.520557914,Fora da faixa de 10x da mediana 2021–2025 (76.43)
+media,salto_anual,valores_anuais,SJMT,GRef,2022,,17168.13,Fora da faixa de 10x da mediana 2021–2025 (9.139e+05)
+media,salto_anual,valores_anuais,SJMT,QIP,2022,,1.46092504,Fora da faixa de 10x da mediana 2021–2025 (85.2)
+media,salto_anual,valores_anuais,SJMT,QIP,2023,,1.475146199,Fora da faixa de 10x da mediana 2021–2025 (85.2)
+media,salto_anual,valores_anuais,SJPA,PAS,2025,,1156,Fora da faixa de 10x da mediana 2021–2025 (50)
+media,salto_anual,valores_anuais,SJPA,PQV,2023,,4,Fora da faixa de 10x da mediana 2021–2025 (315)
+media,salto_anual,valores_anuais,SJPA,PRAS,2025,,0.796896572,Fora da faixa de 10x da mediana 2021–2025 (0.06394)
+media,salto_anual,valores_anuais,SJPA,PRQV,2023,,0.001246883,Fora da faixa de 10x da mediana 2021–2025 (0.2014)
+media,salto_anual,valores_anuais,SJRO,CG,2021,,194,Fora da faixa de 10x da mediana 2021–2025 (2118)
+media,salto_anual,valores_anuais,SJRO,PQV,2025,,1215,Fora da faixa de 10x da mediana 2021–2025 (121)
+media,salto_anual,valores_anuais,SJRR,GRef,2024,,2549649.43,Fora da faixa de 10x da mediana 2021–2025 (2.339e+05)
+media,salto_anual,valores_anuais,SJTO,DRS,2024,,0.18,Fora da faixa de 10x da mediana 2021–2025 (2.195)
+media,salto_anual,valores_anuais,SJTO,PCap,2021,,214,Fora da faixa de 10x da mediana 2021–2025 (11)
+media,salto_anual,valores_anuais,SJTO,PCap,2022,,1,Fora da faixa de 10x da mediana 2021–2025 (11)
+media,salto_anual,valores_anuais,SJTO,PCap,2023,,1,Fora da faixa de 10x da mediana 2021–2025 (11)
+media,salto_anual,valores_anuais,SJTO,PRCap,2022,,0.002564103,Fora da faixa de 10x da mediana 2021–2025 (0.0675)
+media,salto_anual,valores_anuais,SJTO,PRCap,2023,,0.002816901,Fora da faixa de 10x da mediana 2021–2025 (0.0675)
+media,salto_anual,valores_anuais,SJTO,QIP,2022,,0.007692308,Fora da faixa de 10x da mediana 2021–2025 (0.1302)
+media,salto_anual,valores_anuais,SJTO,QIP,2025,,78.36183874,Fora da faixa de 10x da mediana 2021–2025 (0.1302)
+media,salto_anual,valores_anuais,TRF1_2G,DOB,2025,,7000,Fora da faixa de 10x da mediana 2021–2025 (1.2e+05)
+media,salto_anual,valores_anuais,TRF1_2G,DRS,2025,,2290,Fora da faixa de 10x da mediana 2021–2025 (80)
+media,salto_anual,valores_anuais,TRF1_2G,GRef,2021,,74816.7,Fora da faixa de 10x da mediana 2021–2025 (2.122e+06)
+media,salto_anual,valores_anuais,TRF1_2G,PRCap,2024,,0.825641026,Fora da faixa de 10x da mediana 2021–2025 (0.02938)
+media,salto_anual,valores_anuais,TRF1_2G,PRQV,2024,,4.755555556,Fora da faixa de 10x da mediana 2021–2025 (0.0727)
+media,salto_anual,valores_anuais,TRF1_2G,QIP,2024,,20412.89744,Fora da faixa de 10x da mediana 2021–2025 (790.5)
+media,sjmg_zerado,fonte_anual_bruta,SJMG,,,,,SJMG tem registros de 2022 e 2023 na fonte anual com valores zerados; não usar como dado real
+media,valor_atipico,valores_mensais,SJAC,CA,2026,2,20,Menos de 1/8 da mediana dos meses de 2026 (179.5)
+media,valor_atipico,valores_mensais,SJAC,GA,2026,2,264.54,Menos de 1/8 da mediana dos meses de 2026 (3990.59)
+media,valor_atipico,valores_mensais,SJBA,CC,2026,5,466,Mais de 8x a mediana dos meses de 2026 (44.5)
+media,valor_atipico,valores_mensais,SJBA,GCD,2026,5,1324.42,Mais de 8x a mediana dos meses de 2026 (66.39)
+media,valor_atipico,valores_mensais,SJGO,CC,2026,4,31,Menos de 1/8 da mediana dos meses de 2026 (378)
+media,valor_atipico,valores_mensais,SJGO,DPa,2026,4,3900,Mais de 8x a mediana dos meses de 2026 (28)
+media,valor_atipico,valores_mensais,SJGO,GCD,2026,4,181.35,Menos de 1/8 da mediana dos meses de 2026 (2211.3)
+media,valor_atipico,valores_mensais,SJMA,DPa,2026,5,2141,Mais de 8x a mediana dos meses de 2026 (212)
+media,valor_atipico,valores_mensais,SJPA,CED,2026,3,312,Mais de 8x a mediana dos meses de 2026 (36)
+media,valor_atipico,valores_mensais,SJPA,CED,2026,5,318,Mais de 8x a mediana dos meses de 2026 (36)
+media,valor_atipico,valores_mensais,SJPA,GAED,2026,3,2094.96,Mais de 8x a mediana dos meses de 2026 (64.44)
+media,valor_atipico,valores_mensais,SJPA,GAED,2026,5,601.5,Mais de 8x a mediana dos meses de 2026 (64.44)
+media,valor_atipico,valores_mensais,SJRO,CC,2026,7,352,Mais de 8x a mediana dos meses de 2026 (40.5)
+media,valor_atipico,valores_mensais,SJRO,CPP,2026,2,2,Menos de 1/8 da mediana dos meses de 2026 (28.5)
+media,valor_atipico,valores_mensais,SJRO,DPa,2026,1,313,Mais de 8x a mediana dos meses de 2026 (1.5)
+media,valor_atipico,valores_mensais,SJRO,DPa,2026,4,14,Mais de 8x a mediana dos meses de 2026 (1.5)
+media,valor_atipico,valores_mensais,SJRO,DPa,2026,7,13,Mais de 8x a mediana dos meses de 2026 (1.5)
+media,valor_atipico,valores_mensais,SJRO,GCD,2026,7,950.07,Mais de 8x a mediana dos meses de 2026 (102)
+media,valor_atipico,valores_mensais,SJRO,GPP,2026,2,32.8,Menos de 1/8 da mediana dos meses de 2026 (467.82)
+media,valor_atipico,valores_mensais,SJTO,CPP,2026,6,1,Menos de 1/8 da mediana dos meses de 2026 (10.5)
+media,valor_atipico,valores_mensais,SJTO,GPP,2026,6,20.13,Menos de 1/8 da mediana dos meses de 2026 (252.115)
+baixa,sem_historico,indicadores,,RDC,,,,"RDC está no catálogo, mas não há valores na base recebida"
+baixa,zero_em_serie,valores_mensais,SJAC,CED,2026,1,0,Zero em série com mediana 300; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAC,CED,2026,3,0,Zero em série com mediana 300; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAC,CED,2026,5,0,Zero em série com mediana 300; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAC,CED,2026,6,0,Zero em série com mediana 300; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAM,CC,2026,7,0,Zero em série com mediana 17; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAM,CPP,2026,7,0,Zero em série com mediana 20; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAM,GCD,2026,7,0,Zero em série com mediana 50.74; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAM,GPP,2026,7,0,Zero em série com mediana 293; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAP,CPP,2026,5,0,Zero em série com mediana 14; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJAP,GPP,2026,5,0,Zero em série com mediana 329; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJDF,GCD,2026,7,0,Zero em série com mediana 640.2; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJDF,GPP,2026,7,0,Zero em série com mediana 1900.8; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJGO,DMt,2026,1,0,Zero em série com mediana 1; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJGO,DMt,2026,2,0,Zero em série com mediana 1; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJGO,DMt,2026,4,0,Zero em série com mediana 1; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DMt,2026,2,0,Zero em série com mediana 10; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DMt,2026,4,0,Zero em série com mediana 10; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DMt,2026,7,0,Zero em série com mediana 10; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPa,2026,2,0,Zero em série com mediana 212; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPa,2026,4,0,Zero em série com mediana 212; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPa,2026,7,0,Zero em série com mediana 212; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPl,2026,2,0,Zero em série com mediana 30; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPl,2026,4,0,Zero em série com mediana 30; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJMA,DPl,2026,7,0,Zero em série com mediana 30; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,CC,2026,1,0,Zero em série com mediana 50; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,CED,2026,1,0,Zero em série com mediana 36; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,CER,2026,1,0,Zero em série com mediana 362; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,GAED,2026,1,0,Zero em série com mediana 64.44; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,GAER,2026,1,0,Zero em série com mediana 3525.14; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJPA,GCD,2026,1,0,Zero em série com mediana 416.8; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,CA,2026,8,0,Zero em série com mediana 172; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,CEE,2026,8,0,Zero em série com mediana 34010; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,CER,2026,8,0,Zero em série com mediana 229; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,DPa,2026,2,0,Zero em série com mediana 1.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,DPa,2026,3,0,Zero em série com mediana 1.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,DPa,2026,6,0,Zero em série com mediana 1.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,DPa,2026,8,0,Zero em série com mediana 1.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GA,2026,8,0,Zero em série com mediana 3813.61; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GAER,2026,8,0,Zero em série com mediana 1681.12; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GEE,2026,8,0,Zero em série com mediana 43498.3; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GTF,2026,8,0,Zero em série com mediana 1959.42; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GTM,2026,6,0,Zero em série com mediana 1188.69; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GTM,2026,7,0,Zero em série com mediana 1188.69; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJRO,GTM,2026,8,0,Zero em série com mediana 1188.69; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJTO,CC,2026,1,0,Zero em série com mediana 25.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJTO,CC,2026,8,0,Zero em série com mediana 25.5; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJTO,GCD,2026,1,0,Zero em série com mediana 125.715; confirmar se é zero real ou falta de informação
+baixa,zero_em_serie,valores_mensais,SJTO,GCD,2026,8,0,Zero em série com mediana 125.715; confirmar se é zero real ou falta de informação

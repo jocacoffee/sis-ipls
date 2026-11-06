@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Backups locais gerados pela carga de dados
+data/backups/

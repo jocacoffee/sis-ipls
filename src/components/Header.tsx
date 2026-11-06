@@ -166,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Selecione a Unidade
               </div>
-              <div className="space-y-1 mt-1">
+              <div className="space-y-1 mt-1 max-h-80 overflow-y-auto">
                 {organizations.map(org => (
                   <button
                     key={org.id}

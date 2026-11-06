@@ -10,6 +10,10 @@ export interface Organization {
   uf: string;
   totalFloorAreaM2: number;
   totalMagistratesStaff: number;
+  /** Órgão virtual cujos valores são a soma dos demais (ex.: 1ª Região consolidada). Não recebe lançamentos. */
+  isConsolidated?: boolean;
+  /** Ordem de exibição nos seletores. */
+  displayOrder?: number;
 }
 
 export type UserRole = 
@@ -104,6 +108,8 @@ export interface Indicator {
   targetValue2026?: number;
   baselineYear?: number;
   baselineValue?: number;
+  /** Regra do consolidado regional: SOMA dos órgãos ou NENHUMA (percentuais, razões, códigos). */
+  consolidation?: 'SOMA' | 'NENHUMA';
 }
 
 export type TargetCriticality = 'CRITICA' | 'NAO_CRITICA';
@@ -269,6 +275,8 @@ export interface IndicatorCalculationResult {
 
 export interface InconsistencyAlert {
   id: string;
+  /** Órgão a que o alerta se refere (ausente = alerta geral). */
+  organizationId?: string;
   indicatorId: string;
   indicatorName: string;
   month: number;

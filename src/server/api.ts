@@ -11,10 +11,30 @@ import { buildFiveYearHistoricalSeries, getFiveYearSummaryStats } from '../servi
 import { queryInstitutionalAI } from '../services/aiService';
 import { extractDataFromDocument } from '../services/documentExtractor';
 import { IndicatorMeasurement, AuditLog, PLSDocument, InconsistencyAlert } from '../types';
+import {
+  LEGACY_DEFAULT_ORG_ID,
+  isConsolidatedOrg,
+  orgDenominators,
+  orgIdOf,
+  scopeMeasurements,
+  scopeTargets
+} from '../services/orgScope';
 
 export function createApiRouter() {
   const router = express.Router();
   const db = storage.getDatabase();
+
+  /** Dados do órgão selecionado: medições próprias (ou consolidadas) e metas. */
+  const scopeFor = (orgId: string) => ({
+    measurements: scopeMeasurements(orgId, db.measurements, db.indicators, db.organizations),
+    targets: scopeTargets(orgId, db.targets),
+    ...orgDenominators(orgId, db.organizations)
+  });
+
+  const consolidatedWriteError = (orgId: string) =>
+    isConsolidatedOrg(orgId, db.organizations)
+      ? 'O consolidado regional é calculado a partir dos órgãos e não aceita lançamentos diretos. Selecione um órgão.'
+      : null;
 
   // Helper for audit logging
   const logAudit = (
@@ -63,21 +83,22 @@ export function createApiRouter() {
   // GET /api/bootstrap - Complete payload for initial load
   router.get('/bootstrap', (req: Request, res: Response) => {
     const year = Number(req.query.year) || 2026;
-    const orgId = (req.query.orgId as string) || 'org-sjrr';
+    const orgId = (req.query.orgId as string) || LEGACY_DEFAULT_ORG_ID;
+    const scoped = scopeFor(orgId);
 
-    // Recalculate indicator metrics
+    // Recalculate indicator metrics (somente dados do órgão selecionado)
     const indicatorPerformances = db.indicators.map(ind => {
-      const target = db.targets.find(t => t.indicatorId === ind.id && t.year === year);
+      const target = scoped.targets.find(t => t.indicatorId === ind.id && t.year === year);
       return {
         indicator: ind,
         target,
-        result: calculateIndicatorPerformance(ind, db.measurements, target, year)
+        result: calculateIndicatorPerformance(ind, scoped.measurements, target, year, scoped.areaM2, scoped.ftt)
       };
     });
 
     // Detect inconsistencies
-    const dynamicAlerts = detectMeasurementInconsistencies(db.indicators, db.measurements, year);
-    const allAlerts = [...db.alerts];
+    const dynamicAlerts = detectMeasurementInconsistencies(db.indicators, scoped.measurements, year);
+    const allAlerts = db.alerts.filter(a => !a.organizationId || a.organizationId === orgId);
     dynamicAlerts.forEach(da => {
       if (!allAlerts.some(a => a.id === da.id || (a.indicatorId === da.indicatorId && a.month === da.month && a.type === da.type))) {
         allAlerts.push(da);
@@ -90,8 +111,9 @@ export function createApiRouter() {
       plsCycles: db.plsCycles,
       themes: db.themes,
       indicators: db.indicators,
-      targets: db.targets,
-      measurements: db.measurements,
+      targets: scoped.targets,
+      measurements: scoped.measurements,
+      selectedOrgId: orgId,
       documents: db.documents,
       actionPlans: db.actionPlans,
       emissionSources: db.emissionSources,
@@ -186,9 +208,10 @@ export function createApiRouter() {
   // GET /api/analytics/indicators
   router.get('/analytics/indicators', (req: Request, res: Response) => {
     const year = Number(req.query.year) || 2026;
+    const scoped = scopeFor((req.query.orgId as string) || LEGACY_DEFAULT_ORG_ID);
     const results = db.indicators.map(ind => {
-      const target = db.targets.find(t => t.indicatorId === ind.id && t.year === year);
-      return calculateIndicatorPerformance(ind, db.measurements, target, year);
+      const target = scoped.targets.find(t => t.indicatorId === ind.id && t.year === year);
+      return calculateIndicatorPerformance(ind, scoped.measurements, target, year, scoped.areaM2, scoped.ftt);
     });
     res.json(results);
   });
@@ -206,6 +229,7 @@ export function createApiRouter() {
       processNumber,
       notes,
       reason,
+      organizationId = LEGACY_DEFAULT_ORG_ID,
       userId = 'usr-1',
       userName = 'Dr. Roberto Magalhães'
     } = req.body;
@@ -214,13 +238,25 @@ export function createApiRouter() {
       return res.status(400).json({ error: 'Campos obrigatórios ausentes (indicatorId, year, month, value).' });
     }
 
+    const writeError = consolidatedWriteError(organizationId);
+    if (writeError) {
+      return res.status(400).json({ error: writeError });
+    }
+    if (!db.organizations.some(o => o.id === organizationId)) {
+      return res.status(404).json({ error: 'Órgão não encontrado.' });
+    }
+
     const ind = db.indicators.find(i => i.id === indicatorId);
     if (!ind) {
       return res.status(404).json({ error: 'Indicador não encontrado.' });
     }
 
     const existingIndex = db.measurements.findIndex(
-      m => m.indicatorId === indicatorId && m.year === Number(year) && m.month === Number(month)
+      m =>
+        m.indicatorId === indicatorId &&
+        m.year === Number(year) &&
+        m.month === Number(month) &&
+        orgIdOf(m) === organizationId
     );
 
     let measurement: IndicatorMeasurement;
@@ -257,7 +293,7 @@ export function createApiRouter() {
       measurement = {
         id: `m-${indicatorId}-${year}-${month}-${Date.now()}`,
         indicatorId,
-        organizationId: 'org-sjrr',
+        organizationId,
         year: Number(year),
         month: Number(month),
         value: Number(value),
@@ -307,10 +343,15 @@ export function createApiRouter() {
 
     let insertedCount = 0;
     let updatedCount = 0;
+    let rejectedCount = 0;
     const now = new Date().toISOString();
 
     items.forEach((item, idx) => {
       if (!item.indicatorId || item.value === undefined) return;
+      if (consolidatedWriteError(item.organizationId || LEGACY_DEFAULT_ORG_ID)) {
+        rejectedCount++;
+        return;
+      }
       const year = Number(item.year) || 2026;
       const month = item.month !== undefined ? Number(item.month) : 1;
       const val = Number(item.value);
@@ -380,6 +421,7 @@ export function createApiRouter() {
       totalProcessed: items.length,
       insertedCount,
       updatedCount,
+      rejectedCount,
       totalInDatabase: db.measurements.length,
       persisted: true
     });
@@ -496,6 +538,7 @@ export function createApiRouter() {
     }
 
     const org = db.organizations.find(o => o.id === orgId) || db.organizations[0];
+    const scoped = scopeFor(org.id);
 
     try {
       const responseMessage = await executeRAGChatQuery({
@@ -508,8 +551,8 @@ export function createApiRouter() {
           organizationId: org.id,
           year: Number(year),
           indicators: db.indicators,
-          measurements: db.measurements,
-          targets: db.targets,
+          measurements: scoped.measurements,
+          targets: scoped.targets,
           actionPlans: db.actionPlans,
           documents: db.documents,
           alerts: db.alerts
@@ -525,8 +568,8 @@ export function createApiRouter() {
         organizationId: org.id,
         year: Number(year),
         indicators: db.indicators,
-        measurements: db.measurements,
-        targets: db.targets,
+        measurements: scoped.measurements,
+        targets: scoped.targets,
         actionPlans: db.actionPlans,
         documents: db.documents,
         alerts: db.alerts
@@ -560,8 +603,9 @@ export function createApiRouter() {
   // GET /api/annual-report/history - 5-year historical series for charts & compliance
   router.get('/annual-report/history', (req: Request, res: Response) => {
     const year = Number(req.query.year) || 2026;
-    const orgId = (req.query.orgId as string) || 'org-sjrr';
-    const fiveYearSeries = buildFiveYearHistoricalSeries(db.indicators, db.measurements, db.targets, year);
+    const orgId = (req.query.orgId as string) || LEGACY_DEFAULT_ORG_ID;
+    const scoped = scopeFor(orgId);
+    const fiveYearSeries = buildFiveYearHistoricalSeries(db.indicators, scoped.measurements, scoped.targets, year);
     const summaryStats = getFiveYearSummaryStats(fiveYearSeries);
     const rollingYears = Array.from({ length: 5 }, (_, i) => year - 4 + i);
 
@@ -577,8 +621,9 @@ export function createApiRouter() {
   router.post('/annual-report/generate', async (req: Request, res: Response) => {
     const { year = 2026, orgId = 'org-sjrr', customFocus } = req.body;
     const org = db.organizations.find(o => o.id === orgId) || db.organizations[0];
+    const scoped = scopeFor(org.id);
 
-    const fiveYearSeries = buildFiveYearHistoricalSeries(db.indicators, db.measurements, db.targets, Number(year));
+    const fiveYearSeries = buildFiveYearHistoricalSeries(db.indicators, scoped.measurements, scoped.targets, Number(year));
 
     try {
       const generated = await generateGeminiAnnualReport({
@@ -586,8 +631,8 @@ export function createApiRouter() {
         year: Number(year),
         customFocus,
         indicators: db.indicators,
-        measurements: db.measurements,
-        targets: db.targets,
+        measurements: scoped.measurements,
+        targets: scoped.targets,
         actionPlans: db.actionPlans,
         alerts: db.alerts,
         fiveYearSeries
@@ -677,8 +722,16 @@ export function createApiRouter() {
     }
 
     const year = Number(target.year) || 2026;
+    const targetOrgId: string = target.organizationId || LEGACY_DEFAULT_ORG_ID;
+    const writeError = consolidatedWriteError(targetOrgId);
+    if (writeError) {
+      return res.status(400).json({ error: writeError });
+    }
     const existingIdx = db.targets.findIndex(
-      t => t.indicatorId === target.indicatorId && t.year === year
+      t =>
+        t.indicatorId === target.indicatorId &&
+        t.year === year &&
+        (t.organizationId || LEGACY_DEFAULT_ORG_ID) === targetOrgId
     );
 
     let updatedTarget: any;
@@ -710,8 +763,8 @@ export function createApiRouter() {
       const ind = db.indicators.find(i => i.id === target.indicatorId);
       updatedTarget = {
         ...target,
-        id: target.id || `target-${target.indicatorId}-${year}-${Date.now()}`,
-        organizationId: 'org-sjrr',
+        id: target.id || `target-${targetOrgId}-${target.indicatorId}-${year}-${Date.now()}`,
+        organizationId: targetOrgId,
         year,
         targetValue: Number(target.targetValue),
         targetUnit: target.targetUnit || ind?.unit || 'unidades',
@@ -732,20 +785,9 @@ export function createApiRouter() {
       );
     }
 
-    // Keep indicator metadata in sync for 2026
-    const indForSync = db.indicators.find(i => i.id === target.indicatorId);
-    if (indForSync && year === 2026) {
-      indForSync.targetValue2026 = Number(target.targetValue);
-      if (target.baselineValue !== undefined) {
-        indForSync.baselineValue = Number(target.baselineValue);
-      }
-      if (target.baselineYear !== undefined) {
-        indForSync.baselineYear = Number(target.baselineYear);
-      }
-    }
-
+    // Metas pertencem ao órgão: não são mais copiadas para o indicador (catálogo global).
     storage.scheduleSave();
-    res.json({ success: true, target: updatedTarget, targets: db.targets, persisted: true });
+    res.json({ success: true, target: updatedTarget, targets: scopeTargets(targetOrgId, db.targets), persisted: true });
   });
 
   // DELETE /api/targets/:id - Remove PLS indicator target
@@ -755,14 +797,15 @@ export function createApiRouter() {
       indicatorId = req.query.indicatorId as string,
       year = req.query.year ? Number(req.query.year) : 2026,
       reason = req.query.reason as string,
+      organizationId = (req.query.orgId as string) || LEGACY_DEFAULT_ORG_ID,
       userId = 'usr-1',
       userName = 'Dr. Roberto Magalhães'
     } = req.body || {};
 
     const targetIndex = db.targets.findIndex(t => {
+      if ((t.organizationId || LEGACY_DEFAULT_ORG_ID) !== organizationId) return false;
       if (id && id !== 'undefined' && id !== ':id' && id !== 'by-indicator' && t.id === id) return true;
       if (indicatorId && year && t.indicatorId === indicatorId && t.year === Number(year)) return true;
-      if (id && t.id === id) return true;
       return false;
     });
 
@@ -773,11 +816,6 @@ export function createApiRouter() {
 
     const effIndicatorId = removedTarget?.indicatorId || indicatorId;
     const ind = db.indicators.find(i => i.id === effIndicatorId);
-
-    // Also clear targetValue2026 on the indicator if exercise is 2026
-    if (ind && Number(year) === 2026) {
-      ind.targetValue2026 = undefined;
-    }
 
     if (!removedTarget && !ind) {
       return res.status(404).json({ error: 'Meta ou indicador não encontrado para exclusão.' });
@@ -796,7 +834,7 @@ export function createApiRouter() {
     );
 
     storage.scheduleSave();
-    res.json({ success: true, removedTarget, targets: db.targets, persisted: true });
+    res.json({ success: true, removedTarget, targets: scopeTargets(organizationId, db.targets), persisted: true });
   });
 
   return router;

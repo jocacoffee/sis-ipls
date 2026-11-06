@@ -22,7 +22,6 @@ import {
   INITIAL_THEMES,
   INITIAL_INDICATORS,
   INITIAL_TARGETS,
-  INITIAL_MEASUREMENTS,
   INITIAL_DOCUMENTS,
   INITIAL_ACTION_PLANS,
   INITIAL_EMISSION_SOURCES,
@@ -70,11 +69,19 @@ import {
   getCycleFromYear,
   getCycleInfo
 } from './utils/yearUtils';
+import { isConsolidatedOrg, orgDenominators, orgIdOf } from './services/orgScope';
+
+// Cache local separado por órgão (evita misturar séries de unidades diferentes)
+const measurementsCacheKey = (orgId: string) => `${STORAGE_KEYS.MEASUREMENTS}__${orgId}`;
+const targetsCacheKey = (orgId: string) => `${STORAGE_KEYS.TARGETS}__${orgId}`;
+const DEFAULT_ORG_ID = 'org-sjrr';
+const CONSOLIDATED_WRITE_MESSAGE =
+  'O consolidado da 1ª Região é calculado a partir dos órgãos e não aceita lançamentos. Selecione um órgão para lançar ou editar dados.';
 
 export function App() {
   // Core state
-  const [organizations] = useState<Organization[]>(INITIAL_ORGANIZATIONS);
-  const [selectedOrgId, setSelectedOrgId] = useState<string>('org-sjrr');
+  const [organizations, setOrganizations] = useState<Organization[]>(INITIAL_ORGANIZATIONS);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>(DEFAULT_ORG_ID);
   const [currentRole, setCurrentRole] = useState<UserRole>('GESTOR_PLS');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -86,10 +93,10 @@ export function App() {
   );
   const [editingIndicator, setEditingIndicator] = useState<Indicator | null>(null);
   const [targets, setTargets] = useState<IndicatorTarget[]>(() =>
-    loadLocalData(STORAGE_KEYS.TARGETS, INITIAL_TARGETS)
+    loadLocalData(targetsCacheKey(DEFAULT_ORG_ID), INITIAL_TARGETS)
   );
   const [measurements, setMeasurements] = useState<IndicatorMeasurement[]>(() =>
-    loadLocalData(STORAGE_KEYS.MEASUREMENTS, INITIAL_MEASUREMENTS)
+    loadLocalData<IndicatorMeasurement[]>(measurementsCacheKey(DEFAULT_ORG_ID), [])
   );
   const [documents, setDocuments] = useState<PLSDocument[]>(INITIAL_DOCUMENTS);
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>(() =>
@@ -176,7 +183,7 @@ export function App() {
         m => !(m.year === toYear && GENERAL_VARIABLE_INDICATOR_IDS.includes(m.indicatorId))
       );
       const updated = [...filtered, ...newMeasurements];
-      saveLocalData(STORAGE_KEYS.MEASUREMENTS, updated);
+      saveLocalData(measurementsCacheKey(selectedOrgId), updated);
       syncMeasurementsToServer(newMeasurements);
       return updated;
     });
@@ -223,9 +230,19 @@ export function App() {
 
   // Synchronize with API on mount and protect user-imported data
   useEffect(() => {
+    // Ao trocar de órgão, exibe imediatamente o cache daquele órgão (nunca o de outro)
+    setMeasurements(loadLocalData<IndicatorMeasurement[]>(measurementsCacheKey(selectedOrgId), []));
+    setTargets(loadLocalData<IndicatorTarget[]>(targetsCacheKey(selectedOrgId), []));
+
     fetch(`/api/bootstrap?year=${selectedYear}&orgId=${selectedOrgId}`)
       .then(res => res.json())
       .then(data => {
+        if (Array.isArray(data.organizations) && data.organizations.length > 0) {
+          const sorted = [...data.organizations].sort(
+            (a: Organization, b: Organization) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
+          );
+          setOrganizations(sorted);
+        }
         if (data.indicators) {
           const normalized = data.indicators.map((ind: Indicator) => {
             if (ind.themeId === 'theme-1' && ind.periodicity !== 'ANUAL') {
@@ -238,26 +255,29 @@ export function App() {
         }
         if (data.targets) {
           setTargets(data.targets);
-          saveLocalData(STORAGE_KEYS.TARGETS, data.targets);
+          saveLocalData(targetsCacheKey(selectedOrgId), data.targets);
         }
         if (data.measurements) {
           // Intelligently preserve and merge any user-imported measurements from local storage
-          const localCached = loadLocalData<IndicatorMeasurement[]>(STORAGE_KEYS.MEASUREMENTS, []);
-          const userImports = localCached.filter(isUserImportedMeasurement);
+          const localCached = loadLocalData<IndicatorMeasurement[]>(measurementsCacheKey(selectedOrgId), []);
+          // Consolidado é sempre recalculado no servidor; não reenvia nada dele
+          const userImports = isConsolidatedOrg(selectedOrgId, data.organizations || organizations)
+            ? []
+            : localCached.filter(m => isUserImportedMeasurement(m) && orgIdOf(m) === selectedOrgId);
 
           let mergedList = data.measurements;
           if (userImports.length > 0) {
             mergedList = mergeMeasurements(data.measurements, userImports);
             // If server does not have all user imports (e.g., container restart), re-sync to server
             const serverMissingSome = userImports.some(
-              ui => !data.measurements.some((sm: IndicatorMeasurement) => sm.indicatorId === ui.indicatorId && sm.year === ui.year && sm.month === ui.month)
+              ui => !data.measurements.some((sm: IndicatorMeasurement) => sm.indicatorId === ui.indicatorId && sm.year === ui.year && sm.month === ui.month && orgIdOf(sm) === orgIdOf(ui))
             );
             if (serverMissingSome) {
               syncMeasurementsToServer(userImports, 'Ressincronização de medições importadas');
             }
           }
           setMeasurements(mergedList);
-          saveLocalData(STORAGE_KEYS.MEASUREMENTS, mergedList);
+          saveLocalData(measurementsCacheKey(selectedOrgId), mergedList);
         }
         if (data.documents) setDocuments(data.documents);
         if (data.actionPlans) {
@@ -275,13 +295,15 @@ export function App() {
       });
   }, [selectedYear, selectedOrgId]);
 
-  // Dynamic calculations for all indicators in selected year
+  // Dynamic calculations for all indicators in selected year (dados do órgão selecionado)
+  const orgDenoms = orgDenominators(selectedOrgId, organizations);
+  const isConsolidatedView = isConsolidatedOrg(selectedOrgId, organizations);
   const indicatorPerformances = indicators.map(ind => {
     const target = targets.find(t => t.indicatorId === ind.id && t.year === selectedYear);
     return {
       indicator: ind,
       target,
-      result: calculateIndicatorPerformance(ind, measurements, target, selectedYear)
+      result: calculateIndicatorPerformance(ind, measurements, target, selectedYear, orgDenoms.areaM2, orgDenoms.ftt)
     };
   });
 
@@ -383,12 +405,16 @@ export function App() {
     notes: string;
     reason?: string;
   }) => {
+    if (isConsolidatedView) {
+      window.alert(CONSOLIDATED_WRITE_MESSAGE);
+      return;
+    }
     // 1. Post to API
     try {
       await fetch('/api/measurements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ ...data, organizationId: selectedOrgId })
       });
     } catch (e) {
       // offline fallback
@@ -421,7 +447,7 @@ export function App() {
       setMeasurements(prev => {
         const copy = [...prev];
         copy[existingIndex] = updatedMeasurement;
-        saveLocalData(STORAGE_KEYS.MEASUREMENTS, copy);
+        saveLocalData(measurementsCacheKey(selectedOrgId), copy);
         return copy;
       });
 
@@ -469,7 +495,7 @@ export function App() {
 
       setMeasurements(prev => {
         const updated = [...prev, updatedMeasurement];
-        saveLocalData(STORAGE_KEYS.MEASUREMENTS, updated);
+        saveLocalData(measurementsCacheKey(selectedOrgId), updated);
         return updated;
       });
 
@@ -516,9 +542,15 @@ export function App() {
       updatedAt: new Date().toISOString()
     }));
 
+    if (isConsolidatedView && formatted.some(m => m.organizationId === selectedOrgId)) {
+      window.alert(CONSOLIDATED_WRITE_MESSAGE);
+      return;
+    }
+
+    // O estado local guarda apenas o órgão selecionado; os demais seguem só para o servidor
     setMeasurements(prev => {
-      const merged = mergeMeasurements(prev, formatted);
-      saveLocalData(STORAGE_KEYS.MEASUREMENTS, merged);
+      const merged = mergeMeasurements(prev, formatted.filter(m => m.organizationId === selectedOrgId));
+      saveLocalData(measurementsCacheKey(selectedOrgId), merged);
       return merged;
     });
 
@@ -733,6 +765,10 @@ export function App() {
   // Save or update PLS indicator target with API persistence and audit log
   const handleSaveTarget = async (targetData: Partial<IndicatorTarget>, reason?: string) => {
     const year = targetData.year || selectedYear;
+    if (isConsolidatedView) {
+      window.alert(CONSOLIDATED_WRITE_MESSAGE);
+      return;
+    }
 
     // 1. Post to API
     try {
@@ -740,7 +776,7 @@ export function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          target: { ...targetData, year },
+          target: { ...targetData, year, organizationId: selectedOrgId },
           reason
         })
       });
@@ -772,29 +808,11 @@ export function App() {
         };
         updated = [...prev, newTarget];
       }
-      saveLocalData(STORAGE_KEYS.TARGETS, updated);
+      saveLocalData(targetsCacheKey(selectedOrgId), updated);
       return updated;
     });
 
-    // 3. Keep indicator state in sync for 2026
-    if (year === 2026) {
-      setIndicators(prevInds => {
-        const indIdx = prevInds.findIndex(i => i.id === targetData.indicatorId);
-        if (indIdx >= 0) {
-          const updatedInds = [...prevInds];
-          updatedInds[indIdx] = {
-            ...updatedInds[indIdx],
-            targetValue2026: Number(targetData.targetValue) || 0,
-            baselineValue: Number(targetData.baselineValue) || updatedInds[indIdx].baselineValue,
-            baselineYear: targetData.baselineYear || updatedInds[indIdx].baselineYear,
-            targetType: targetData.targetType || updatedInds[indIdx].targetType
-          };
-          saveLocalData(STORAGE_KEYS.INDICATORS, updatedInds);
-          return updatedInds;
-        }
-        return prevInds;
-      });
-    }
+    // 3. Metas pertencem ao órgão; o indicador (catálogo global) não guarda meta própria
 
     // 4. Add to Audit Logs
     const ind = indicators.find(i => i.id === targetData.indicatorId);
@@ -826,7 +844,7 @@ export function App() {
       await fetch(`/api/targets/${encodeURIComponent(targetId || 'by-indicator')}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indicatorId, year, reason })
+        body: JSON.stringify({ indicatorId, year, reason, organizationId: selectedOrgId })
       });
     } catch (e) {
       console.warn('[iPLS] Offline fallback ao excluir meta:', e);
@@ -839,26 +857,9 @@ export function App() {
         if (t.indicatorId === indicatorId && t.year === year) return false;
         return true;
       });
-      saveLocalData(STORAGE_KEYS.TARGETS, updated);
+      saveLocalData(targetsCacheKey(selectedOrgId), updated);
       return updated;
     });
-
-    // 3. If year === 2026, reset indicator targetValue2026
-    if (year === 2026) {
-      setIndicators(prevInds => {
-        const indIdx = prevInds.findIndex(i => i.id === indicatorId);
-        if (indIdx >= 0) {
-          const updatedInds = [...prevInds];
-          updatedInds[indIdx] = {
-            ...updatedInds[indIdx],
-            targetValue2026: undefined
-          };
-          saveLocalData(STORAGE_KEYS.INDICATORS, updatedInds);
-          return updatedInds;
-        }
-        return prevInds;
-      });
-    }
 
     // 4. Record in Audit Logs
     const ind = indicators.find(i => i.id === indicatorId);
@@ -1031,6 +1032,7 @@ export function App() {
         </div>
         {activeTab === 'dashboard' && (
           <DashboardView
+            organizationLabel={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : undefined}
             indicators={indicators}
             measurements={measurements}
             targets={targets}
