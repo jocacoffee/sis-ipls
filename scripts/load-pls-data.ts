@@ -10,7 +10,8 @@
  *
  * O que faz:
  *   1. Faz backup do database.json atual em data/backups/.
- *   2. Remove os dados de demonstração (medições, metas, alertas e cálculos de GEE fictícios).
+ *   2. Remove os dados de demonstração (medições, metas, alertas, cálculos de GEE,
+ *      planos de ação e documentos fictícios).
  *   3. Cadastra os 16 órgãos (14 ativos, SJMG inativo e o consolidado da 1ª Região).
  *   4. Associa os 120 indicadores da planilha ao catálogo e cria os que não existem.
  *   5. Carrega as medições (mensais; anuais no mês 12; percentuais na escala 0–100).
@@ -438,6 +439,9 @@ const out = {
   targets: [],
   measurements,
   ghgCalculations: [],
+  // Planos de ação e documentos de demonstração (fictícios) não são mantidos
+  actionPlans: [],
+  documents: [],
   alerts,
   idsComplements,
   auditLogs: [audit, ...db.auditLogs],
