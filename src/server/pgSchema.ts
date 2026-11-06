@@ -7,7 +7,7 @@
  *
  * É idempotente: executado a cada inicialização do servidor.
  */
-export const PG_SCHEMA_VERSION = 1;
+export const PG_SCHEMA_VERSION = 2;
 
 export const PG_SCHEMA_SQL = `
 CREATE SCHEMA IF NOT EXISTS ipls;
@@ -124,6 +124,18 @@ CREATE TABLE IF NOT EXISTS ipls.audit_logs (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_audit_logs_logged_at ON ipls.audit_logs (logged_at DESC);
+
+CREATE TABLE IF NOT EXISTS ipls.user_permissions (
+  id              TEXT PRIMARY KEY,           -- login normalizado (usuario@dominio)
+  role            TEXT NOT NULL CHECK (role IN ('ADMIN', 'MASTER', 'PREENCHEDOR')),
+  organization_id TEXT REFERENCES ipls.organizations(id) ON DELETE RESTRICT,
+  expires_at      DATE,
+  granted_by      TEXT NOT NULL,
+  position        INTEGER NOT NULL DEFAULT 0,
+  data            JSONB NOT NULL,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ck_permission_org CHECK (role = 'ADMIN' OR organization_id IS NOT NULL)
+);
 
 -- Demais coleções (usuários, ciclos, documentos, planos de ação, GEE, conectores…)
 CREATE TABLE IF NOT EXISTS ipls.app_records (

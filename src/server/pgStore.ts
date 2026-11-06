@@ -12,7 +12,7 @@ import { PG_SCHEMA_SQL, PG_SCHEMA_VERSION } from './pgSchema';
 import type { AppDatabase } from './storage';
 
 type Row = Record<string, unknown>;
-type ColType = 'text' | 'integer' | 'numeric' | 'boolean' | 'timestamptz' | 'jsonb';
+type ColType = 'text' | 'integer' | 'numeric' | 'boolean' | 'date' | 'timestamptz' | 'jsonb';
 
 interface TableSpec {
   table: string;
@@ -108,6 +108,17 @@ const TABLES: TableSpec[] = [
       ['year', 'integer', c => c.year],
       ['field', 'text', c => c.field],
       ['value', 'numeric', c => c.value]
+    ],
+    orderBy: 'position, id'
+  },
+  {
+    table: 'user_permissions',
+    rows: db => (db.userPermissions || []).map(p => ({ key: p.username, obj: p })),
+    columns: [
+      ['role', 'text', p => p.role],
+      ['organization_id', 'text', p => p.organizationId ?? null],
+      ['expires_at', 'date', p => p.expiresAt ?? null],
+      ['granted_by', 'text', p => p.grantedBy]
     ],
     orderBy: 'position, id'
   },
@@ -299,6 +310,7 @@ const TABLE_TO_COLLECTION: Record<string, keyof AppDatabase> = {
   measurements: 'measurements',
   targets: 'targets',
   ids_complements: 'idsComplements',
+  user_permissions: 'userPermissions',
   alerts: 'alerts',
   audit_logs: 'auditLogs'
 };

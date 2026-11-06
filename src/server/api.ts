@@ -19,7 +19,7 @@ import {
   scopeMeasurements,
   scopeTargets
 } from '../services/orgScope';
-import { canWriteOrg, currentUser, requireLogin, requireRole } from './auth';
+import { canManageOrg, canWriteOrg, currentUser, requireLogin, requireRole } from './auth';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -220,7 +220,7 @@ export function createApiRouter() {
   });
 
   // POST /api/measurements - Add or update measurement with validation, audit & disk persistence
-  router.post('/measurements', requireRole('GESTOR', 'ADMIN'), async (req: Request, res: Response) => {
+  router.post('/measurements', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), async (req: Request, res: Response) => {
     const {
       indicatorId,
       year,
@@ -340,7 +340,7 @@ export function createApiRouter() {
   });
 
   // POST /api/measurements/batch - Ingest batch of measurements from spreadsheet (2021-2025)
-  router.post('/measurements/batch', requireRole('GESTOR', 'ADMIN'), async (req: Request, res: Response) => {
+  router.post('/measurements/batch', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), async (req: Request, res: Response) => {
     const {
       measurements: items,
       sourceDescription = 'Importação de Planilha PLS SJRR',
@@ -445,7 +445,7 @@ export function createApiRouter() {
   });
 
   // POST /api/documents/upload - Upload and simulate OCR
-  router.post('/documents/upload', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
+  router.post('/documents/upload', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), (req: Request, res: Response) => {
     const { fileName, fileType, title, indicatorId, processNumber, textSnippet } = req.body;
 
     const extracted = extractDataFromDocument(fileName || 'documento.pdf', textSnippet);
@@ -490,7 +490,7 @@ export function createApiRouter() {
   });
 
   // POST /api/documents/:id/validate - Validate extracted document
-  router.post('/documents/:id/validate', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
+  router.post('/documents/:id/validate', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), (req: Request, res: Response) => {
     const { id } = req.params;
     const { userId = 'usr-1', userName = 'Dr. Roberto Magalhães', approvedValue } = req.body;
 
@@ -681,15 +681,23 @@ export function createApiRouter() {
   });
 
   // POST /api/action-plans - Update or create action
-  router.post('/action-plans', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
+  router.post('/action-plans', requireRole('ADMIN', 'MASTER'), (req: Request, res: Response) => {
     const { action } = req.body;
     if (!action || !action.title) {
       return res.status(400).json({ error: 'Dados da ação incompletos.' });
     }
 
     const existingIdx = db.actionPlans.findIndex(a => a.id === action.id);
+    const actionOrgId: string =
+      (existingIdx >= 0 ? db.actionPlans[existingIdx].organizationId : action.organizationId) || LEGACY_DEFAULT_ORG_ID;
+    if (consolidatedWriteError(actionOrgId)) {
+      return res.status(400).json({ error: consolidatedWriteError(actionOrgId) });
+    }
+    if (!canManageOrg(currentUser(), actionOrgId)) {
+      return res.status(403).json({ error: 'Somente o master do órgão (ou o administrador) altera o plano de ação.' });
+    }
     if (existingIdx >= 0) {
-      db.actionPlans[existingIdx] = { ...db.actionPlans[existingIdx], ...action };
+      db.actionPlans[existingIdx] = { ...db.actionPlans[existingIdx], ...action, organizationId: actionOrgId };
       logAudit(
         'usr-1',
         'Dr. Roberto Magalhães',
@@ -705,7 +713,7 @@ export function createApiRouter() {
       const newAction = {
         ...action,
         id: `act-${Date.now()}`,
-        organizationId: 'org-sjrr'
+        organizationId: actionOrgId
       };
       db.actionPlans.push(newAction);
       logAudit(
@@ -726,7 +734,7 @@ export function createApiRouter() {
   });
 
   // POST /api/targets - Create or update PLS indicator target
-  router.post('/targets', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
+  router.post('/targets', requireRole('ADMIN', 'MASTER'), (req: Request, res: Response) => {
     const {
       target,
       reason,
@@ -744,8 +752,8 @@ export function createApiRouter() {
     if (writeError) {
       return res.status(400).json({ error: writeError });
     }
-    if (!canWriteOrg(currentUser(), targetOrgId)) {
-      return res.status(403).json({ error: 'Você só pode alterar metas do seu próprio órgão.' });
+    if (!canManageOrg(currentUser(), targetOrgId)) {
+      return res.status(403).json({ error: 'Somente o master do órgão (ou o administrador) altera metas.' });
     }
     const existingIdx = db.targets.findIndex(
       t =>
@@ -811,7 +819,7 @@ export function createApiRouter() {
   });
 
   // DELETE /api/targets/:id - Remove PLS indicator target
-  router.delete('/targets/:id', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
+  router.delete('/targets/:id', requireRole('ADMIN', 'MASTER'), (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       indicatorId = req.query.indicatorId as string,
@@ -822,8 +830,8 @@ export function createApiRouter() {
       userName = 'Dr. Roberto Magalhães'
     } = req.body || {};
 
-    if (!canWriteOrg(currentUser(), organizationId)) {
-      return res.status(403).json({ error: 'Você só pode alterar metas do seu próprio órgão.' });
+    if (!canManageOrg(currentUser(), organizationId)) {
+      return res.status(403).json({ error: 'Somente o master do órgão (ou o administrador) altera metas.' });
     }
     const targetIndex = db.targets.findIndex(t => {
       if ((t.organizationId || LEGACY_DEFAULT_ORG_ID) !== organizationId) return false;

@@ -18,7 +18,8 @@ import {
   SEIConnector,
   AuditLog,
   InconsistencyAlert,
-  IDSComplement
+  IDSComplement,
+  UserPermission
 } from '../types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -60,6 +61,7 @@ export interface AppDatabase {
   auditLogs: AuditLog[];
   alerts: InconsistencyAlert[];
   idsComplements: IDSComplement[];
+  userPermissions: UserPermission[];
   lastSavedAt: string;
 }
 
@@ -90,6 +92,7 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     auditLogs: parsed.auditLogs || [...INITIAL_AUDIT_LOGS],
     alerts: parsed.alerts || [...INITIAL_ALERTS],
     idsComplements: parsed.idsComplements || [],
+    userPermissions: parsed.userPermissions || [],
     lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
   };
   return { db, wasFixed };

@@ -59,7 +59,6 @@ import {
   loadIndicatorsData,
   saveLocalData,
   mergeMeasurements,
-  isUserImportedMeasurement,
   syncMeasurementsToServer
 } from './services/storageSync';
 import {
@@ -71,7 +70,8 @@ import {
   getCycleInfo
 } from './utils/yearUtils';
 import { isConsolidatedOrg, orgDenominators, orgIdOf } from './services/orgScope';
-import { AuthUser, canEditOrganization, fetchCurrentUser, logout } from './services/authClient';
+import { AuthUser, canEnterData, canManageTargets, canManageUsers, fetchCurrentUser, logout } from './services/authClient';
+import { PermissionsView } from './components/PermissionsView';
 import { LoginModal } from './components/LoginModal';
 
 // Cache local separado por órgão (evita misturar séries de unidades diferentes)
@@ -91,7 +91,7 @@ export function App() {
     fetchCurrentUser().then(u => {
       setAuthUser(u);
       // Gestor entra direto no próprio órgão
-      if (u?.organizationId && u.role === 'GESTOR') setSelectedOrgId(u.organizationId);
+      if (u?.organizationId && (u.role === 'MASTER' || u.role === 'PREENCHEDOR')) setSelectedOrgId(u.organizationId);
     });
   }, []);
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -271,26 +271,10 @@ export function App() {
           saveLocalData(targetsCacheKey(selectedOrgId), data.targets);
         }
         if (data.measurements) {
-          // Intelligently preserve and merge any user-imported measurements from local storage
-          const localCached = loadLocalData<IndicatorMeasurement[]>(measurementsCacheKey(selectedOrgId), []);
-          // Consolidado é sempre recalculado no servidor; não reenvia nada dele
-          const userImports = isConsolidatedOrg(selectedOrgId, data.organizations || organizations)
-            ? []
-            : localCached.filter(m => isUserImportedMeasurement(m) && orgIdOf(m) === selectedOrgId);
-
-          let mergedList = data.measurements;
-          if (userImports.length > 0) {
-            mergedList = mergeMeasurements(data.measurements, userImports);
-            // If server does not have all user imports (e.g., container restart), re-sync to server
-            const serverMissingSome = userImports.some(
-              ui => !data.measurements.some((sm: IndicatorMeasurement) => sm.indicatorId === ui.indicatorId && sm.year === ui.year && sm.month === ui.month && orgIdOf(sm) === orgIdOf(ui))
-            );
-            if (serverMissingSome) {
-              syncMeasurementsToServer(userImports, 'Ressincronização de medições importadas');
-            }
-          }
-          setMeasurements(mergedList);
-          saveLocalData(measurementsCacheKey(selectedOrgId), mergedList);
+          // O servidor (banco) é a fonte da verdade: o cache local só acelera a abertura
+          // e nunca é reenviado (isso ressuscitaria dados apagados ou corrigidos por outros).
+          setMeasurements(data.measurements);
+          saveLocalData(measurementsCacheKey(selectedOrgId), data.measurements);
         }
         if (data.documents) setDocuments(data.documents);
         if (data.actionPlans) {
@@ -312,28 +296,45 @@ export function App() {
   // Dynamic calculations for all indicators in selected year (dados do órgão selecionado)
   const orgDenoms = orgDenominators(selectedOrgId, organizations);
   const isConsolidatedView = isConsolidatedOrg(selectedOrgId, organizations);
-  const canEdit = canEditOrganization(authUser, selectedOrgId, isConsolidatedView);
+  const canEdit = canEnterData(authUser, selectedOrgId, isConsolidatedView);
+  const canManage = canManageTargets(authUser, selectedOrgId, isConsolidatedView);
 
-  /** Verifica se o usuário pode alterar dados; se não, explica ou abre o login. */
-  const ensureCanEdit = (adminOnly = false): boolean => {
+  /**
+   * Verifica a permissão antes de abrir/gravar algo; se não houver, explica ou abre o login.
+   * - data: medições e documentos (preenchedor, master, administrador);
+   * - manage: metas e plano de ação (master, administrador);
+   * - admin: catálogo de indicadores (administrador).
+   */
+  const ensureCanEdit = (kind: 'data' | 'manage' | 'admin' = 'data'): boolean => {
     if (!authUser) {
       setIsLoginOpen(true);
       return false;
     }
-    if (adminOnly && authUser.role !== 'ADMIN') {
-      window.alert('Somente administradores podem alterar o catálogo de indicadores.');
-      return false;
+    if (kind === 'admin') {
+      if (authUser.role !== 'ADMIN') {
+        window.alert('Somente o administrador regional altera o catálogo de indicadores.');
+        return false;
+      }
+      return true;
     }
     if (isConsolidatedView) {
       window.alert(CONSOLIDATED_WRITE_MESSAGE);
       return false;
     }
-    if (!canEdit) {
+    if (authUser.role === 'LEITOR') {
+      window.alert('Seu usuário tem acesso apenas para consulta. Peça acesso ao master de sustentabilidade do seu órgão.');
+      return false;
+    }
+    if (kind === 'manage' && !canManage) {
       window.alert(
-        authUser.role === 'LEITOR'
-          ? 'Seu usuário tem acesso apenas para consulta. Peça inclusão no grupo de gestores do iPLS.'
-          : 'Você só pode lançar e alterar dados do seu próprio órgão.'
+        authUser.role === 'PREENCHEDOR'
+          ? 'Metas e plano de ação são alterados somente pelo master do órgão.'
+          : 'Você só pode alterar metas e plano de ação do seu próprio órgão.'
       );
+      return false;
+    }
+    if (kind === 'data' && !canEdit) {
+      window.alert('Você só pode lançar e alterar dados do seu próprio órgão.');
       return false;
     }
     return true;
@@ -380,7 +381,7 @@ export function App() {
 
   // Update indicator definition, periodicity, and metadata
   const handleUpdateIndicator = async (updatedIndicator: Indicator, reason?: string) => {
-    if (!ensureCanEdit(true)) return;
+    if (!ensureCanEdit('admin')) return;
     // 1. Post to API
     try {
       await fetch(`/api/indicators/${updatedIndicator.id}`, {
@@ -757,7 +758,7 @@ export function App() {
 
   // Save action plan item with API persistence and audit log
   const handleSaveActionPlan = async (action: Partial<ActionPlan>) => {
-    if (!ensureCanEdit()) return;
+    if (!ensureCanEdit('manage')) return;
     // 1. Post to API
     try {
       await fetch('/api/action-plans', {
@@ -813,7 +814,7 @@ export function App() {
 
   // Save or update PLS indicator target with API persistence and audit log
   const handleSaveTarget = async (targetData: Partial<IndicatorTarget>, reason?: string) => {
-    if (!ensureCanEdit()) return;
+    if (!ensureCanEdit('manage')) return;
     const year = targetData.year || selectedYear;
     if (isConsolidatedView) {
       window.alert(CONSOLIDATED_WRITE_MESSAGE);
@@ -895,7 +896,7 @@ export function App() {
 
   // Delete PLS indicator target with API persistence and audit log
   const handleDeleteTarget = async (targetId: string, indicatorId: string, year: number, reason?: string) => {
-    if (!ensureCanEdit()) return;
+    if (!ensureCanEdit('manage')) return;
     // 1. Call API
     try {
       await fetch(`/api/targets/${encodeURIComponent(targetId || 'by-indicator')}`, {
@@ -956,7 +957,8 @@ export function App() {
     reports: 'Relatório Anual Quinquenal',
     ghg: 'Inventário GEE',
     integrations: 'Integrações (SEI / CNJ)',
-    audit: 'Auditoria & Qualidade'
+    audit: 'Auditoria & Qualidade',
+    users: 'Usuários e Permissões'
   };
 
   return (
@@ -971,9 +973,11 @@ export function App() {
         authUser={authUser}
         canEdit={canEdit}
         onLogin={() => setIsLoginOpen(true)}
+        showUsersTab={canManageUsers(authUser)}
         onLogout={async () => {
           await logout();
           setAuthUser(null);
+          if (activeTab === 'users') setActiveTab('dashboard');
         }}
         activeAlertsCount={activeAlertsCount}
         pendingValidationCount={pendingValidationCount}
@@ -1125,7 +1129,7 @@ export function App() {
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenChatWithQuery={handleOpenChatWithQuery}
-            onEditIndicator={ind => { if (ensureCanEdit(true)) setEditingIndicator(ind); }}
+            onEditIndicator={ind => { if (ensureCanEdit('admin')) setEditingIndicator(ind); }}
             onOpenReplicateModal={() => { if (ensureCanEdit()) setIsReplicateModalOpen(true); }}
           />
         )}
@@ -1306,6 +1310,10 @@ export function App() {
           />
         )}
 
+        {activeTab === 'users' && authUser && canManageUsers(authUser) && (
+          <PermissionsView authUser={authUser} organizations={organizations} />
+        )}
+
         {activeTab === 'audit' && (
           <AuditLogView
             auditLogs={auditLogs}
@@ -1330,7 +1338,7 @@ export function App() {
           onClose={() => setSelectedIndicatorForDetail(null)}
           onOpenDataIngestion={handleOpenDataIngestion}
           onOpenChatWithQuery={handleOpenChatWithQuery}
-          onEditIndicator={ind => { if (ensureCanEdit(true)) setEditingIndicator(ind); }}
+          onEditIndicator={ind => { if (ensureCanEdit('admin')) setEditingIndicator(ind); }}
           onOpenEditTarget={(ind, tgt) => {
             setSelectedIndicatorForDetail(null);
             setTargetToEdit({ indicatorId: ind.id, target: tgt });
@@ -1366,7 +1374,7 @@ export function App() {
         onLoggedIn={u => {
           setAuthUser(u);
           setIsLoginOpen(false);
-          if (u.organizationId && u.role === 'GESTOR') setSelectedOrgId(u.organizationId);
+          if (u.organizationId && (u.role === 'MASTER' || u.role === 'PREENCHEDOR')) setSelectedOrgId(u.organizationId);
         }}
       />
 

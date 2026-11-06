@@ -90,6 +90,11 @@ const TAB_TITLES: Record<ActiveTab, { title: string; subtitle: string; category:
     title: 'Auditoria & Qualidade',
     subtitle: 'Logs de rastreabilidade e validação de consistência',
     category: 'Sistema'
+  },
+  users: {
+    title: 'Usuários e Permissões',
+    subtitle: 'Acesso delegado por órgão (master e preenchedores)',
+    category: 'Sistema'
   }
 };
 

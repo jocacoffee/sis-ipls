@@ -1,62 +1,69 @@
 # Acesso ao iPLS
 
-## Quem pode fazer o quê
+O **AD só autentica**: cada pessoa entra com o próprio usuário e senha de rede da floresta `trf1.gov.br`. **Quem pode fazer o quê é decidido no próprio iPLS**, por delegação, na tela **Usuários e Permissões**. Não é preciso criar grupos de segurança no AD.
 
-| Perfil | Como obtém | Pode |
+## Papéis
+
+| Papel | Quem concede | Pode |
 |---|---|---|
-| Visitante | Não faz login | Consultar painéis, indicadores, IDS e relatórios de todos os órgãos |
-| Leitor | Login de rede, sem grupo do iPLS | O mesmo que o visitante, além de usar o chat de IA e gerar relatório |
-| Gestor | Login de rede + grupo `GU-iPLS-Gestores` | Lançar dados, metas, planos e documentos **do próprio órgão** |
-| Administrador | Login de rede + grupo `GU-iPLS-Admin` | Lançar em qualquer órgão e alterar o catálogo de indicadores |
+| Visitante (sem login) | — | Consultar painéis, indicadores, IDS e relatórios de todos os órgãos |
+| Logado sem papel | — | O mesmo que o visitante, além de usar o chat de IA e gerar relatório |
+| **Preenchedor** | Master do órgão (ou administrador) | Lançar e corrigir medições e documentos **do próprio órgão** |
+| **Master do órgão** | Administrador regional | Tudo o que o preenchedor faz, mais **metas e plano de ação** do órgão; concede e revoga preenchedores do órgão |
+| **Administrador regional** | Configuração do servidor (`IPLS_ADMINS`) ou outro administrador | Nomear masters e administradores, lançar em qualquer órgão, alterar o catálogo de indicadores |
 
-O órgão do usuário é definido pelo domínio do AD:
+Regras da delegação:
+
+- O master só concede o papel de **preenchedor**, só para o **próprio órgão** e só para usuários do **domínio do próprio órgão** (ex.: o master da SJBA só dá acesso a `usuario@ba.trf1.gov.br`). Exceções são feitas pelo administrador regional.
+- Ninguém altera ou revoga a própria permissão.
+- Uma permissão pode ter **validade**, útil para o piloto. Depois do prazo, o usuário passa a apenas consultar.
+- Revogações valem **na hora**, inclusive para quem já está logado.
+- Toda concessão, alteração e revogação fica na **auditoria**: quem fez, para quem, antes e depois.
+- O consolidado da 1ª Região nunca recebe lançamentos, porque é calculado a partir dos órgãos.
+
+O órgão padrão de cada pessoa sai do domínio do AD:
 
 | Domínio | Órgão |
 |---|---|
 | `trf1.gov.br` | TRF1 — 2º Grau |
-| `xx.trf1.gov.br` | SJXX (por exemplo, `ba.trf1.gov.br` → SJBA) |
-| `mg.trf1.gov.br` | Somente leitura |
+| `xx.trf1.gov.br` | SJXX |
+| `mg.trf1.gov.br` | Somente consulta |
 
-O consolidado da 1ª Região nunca recebe lançamentos, porque é calculado a partir dos órgãos.
+## O que configurar
 
-## O que configurar no AD da SJRR
+No AD, **nada além de LDAPS**: um controlador de domínio da SJRR com o Catálogo Global (porta 3269) acessível a partir do servidor do iPLS. O login é validado com as credenciais da própria pessoa (`JFBA\usuario`), sem conta de serviço.
 
-1. **Conta de serviço** somente leitura em `rr.trf1.gov.br`, por exemplo `svc-ipls`. Ela não precisa de privilégios: usuários autenticados já leem o Catálogo Global.
-2. **Grupos universais** em `rr.trf1.gov.br`: `GU-iPLS-Admin` e `GU-iPLS-Gestores`. Grupos universais aceitam usuários de qualquer domínio da floresta, e grupos aninhados também são considerados.
-3. **LDAPS** num controlador de domínio da SJRR, acessível a partir do servidor do iPLS, na porta 3269 (Catálogo Global). Se o certificado for da CA interna, monte o PEM da CA no container e informe o caminho em `LDAP_TLS_CA_FILE`.
-
-## Variáveis (`.env` no servidor)
+No `.env` do servidor:
 
 ```
 AUTH_MODE=ldap
+IPLS_ADMINS=<usuario>@<secao>.trf1.gov.br          # primeiros administradores regionais
 SESSION_SECRET=<openssl rand -hex 32>
-COOKIE_SECURE=true          # atrás de HTTPS
-TRUST_PROXY=true            # atrás de proxy reverso (nginx)
+COOKIE_SECURE=true                            # atrás de HTTPS
+TRUST_PROXY=true                              # atrás de proxy reverso (nginx)
 LDAP_URL=ldaps://<dc-da-sjrr>:3269
-LDAP_BIND_DN=CN=svc-ipls,OU=...,DC=rr,DC=trf1,DC=gov,DC=br
-LDAP_BIND_PASSWORD=<senha da conta de serviço>
-LDAP_GROUP_ADMIN_DN=CN=GU-iPLS-Admin,OU=...,DC=rr,DC=trf1,DC=gov,DC=br
-LDAP_GROUP_GESTORES_DN=CN=GU-iPLS-Gestores,OU=...,DC=rr,DC=trf1,DC=gov,DC=br
+LDAP_TLS_CA_FILE=/caminho/ca-interna.pem      # se o certificado for da CA interna
 ```
 
-O login aceita `usuario@ba.trf1.gov.br`, `JFBA\usuario` ou apenas `usuario`; nesse último caso, usa o domínio `AUTH_DEFAULT_DOMAIN`.
+Opcional: `LDAP_BIND_DN` e `LDAP_BIND_PASSWORD` de uma conta somente leitura. Ela serve apenas para mostrar o nome completo de quem recebe acesso antes do primeiro login dessa pessoa.
+
+## Fluxo sugerido para o piloto
+
+1. Você (em `IPLS_ADMINS`) entra e, em **Usuários e Permissões**, nomeia o master de cada seção participante e, se quiser, a área de PLS do TRF1 como administradora.
+2. Cada master entra e cadastra os preenchedores da própria seção, com validade até o fim do piloto.
+3. As demais pessoas acessam o endereço do iPLS sem login para consultar.
 
 ## Segurança
 
-- A senha é validada pelo próprio AD (bind do usuário por LDAPS) e nunca é armazenada. Senha vazia é sempre recusada.
-- A sessão fica num cookie `HttpOnly` assinado (HMAC-SHA256), válido por 8 horas (`SESSION_HOURS`).
-- Há bloqueio temporário após 8 tentativas de login erradas, contadas por IP e usuário.
+- A senha é validada pelo AD por LDAPS e nunca é armazenada. Senha vazia é sempre recusada.
+- A sessão fica num cookie `HttpOnly` assinado, válido por 8 horas (`SESSION_HOURS`), e guarda só a identidade. O papel é lido do banco a cada requisição.
+- Há bloqueio temporário após 8 tentativas de login erradas.
 - Requisições de escrita vindas de outra origem são recusadas.
-- As permissões são verificadas no servidor. A auditoria registra o usuário real, e não um usuário informado pelo navegador.
+- As permissões são verificadas no servidor.
+- A tela sempre mostra o que está no banco. O cache do navegador não reenvia dados.
 
 ## Modo de teste (sem AD)
 
-Use `AUTH_MODE=dev` e `AUTH_DEV_PASSWORD=<senha>` apenas em ambiente local. Em produção, esse modo exige ainda `AUTH_ALLOW_DEV_IN_PRODUCTION=true`.
+Use `AUTH_MODE=dev` com `AUTH_DEV_PASSWORD=<senha>`, apenas em ambiente local. Em produção, esse modo exige ainda `AUTH_ALLOW_DEV_IN_PRODUCTION=true`.
 
-Nesse modo, qualquer `nome@xx.trf1.gov.br` entra com a senha de teste. O perfil depende do início do nome:
-
-| Nome começa com | Perfil |
-|---|---|
-| `admin` | Administrador |
-| `leitor` | Leitor |
-| qualquer outro | Gestor |
+Nesse modo, qualquer `nome@xx.trf1.gov.br` entra com a senha de teste, e os papéis seguem as mesmas regras (`IPLS_ADMINS` e a tela de permissões).

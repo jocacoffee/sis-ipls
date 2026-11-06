@@ -22,6 +22,29 @@ export interface Organization {
  * Variável complementar anual do IDS vinda da fonte anual do CNJ, que não é um
  * indicador lançado mensalmente no iPLS (ex.: FTT, área total, TMR consolidado).
  */
+/**
+ * Permissão concedida dentro do iPLS (o AD só autentica).
+ * - ADMIN: administrador regional (área de PLS/sustentabilidade do TRF1).
+ * - MASTER: responsável pela sustentabilidade do órgão; lança dados, metas e plano de ação
+ *   do próprio órgão e concede/revoga preenchedores dele.
+ * - PREENCHEDOR: lança e corrige medições e documentos do próprio órgão.
+ */
+export type PermissionRole = 'ADMIN' | 'MASTER' | 'PREENCHEDOR';
+
+export interface UserPermission {
+  /** Login normalizado: usuario@dominio (ex.: joao.silva@ba.trf1.gov.br). */
+  username: string;
+  role: PermissionRole;
+  /** Órgão (obrigatório para MASTER e PREENCHEDOR). */
+  organizationId: string | null;
+  displayName?: string;
+  /** Data limite (AAAA-MM-DD), opcional. */
+  expiresAt?: string;
+  grantedBy: string;
+  grantedAt: string;
+  lastLoginAt?: string;
+}
+
 export interface IDSComplement {
   organizationId: string;
   year: number;
@@ -312,7 +335,7 @@ export interface AuditLog {
   userName: string;
   action: 'CRIACAO' | 'ALTERACAO' | 'EXCLUSAO' | 'VALIDACAO' | 'IMPORTACAO' | 'EXTRAÇÃO_OCR';
   timestamp: string;
-  entityType: 'MEASUREMENT' | 'INDICATOR' | 'TARGET' | 'DOCUMENT' | 'ACTION_PLAN' | 'GHG';
+  entityType: 'MEASUREMENT' | 'INDICATOR' | 'TARGET' | 'DOCUMENT' | 'ACTION_PLAN' | 'GHG' | 'PERMISSION';
   entityId: string;
   indicatorCode?: string;
   previousValue?: string;

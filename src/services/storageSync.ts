@@ -2,7 +2,7 @@ import { Indicator, IndicatorMeasurement, IndicatorTarget, ActionPlan, AuditLog 
 
 export const STORAGE_KEYS = {
   INDICATORS: 'ipls_indicators_v5',
-  MEASUREMENTS: 'ipls_measurements_v4',
+  MEASUREMENTS: 'ipls_measurements_v5',
   TARGETS: 'ipls_targets_v4',
   ACTION_PLANS: 'ipls_action_plans_v3',
   AUDIT_LOGS: 'ipls_audit_logs_v3',

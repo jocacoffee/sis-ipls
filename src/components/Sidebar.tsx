@@ -11,6 +11,7 @@ import {
   BookOpen,
   Leaf,
   Network,
+  Users,
   ShieldCheck,
   Building2,
   UserCheck,
@@ -39,7 +40,8 @@ export type ActiveTab =
   | 'reports'
   | 'ghg'
   | 'integrations'
-  | 'audit';
+  | 'audit'
+  | 'users';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -51,6 +53,7 @@ interface SidebarProps {
   canEdit: boolean;
   onLogin: () => void;
   onLogout: () => void;
+  showUsersTab?: boolean;
   activeAlertsCount: number;
   pendingValidationCount: number;
   selectedYear?: number;
@@ -71,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   canEdit,
   onLogin,
   onLogout,
+  showUsersTab = false,
   activeAlertsCount,
   pendingValidationCount,
   selectedYear = 2026,
@@ -125,7 +129,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ShieldCheck,
       badge: activeAlertsCount > 0 ? `${activeAlertsCount}` : undefined,
       badgeColor: 'bg-amber-600'
-    }
+    },
+    ...(showUsersTab ? [{ id: 'users', label: 'Usuários e Permissões', icon: Users }] : [])
   ];
 
   return (
@@ -309,7 +314,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {ROLE_LABEL[authUser.role]} · {authUser.username}
             </div>
             <div className={`text-[10px] font-semibold ${canEdit ? 'text-emerald-400' : 'text-amber-300'}`}>
-              {canEdit ? 'Pode lançar dados neste órgão' : 'Somente leitura neste órgão'}
+              {canEdit ? 'Pode lançar dados neste órgão' : 'Somente consulta neste órgão'}
             </div>
             <button
               type="button"
