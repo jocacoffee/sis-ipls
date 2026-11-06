@@ -19,6 +19,23 @@ services:
       # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
       # vazio, a base é importada de data/database.json.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:-<senha-do-banco>}@postgres:5432/${POSTGRES_DB:-ipls_db}
+      # Autenticação no AD (ver .env.example)
+      - AUTH_MODE=${AUTH_MODE:-}
+      - SESSION_SECRET=${SESSION_SECRET:-}
+      - SESSION_HOURS=${SESSION_HOURS:-}
+      - COOKIE_SECURE=${COOKIE_SECURE:-}
+      - TRUST_PROXY=${TRUST_PROXY:-}
+      - AUTH_DEFAULT_DOMAIN=${AUTH_DEFAULT_DOMAIN:-}
+      - AUTH_DOMAIN_SUFFIX=${AUTH_DOMAIN_SUFFIX:-}
+      - LDAP_URL=${LDAP_URL:-}
+      - LDAP_BIND_DN=${LDAP_BIND_DN:-}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD:-}
+      - LDAP_GROUP_ADMIN_DN=${LDAP_GROUP_ADMIN_DN:-}
+      - LDAP_GROUP_GESTORES_DN=${LDAP_GROUP_GESTORES_DN:-}
+      - LDAP_TLS_CA_FILE=${LDAP_TLS_CA_FILE:-}
+      - LDAP_TLS_REJECT_UNAUTHORIZED=${LDAP_TLS_REJECT_UNAUTHORIZED:-}
+      - AUTH_DEV_PASSWORD=${AUTH_DEV_PASSWORD:-}
+      - AUTH_ALLOW_DEV_IN_PRODUCTION=${AUTH_ALLOW_DEV_IN_PRODUCTION:-}
     volumes:
       # Fonte da importação inicial (data/database.json) e arquivos de carga
       - ./data:/app/data

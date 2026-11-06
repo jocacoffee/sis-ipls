@@ -19,6 +19,7 @@ import {
   scopeMeasurements,
   scopeTargets
 } from '../services/orgScope';
+import { canWriteOrg, currentUser, requireLogin, requireRole } from './auth';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -48,11 +49,12 @@ export function createApiRouter() {
     reason?: string,
     source: string = 'API'
   ) => {
+    const sessionUser = currentUser();
     const entry: AuditLog = {
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      organizationId: 'org-sjrr',
-      userId,
-      userName,
+      organizationId: sessionUser?.organizationId || LEGACY_DEFAULT_ORG_ID,
+      userId: sessionUser?.username || userId,
+      userName: sessionUser?.displayName || userName,
       action,
       timestamp: new Date().toISOString(),
       entityType,
@@ -135,7 +137,7 @@ export function createApiRouter() {
   });
 
   // PUT /api/indicators/:id - Update indicator/variable definition, periodicity, and metadata
-  router.put('/indicators/:id', (req: Request, res: Response) => {
+  router.put('/indicators/:id', requireRole('ADMIN'), (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       name,
@@ -218,7 +220,7 @@ export function createApiRouter() {
   });
 
   // POST /api/measurements - Add or update measurement with validation, audit & disk persistence
-  router.post('/measurements', async (req: Request, res: Response) => {
+  router.post('/measurements', requireRole('GESTOR', 'ADMIN'), async (req: Request, res: Response) => {
     const {
       indicatorId,
       year,
@@ -242,6 +244,9 @@ export function createApiRouter() {
     const writeError = consolidatedWriteError(organizationId);
     if (writeError) {
       return res.status(400).json({ error: writeError });
+    }
+    if (!canWriteOrg(currentUser(), organizationId)) {
+      return res.status(403).json({ error: 'Você só pode lançar dados do seu próprio órgão.' });
     }
     if (!db.organizations.some(o => o.id === organizationId)) {
       return res.status(404).json({ error: 'Órgão não encontrado.' });
@@ -335,7 +340,7 @@ export function createApiRouter() {
   });
 
   // POST /api/measurements/batch - Ingest batch of measurements from spreadsheet (2021-2025)
-  router.post('/measurements/batch', async (req: Request, res: Response) => {
+  router.post('/measurements/batch', requireRole('GESTOR', 'ADMIN'), async (req: Request, res: Response) => {
     const {
       measurements: items,
       sourceDescription = 'Importação de Planilha PLS SJRR',
@@ -354,7 +359,8 @@ export function createApiRouter() {
 
     items.forEach((item, idx) => {
       if (!item.indicatorId || item.value === undefined) return;
-      if (consolidatedWriteError(item.organizationId || LEGACY_DEFAULT_ORG_ID)) {
+      const batchOrgId = item.organizationId || LEGACY_DEFAULT_ORG_ID;
+      if (consolidatedWriteError(batchOrgId) || !canWriteOrg(currentUser(), batchOrgId)) {
         rejectedCount++;
         return;
       }
@@ -439,7 +445,7 @@ export function createApiRouter() {
   });
 
   // POST /api/documents/upload - Upload and simulate OCR
-  router.post('/documents/upload', (req: Request, res: Response) => {
+  router.post('/documents/upload', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
     const { fileName, fileType, title, indicatorId, processNumber, textSnippet } = req.body;
 
     const extracted = extractDataFromDocument(fileName || 'documento.pdf', textSnippet);
@@ -484,7 +490,7 @@ export function createApiRouter() {
   });
 
   // POST /api/documents/:id/validate - Validate extracted document
-  router.post('/documents/:id/validate', (req: Request, res: Response) => {
+  router.post('/documents/:id/validate', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
     const { id } = req.params;
     const { userId = 'usr-1', userName = 'Dr. Roberto Magalhães', approvedValue } = req.body;
 
@@ -589,11 +595,11 @@ export function createApiRouter() {
     }
   };
 
-  router.post('/chat', handleChatRequest);
-  router.post('/ai/chat', handleChatRequest);
+  router.post('/chat', requireLogin, handleChatRequest);
+  router.post('/ai/chat', requireLogin, handleChatRequest);
 
   // POST /api/ai/test-local - Test connectivity to on-premise Local AI endpoint (Ollama/vLLM)
-  router.post('/ai/test-local', async (req: Request, res: Response) => {
+  router.post('/ai/test-local', requireRole('ADMIN'), async (req: Request, res: Response) => {
     const { endpoint, model, apiKey, temperature } = req.body;
     try {
       const result = await testLocalAIConnection({
@@ -629,7 +635,7 @@ export function createApiRouter() {
   });
 
   // POST /api/annual-report/generate - Generate annual follow-up report via LLM (Gemini 3.8 Flash)
-  router.post('/annual-report/generate', async (req: Request, res: Response) => {
+  router.post('/annual-report/generate', requireLogin, async (req: Request, res: Response) => {
     const { year = 2026, orgId = 'org-sjrr', customFocus } = req.body;
     const org = db.organizations.find(o => o.id === orgId) || db.organizations[0];
     const scoped = scopeFor(org.id);
@@ -675,7 +681,7 @@ export function createApiRouter() {
   });
 
   // POST /api/action-plans - Update or create action
-  router.post('/action-plans', (req: Request, res: Response) => {
+  router.post('/action-plans', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
     const { action } = req.body;
     if (!action || !action.title) {
       return res.status(400).json({ error: 'Dados da ação incompletos.' });
@@ -720,7 +726,7 @@ export function createApiRouter() {
   });
 
   // POST /api/targets - Create or update PLS indicator target
-  router.post('/targets', (req: Request, res: Response) => {
+  router.post('/targets', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
     const {
       target,
       reason,
@@ -737,6 +743,9 @@ export function createApiRouter() {
     const writeError = consolidatedWriteError(targetOrgId);
     if (writeError) {
       return res.status(400).json({ error: writeError });
+    }
+    if (!canWriteOrg(currentUser(), targetOrgId)) {
+      return res.status(403).json({ error: 'Você só pode alterar metas do seu próprio órgão.' });
     }
     const existingIdx = db.targets.findIndex(
       t =>
@@ -802,7 +811,7 @@ export function createApiRouter() {
   });
 
   // DELETE /api/targets/:id - Remove PLS indicator target
-  router.delete('/targets/:id', (req: Request, res: Response) => {
+  router.delete('/targets/:id', requireRole('GESTOR', 'ADMIN'), (req: Request, res: Response) => {
     const { id } = req.params;
     const {
       indicatorId = req.query.indicatorId as string,
@@ -813,6 +822,9 @@ export function createApiRouter() {
       userName = 'Dr. Roberto Magalhães'
     } = req.body || {};
 
+    if (!canWriteOrg(currentUser(), organizationId)) {
+      return res.status(403).json({ error: 'Você só pode alterar metas do seu próprio órgão.' });
+    }
     const targetIndex = db.targets.findIndex(t => {
       if ((t.organizationId || LEGACY_DEFAULT_ORG_ID) !== organizationId) return false;
       if (id && id !== 'undefined' && id !== ':id' && id !== 'by-indicator' && t.id === id) return true;

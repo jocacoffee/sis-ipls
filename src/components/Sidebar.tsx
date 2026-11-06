@@ -18,7 +18,8 @@ import {
   Layers,
   PanelLeftClose
 } from 'lucide-react';
-import { Organization, UserRole } from '../types';
+import { Organization } from '../types';
+import { AuthUser, ROLE_LABEL } from '../services/authClient';
 import {
   getAllAvailableCycles,
   getYearsForCycle,
@@ -46,8 +47,10 @@ interface SidebarProps {
   organizations: Organization[];
   selectedOrgId: string;
   setSelectedOrgId: (id: string) => void;
-  currentRole: UserRole;
-  setCurrentRole: (role: UserRole) => void;
+  authUser: AuthUser | null;
+  canEdit: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
   activeAlertsCount: number;
   pendingValidationCount: number;
   selectedYear?: number;
@@ -64,8 +67,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   organizations,
   selectedOrgId,
   setSelectedOrgId,
-  currentRole,
-  setCurrentRole,
+  authUser,
+  canEdit,
+  onLogin,
+  onLogout,
   activeAlertsCount,
   pendingValidationCount,
   selectedYear = 2026,
@@ -289,26 +294,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Footer Role Switcher & RBAC */}
+      {/* Sessão do usuário (login no AD da 1ª Região) */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/60">
         <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
           <UserCheck className="w-3.5 h-3.5 text-teal-400" />
-          Perfil de Acesso (RBAC)
+          Acesso
         </label>
-        <select
-          value={currentRole}
-          onChange={(e) => setCurrentRole(e.target.value as UserRole)}
-          className="w-full bg-slate-900 text-xs text-slate-200 rounded-md border border-slate-800 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500 font-medium"
-        >
-          <option value="GESTOR_PLS">Gestor do PLS (Edição/Validação)</option>
-          <option value="ADMIN">Administrador (Total)</option>
-          <option value="RESPONSAVEL_INDICADOR">Resp. Indicador (Coleta)</option>
-          <option value="CONSULTOR">Consultor (Consulta/Chat)</option>
-          <option value="AUDITOR">Auditor (Somente Leitura)</option>
-        </select>
-        <div className="mt-2 text-[10px] text-slate-400 leading-tight">
-          Sessão segura vinculada ao SEI e Portaria CNJ nº 400/2021.
-        </div>
+        {authUser ? (
+          <div className="space-y-1.5">
+            <div className="text-xs text-slate-100 font-semibold truncate" title={authUser.username}>
+              {authUser.displayName}
+            </div>
+            <div className="text-[10px] text-slate-400 truncate">
+              {ROLE_LABEL[authUser.role]} · {authUser.username}
+            </div>
+            <div className={`text-[10px] font-semibold ${canEdit ? 'text-emerald-400' : 'text-amber-300'}`}>
+              {canEdit ? 'Pode lançar dados neste órgão' : 'Somente leitura neste órgão'}
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full text-[11px] font-semibold rounded-md border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 py-1"
+            >
+              Sair
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <div className="text-[11px] text-slate-300">Visitante: consulta aos painéis sem login.</div>
+            <button
+              type="button"
+              onClick={onLogin}
+              className="w-full text-[11px] font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white py-1.5"
+            >
+              Entrar para lançar dados
+            </button>
+          </div>
+        )}
 
         {onToggleCollapse && (
           <button

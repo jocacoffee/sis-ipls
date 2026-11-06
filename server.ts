@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createApiRouter } from './src/server/api';
 import { storage } from './src/server/storage';
+import { authMiddleware, createAuthRouter } from './src/server/auth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,11 @@ async function startServer() {
       timestamp: new Date().toISOString()
     });
   });
+
+  // Sessão do usuário (visitantes navegam sem login; escrita exige login no AD)
+  app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
+  app.use('/api', authMiddleware);
+  app.use('/api', createAuthRouter());
 
   // Mount API router
   app.use('/api', createApiRouter());

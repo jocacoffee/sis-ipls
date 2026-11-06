@@ -71,6 +71,8 @@ import {
   getCycleInfo
 } from './utils/yearUtils';
 import { isConsolidatedOrg, orgDenominators, orgIdOf } from './services/orgScope';
+import { AuthUser, canEditOrganization, fetchCurrentUser, logout } from './services/authClient';
+import { LoginModal } from './components/LoginModal';
 
 // Cache local separado por órgão (evita misturar séries de unidades diferentes)
 const measurementsCacheKey = (orgId: string) => `${STORAGE_KEYS.MEASUREMENTS}__${orgId}`;
@@ -83,7 +85,15 @@ export function App() {
   // Core state
   const [organizations, setOrganizations] = useState<Organization[]>(INITIAL_ORGANIZATIONS);
   const [selectedOrgId, setSelectedOrgId] = useState<string>(DEFAULT_ORG_ID);
-  const [currentRole, setCurrentRole] = useState<UserRole>('GESTOR_PLS');
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
+  useEffect(() => {
+    fetchCurrentUser().then(u => {
+      setAuthUser(u);
+      // Gestor entra direto no próprio órgão
+      if (u?.organizationId && u.role === 'GESTOR') setSelectedOrgId(u.organizationId);
+    });
+  }, []);
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
 
@@ -179,6 +189,7 @@ export function App() {
     fromYear: number,
     toYear: number
   ) => {
+    if (!ensureCanEdit()) return;
     setMeasurements(prev => {
       // Filtrar eventuais variáveis gerais existentes em toYear e anexar as novas
       const filtered = prev.filter(
@@ -301,6 +312,32 @@ export function App() {
   // Dynamic calculations for all indicators in selected year (dados do órgão selecionado)
   const orgDenoms = orgDenominators(selectedOrgId, organizations);
   const isConsolidatedView = isConsolidatedOrg(selectedOrgId, organizations);
+  const canEdit = canEditOrganization(authUser, selectedOrgId, isConsolidatedView);
+
+  /** Verifica se o usuário pode alterar dados; se não, explica ou abre o login. */
+  const ensureCanEdit = (adminOnly = false): boolean => {
+    if (!authUser) {
+      setIsLoginOpen(true);
+      return false;
+    }
+    if (adminOnly && authUser.role !== 'ADMIN') {
+      window.alert('Somente administradores podem alterar o catálogo de indicadores.');
+      return false;
+    }
+    if (isConsolidatedView) {
+      window.alert(CONSOLIDATED_WRITE_MESSAGE);
+      return false;
+    }
+    if (!canEdit) {
+      window.alert(
+        authUser.role === 'LEITOR'
+          ? 'Seu usuário tem acesso apenas para consulta. Peça inclusão no grupo de gestores do iPLS.'
+          : 'Você só pode lançar e alterar dados do seu próprio órgão.'
+      );
+      return false;
+    }
+    return true;
+  };
   const indicatorPerformances = indicators.map(ind => {
     const target = targets.find(t => t.indicatorId === ind.id && t.year === selectedYear);
     return {
@@ -335,6 +372,7 @@ export function App() {
 
   // Open Data Ingestion Modal
   const handleOpenDataIngestion = (indicatorId?: string, month?: number) => {
+    if (!ensureCanEdit()) return;
     setPreselectedIndicatorId(indicatorId);
     setPreselectedMonth(month);
     setIsDataIngestionOpen(true);
@@ -342,6 +380,7 @@ export function App() {
 
   // Update indicator definition, periodicity, and metadata
   const handleUpdateIndicator = async (updatedIndicator: Indicator, reason?: string) => {
+    if (!ensureCanEdit(true)) return;
     // 1. Post to API
     try {
       await fetch(`/api/indicators/${updatedIndicator.id}`, {
@@ -408,19 +447,22 @@ export function App() {
     notes: string;
     reason?: string;
   }) => {
-    if (isConsolidatedView) {
-      window.alert(CONSOLIDATED_WRITE_MESSAGE);
-      return;
-    }
-    // 1. Post to API
+    if (!ensureCanEdit()) return;
+    // 1. Post to API (a tela só é atualizada se o servidor confirmar a gravação)
     try {
-      await fetch('/api/measurements', {
+      const res = await fetch('/api/measurements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, organizationId: selectedOrgId })
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        window.alert(err.error || `Falha ao gravar (HTTP ${res.status}).`);
+        return;
+      }
     } catch (e) {
-      // offline fallback
+      window.alert('Falha de conexão com o servidor. O lançamento não foi gravado.');
+      return;
     }
 
     // 2. Update local state
@@ -527,6 +569,7 @@ export function App() {
 
   // Import batch of measurements from spreadsheet
   const handleImportBatch = (newMeasurements: Partial<IndicatorMeasurement>[]) => {
+    if (!ensureCanEdit()) return;
     const formatted: IndicatorMeasurement[] = newMeasurements.map((item, idx) => ({
       id: item.id || `m-imp-${item.year || selectedYear}-${item.month || 1}-${item.indicatorId}-${Date.now()}-${idx}`,
       indicatorId: item.indicatorId!,
@@ -582,6 +625,7 @@ export function App() {
 
   // Upload and OCR document
   const handleUploadDocument = async (fileData: { fileName: string; fileType: any; textSnippet?: string }) => {
+    if (!ensureCanEdit()) return;
     const extracted = extractDataFromDocument(fileData.fileName, fileData.textSnippet);
 
     const newDoc: PLSDocument = {
@@ -658,6 +702,7 @@ export function App() {
 
   // Validate document
   const handleValidateDocument = async (documentId: string, approvedValue?: number) => {
+    if (!ensureCanEdit()) return;
     setDocuments(prev =>
       prev.map(d => {
         if (d.id === documentId) {
@@ -712,6 +757,7 @@ export function App() {
 
   // Save action plan item with API persistence and audit log
   const handleSaveActionPlan = async (action: Partial<ActionPlan>) => {
+    if (!ensureCanEdit()) return;
     // 1. Post to API
     try {
       await fetch('/api/action-plans', {
@@ -767,15 +813,16 @@ export function App() {
 
   // Save or update PLS indicator target with API persistence and audit log
   const handleSaveTarget = async (targetData: Partial<IndicatorTarget>, reason?: string) => {
+    if (!ensureCanEdit()) return;
     const year = targetData.year || selectedYear;
     if (isConsolidatedView) {
       window.alert(CONSOLIDATED_WRITE_MESSAGE);
       return;
     }
 
-    // 1. Post to API
+    // 1. Post to API (a tela só é atualizada se o servidor confirmar a gravação)
     try {
-      await fetch('/api/targets', {
+      const res = await fetch('/api/targets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -783,8 +830,14 @@ export function App() {
           reason
         })
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        window.alert(err.error || `Falha ao gravar a meta (HTTP ${res.status}).`);
+        return;
+      }
     } catch (e) {
-      console.warn('[iPLS] Offline fallback ao salvar meta:', e);
+      window.alert('Falha de conexão com o servidor. A meta não foi gravada.');
+      return;
     }
 
     // 2. Update local state
@@ -842,6 +895,7 @@ export function App() {
 
   // Delete PLS indicator target with API persistence and audit log
   const handleDeleteTarget = async (targetId: string, indicatorId: string, year: number, reason?: string) => {
+    if (!ensureCanEdit()) return;
     // 1. Call API
     try {
       await fetch(`/api/targets/${encodeURIComponent(targetId || 'by-indicator')}`, {
@@ -914,8 +968,13 @@ export function App() {
         organizations={organizations}
         selectedOrgId={selectedOrgId}
         setSelectedOrgId={setSelectedOrgId}
-        currentRole={currentRole}
-        setCurrentRole={setCurrentRole}
+        authUser={authUser}
+        canEdit={canEdit}
+        onLogin={() => setIsLoginOpen(true)}
+        onLogout={async () => {
+          await logout();
+          setAuthUser(null);
+        }}
         activeAlertsCount={activeAlertsCount}
         pendingValidationCount={pendingValidationCount}
         selectedYear={selectedYear}
@@ -978,7 +1037,7 @@ export function App() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => setIsSpreadsheetImportOpen(true)}
+              onClick={() => ensureCanEdit() && setIsSpreadsheetImportOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-200 transition-colors shadow-2xs"
               title="Importar planilha de dados da série histórica com persistência permanente"
             >
@@ -1048,11 +1107,11 @@ export function App() {
             selectedYear={selectedYear}
             setSelectedYear={handleSelectYear}
             onOpenDataIngestion={handleOpenDataIngestion}
-            onOpenSpreadsheetImport={() => setIsSpreadsheetImportOpen(true)}
+            onOpenSpreadsheetImport={() => { if (ensureCanEdit()) setIsSpreadsheetImportOpen(true); }}
             onOpenDocumentUpload={() => setActiveTab('documents')}
             onOpenChatWithQuery={handleOpenChatWithQuery}
             onSelectIndicator={setSelectedIndicatorForDetail}
-            onOpenReplicateModal={() => setIsReplicateModalOpen(true)}
+            onOpenReplicateModal={() => { if (ensureCanEdit()) setIsReplicateModalOpen(true); }}
           />
         )}
 
@@ -1066,8 +1125,8 @@ export function App() {
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenChatWithQuery={handleOpenChatWithQuery}
-            onEditIndicator={ind => setEditingIndicator(ind)}
-            onOpenReplicateModal={() => setIsReplicateModalOpen(true)}
+            onEditIndicator={ind => { if (ensureCanEdit(true)) setEditingIndicator(ind); }}
+            onOpenReplicateModal={() => { if (ensureCanEdit()) setIsReplicateModalOpen(true); }}
           />
         )}
 
@@ -1105,7 +1164,7 @@ export function App() {
                   + Lançamento Manual
                 </button>
                 <button
-                  onClick={() => setIsSpreadsheetImportOpen(true)}
+                  onClick={() => ensureCanEdit() && setIsSpreadsheetImportOpen(true)}
                   className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200"
                 >
                   Importar Planilha CSV
@@ -1217,7 +1276,7 @@ export function App() {
             themes={themes}
             actionPlans={actionPlans}
             performances={indicatorPerformances}
-            onOpenSpreadsheetImport={() => setIsSpreadsheetImportOpen(true)}
+            onOpenSpreadsheetImport={() => { if (ensureCanEdit()) setIsSpreadsheetImportOpen(true); }}
           />
         )}
 
@@ -1271,7 +1330,7 @@ export function App() {
           onClose={() => setSelectedIndicatorForDetail(null)}
           onOpenDataIngestion={handleOpenDataIngestion}
           onOpenChatWithQuery={handleOpenChatWithQuery}
-          onEditIndicator={ind => setEditingIndicator(ind)}
+          onEditIndicator={ind => { if (ensureCanEdit(true)) setEditingIndicator(ind); }}
           onOpenEditTarget={(ind, tgt) => {
             setSelectedIndicatorForDetail(null);
             setTargetToEdit({ indicatorId: ind.id, target: tgt });
@@ -1300,6 +1359,16 @@ export function App() {
           onSave={handleSaveMeasurement}
         />
       )}
+
+      <LoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
+        onLoggedIn={u => {
+          setAuthUser(u);
+          setIsLoginOpen(false);
+          if (u.organizationId && u.role === 'GESTOR') setSelectedOrgId(u.organizationId);
+        }}
+      />
 
       {isSpreadsheetImportOpen && (
         <SpreadsheetImportModal
