@@ -312,7 +312,11 @@ export type IndicatorStatus =
   | 'RISCO' 
   | 'META_ATINGIDA' 
   | 'SEM_DADOS' 
-  | 'EM_VALIDACAO';
+  | 'EM_VALIDACAO'
+  /** Indicador sem meta cadastrada no exercício: não se avalia cumprimento. */
+  | 'SEM_META'
+  /** Variável geral (tema 1): base de cálculo, nunca tem meta. */
+  | 'VARIAVEL_GERAL';
 
 export interface IndicatorCalculationResult {
   indicatorId: string;

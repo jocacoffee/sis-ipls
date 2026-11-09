@@ -100,6 +100,8 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
       if (selectedStatus === 'ATENCAO' && perf?.result.status !== 'ATENCAO') return false;
       if (selectedStatus === 'RISCO' && perf?.result.status !== 'RISCO') return false;
       if (selectedStatus === 'SEM_DADOS' && perf?.result.status !== 'SEM_DADOS') return false;
+      if (selectedStatus === 'SEM_META' && perf?.result.status !== 'SEM_META') return false;
+      if (selectedStatus === 'VARIAVEL_GERAL' && perf?.result.status !== 'VARIAVEL_GERAL') return false;
     }
 
     if (searchQuery) {
@@ -287,6 +289,8 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
             <option value="ATENCAO">Em Atenção</option>
             <option value="RISCO">Em Risco</option>
             <option value="SEM_DADOS">Sem Dados</option>
+            <option value="SEM_META">Sem meta definida</option>
+            <option value="VARIAVEL_GERAL">Variáveis gerais</option>
           </select>
           {/* Quick Filter: Variáveis Gerais (Tema 1) */}
           <button
@@ -403,7 +407,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                             <div className="flex items-center justify-between">
                               <span className="text-slate-500 text-[11px]">Meta {selectedYear}:</span>
                               <span className="font-mono font-bold text-emerald-700 tabular-nums">
-                                {res ? `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}` : '—'}
+                                {!res ? '—' : res.status === 'VARIAVEL_GERAL' ? <span className="font-sans font-normal text-slate-400">não se aplica</span> : !perf?.target ? <span className="font-sans font-normal text-slate-400">sem meta definida</span> : `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}`}
                               </span>
                             </div>
                           </div>
@@ -511,7 +515,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                       </td>
 
                       <td className="py-3 px-3 text-right font-mono font-semibold text-slate-700 tabular-nums">
-                        {res ? `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}` : '—'}
+                        {!res ? '—' : res.status === 'VARIAVEL_GERAL' ? <span className="font-sans font-normal text-slate-400">não se aplica</span> : !perf?.target ? <span className="font-sans font-normal text-slate-400">sem meta definida</span> : `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}`}
                       </td>
 
                       <td className="py-3 px-3 text-center">

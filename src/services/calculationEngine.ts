@@ -259,7 +259,11 @@ export function calculateIndicatorPerformance(
 
   // Fulfillment calculation: strictly 0 when no data has been reported yet
   let fulfillmentPercentage = 0;
-  if (monthsReported === 0) {
+  // Só há avaliação de meta quando existe meta cadastrada para o órgão/exercício
+  // (uma meta cadastrada com valor zero, ex.: zero copos, é uma meta válida)
+  const isGeneralVariable = indicator.themeId === 'theme-1';
+  const hasTarget = !!target && !isGeneralVariable;
+  if (monthsReported === 0 || !hasTarget) {
     fulfillmentPercentage = 0;
   } else if (targetValue > 0) {
     if (indicator.targetDirection === 'MENOR_MELHOR') {
@@ -301,6 +305,12 @@ export function calculateIndicatorPerformance(
   } else if (hasPendingValidation) {
     status = 'EM_VALIDACAO';
     statusReason = `Competências recentes possuem documentos atestados aguardando validação formal de conformidade.`;
+  } else if (isGeneralVariable) {
+    status = 'VARIAVEL_GERAL';
+    statusReason = 'Variável geral: base de cálculo dos indicadores (per capita, por m²). Não possui meta.';
+  } else if (!hasTarget) {
+    status = 'SEM_META';
+    statusReason = `Sem meta cadastrada para ${year}: o cumprimento de meta não é avaliado.`;
   } else if (targetValue === 0) {
     // Target zero (e.g. copos plásticos descartáveis)
     if (accumulatedValue === 0) {

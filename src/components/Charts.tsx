@@ -1568,6 +1568,20 @@ export const StatusPill: React.FC<{ status: string; showIcon?: boolean }> = ({ s
           Dados em Validação
         </span>
       );
+    case 'VARIAVEL_GERAL':
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200" title="Variável geral: base de cálculo, não possui meta">
+          {showIcon && <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>}
+          Variável geral
+        </span>
+      );
+    case 'SEM_META':
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200" title="Sem meta cadastrada para o exercício">
+          {showIcon && <span className="w-1.5 h-1.5 rounded-full border border-slate-400"></span>}
+          Sem meta definida
+        </span>
+      );
     case 'SEM_DADOS':
     default:
       return (
