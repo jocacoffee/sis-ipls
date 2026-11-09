@@ -222,6 +222,12 @@ export function calculateCNJIDS(
     }
     return total;
   };
+  /** Fluxos anuais (gastos, consumos): soma do ano; se lançado mês a mês, trata como série mensal. */
+  const flow = (acr: string): number | null => {
+    const list = yearList(acr);
+    if (list.length === 0) return null;
+    return list.some(m => m.isMonthlyEntry) ? sum(acr, true) : sum(acr);
+  };
   const last = (acr: string): number | null => {
     const list = yearList(acr).sort((a, b) => b.month - a.month);
     return list.length ? list[0].value : null;
@@ -264,8 +270,8 @@ export function calculateCNJIDS(
   const ca = firstOf(custom.ca, sum('CA', true));
   const qve = last('QVe');
   const cc = firstOf(custom.cc, sum('CC', true));
-  const gc = firstOf(custom.gc, last('GC'));
-  const transport = sumOf(last('GMV'), last('GCM'), gc, last('GCV'), last('GOT'));
+  const gc = firstOf(custom.gc, flow('GC'));
+  const transport = sumOf(flow('GMV'), flow('GCM'), gc, flow('GCV'), flow('GOT'));
   const gpp = firstOf(custom.gpp, sum('GPP', true));
   const gcgraf = firstOf(comp('gcgraf'), sum('GCGraf', true));
   const paper = gpp === null ? null : gpp + (gcgraf ?? 0);
@@ -274,7 +280,7 @@ export function calculateCNJIDS(
     comp('tmr'),
     sumOf(sum('DPa', true), sum('DPl', true), sum('DMt', true), sum('DVd', true))
   );
-  const recycling = tmrBase === null ? null : tmrBase + (last('DEl') ?? last('DEI/DEl') ?? 0) + (last('DImp') ?? 0) + (last('DPB') ?? 0);
+  const recycling = tmrBase === null ? null : tmrBase + (flow('DEl') ?? flow('DEI/DEl') ?? 0) + (flow('DImp') ?? 0) + (flow('DPB') ?? 0);
   const ced = firstOf(custom.ced, sum('CED', true));
   const gtf = firstOf(custom.gtf, sum('GTF', true));
   const gtm = firstOf(custom.gtm, sum('GTM', true));

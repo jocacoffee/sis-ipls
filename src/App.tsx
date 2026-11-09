@@ -447,6 +447,7 @@ export function App() {
     processNumber: string;
     notes: string;
     reason?: string;
+    entryMode?: 'ANUAL' | 'MENSAL';
   }) => {
     if (!ensureCanEdit()) return;
     // 1. Post to API (a tela só é atualizada se o servidor confirmar a gravação)
@@ -535,6 +536,9 @@ export function App() {
         validatedAt: now,
         confidenceScore: 100,
         notes: data.notes,
+        ...(data.entryMode === 'MENSAL' && indicators.find(i => i.id === data.indicatorId)?.periodicity === 'ANUAL'
+          ? { isMonthlyEntry: true }
+          : {}),
         createdAt: now,
         updatedAt: now
       };
@@ -581,7 +585,7 @@ export function App() {
       unit: item.unit || 'unidades',
       sourceType: 'spreadsheet',
       sourceReference: item.sourceReference || 'Importação de Planilha',
-      processNumber: item.processNumber || '0001245-88.2026.4.01.8012',
+      processNumber: item.processNumber || undefined,
       validationStatus: 'VALIDADO',
       confidenceScore: 100,
       notes: item.notes || `Importado de planilha (${item.year})`,

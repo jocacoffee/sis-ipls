@@ -235,7 +235,8 @@ export function calculateIndicatorPerformance(
 
   const baselineValue = target?.baselineValue ?? indicator.baselineValue ?? 0;
   const targetValue = target?.targetValue ?? indicator.targetValue2026 ?? 0;
-  const isAnnual = indicator.periodicity === 'ANUAL';
+  // Indicador anual lançado mês a mês no exercício: projeta como mensal
+  const isAnnual = indicator.periodicity === 'ANUAL' && !yearMeasurements.some(m => m.isMonthlyEntry);
   const monthlyAverage = !isAnnual && monthsReported > 0 ? accumulatedValue / monthsReported : (monthsReported > 0 ? accumulatedValue : 0);
 
   // Projection calculation: Extrapolate reported months to full 12 months for monthly indicators

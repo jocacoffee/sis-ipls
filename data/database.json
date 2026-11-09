@@ -2006,7 +2006,8 @@
       "active": true,
       "startValidity": "2021-01-01",
       "normativeReference": "Resolução CNJ nº 400/2021, Anexo, Tema 13",
-      "consolidation": "SOMA"
+      "consolidation": "SOMA",
+      "allowMonthlyEntry": true
     },
     {
       "id": "indicator-13-2",
@@ -2321,7 +2322,8 @@
       "normativeReference": "Resolução CNJ nº 400/2021, Anexo, Tema 14",
       "responsibleUnit": "Seção de Transporte",
       "defaultMonthlyTarget": 430,
-      "consolidation": "SOMA"
+      "consolidation": "SOMA",
+      "allowMonthlyEntry": true
     },
     {
       "id": "indicator-14-2",
@@ -2341,7 +2343,8 @@
       "active": true,
       "startValidity": "2021-01-01",
       "normativeReference": "Resolução CNJ nº 400/2021, Anexo, Tema 14",
-      "consolidation": "SOMA"
+      "consolidation": "SOMA",
+      "allowMonthlyEntry": true
     },
     {
       "id": "indicator-14-3",
@@ -2365,7 +2368,8 @@
       "normativeReference": "Resolução CNJ nº 400/2021, Anexo, Tema 14",
       "responsibleUnit": "Seção de Transporte",
       "defaultMonthlyTarget": 250,
-      "consolidation": "SOMA"
+      "consolidation": "SOMA",
+      "allowMonthlyEntry": true
     },
     {
       "id": "indicator-14-4",
@@ -2440,7 +2444,8 @@
       "active": true,
       "startValidity": "2021-01-01",
       "normativeReference": "Resolução CNJ nº 400/2021, Anexo, Tema 14",
-      "consolidation": "SOMA"
+      "consolidation": "SOMA",
+      "allowMonthlyEntry": true
     },
     {
       "id": "indicator-15-1",

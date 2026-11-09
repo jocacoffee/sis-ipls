@@ -32,6 +32,7 @@ import type {
 } from '../src/types';
 import { buildConsolidatedMeasurements, CONSOLIDATED_ORG_ID } from '../src/services/orgScope';
 import { calculateCNJIDS } from '../src/services/idsCalculator';
+import { MONTHLY_ENTRY_ACRONYMS } from '../src/services/periodicity';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -230,6 +231,8 @@ for (const s of bundle.indicadores) {
   // A unidade também: os valores carregados estão na unidade da planilha
   // (ex.: CC em centos, DImp e DOB em kg)
   ind.unit = s.unidade;
+  // Combustíveis e quilometragem: anuais, mas aceitam lançamento mês a mês
+  if (MONTHLY_ENTRY_ACRONYMS.includes(ind.acronym || '')) ind.allowMonthlyEntry = true;
   indBySrc.set(s.codigo, ind);
 }
 // Metas passam a ser por órgão: remove as metas de demonstração gravadas no catálogo

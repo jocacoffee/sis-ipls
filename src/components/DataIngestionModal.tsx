@@ -22,8 +22,11 @@ interface DataIngestionModalProps {
     processNumber: string;
     notes: string;
     reason?: string;
+    entryMode?: EntryMode;
   }) => void;
 }
+
+import { EntryMode, yearEntryMode } from '../services/periodicity';
 
 export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
   indicators,
@@ -40,16 +43,26 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
   const [value, setValue] = useState<string>('');
   const [sourceType, setSourceType] = useState<SourceType>('manual');
   const [sourceReference, setSourceReference] = useState<string>('Boletim de Medição Interno');
-  const [processNumber, setProcessNumber] = useState<string>('0001245-88.2026.4.01.8012');
+  const [processNumber, setProcessNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [isConfirmingChange, setIsConfirmingChange] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedIndicator = indicators.find(i => i.id === indicatorId) || indicators[0];
+  const isAnnualInd = selectedIndicator?.periodicity === 'ANUAL';
+  const flexible = isAnnualInd && !!selectedIndicator?.allowMonthlyEntry;
+  // Modo já usado no exercício (as medições recebidas são só do órgão selecionado)
+  const lockedMode: EntryMode | null = isAnnualInd
+    ? yearEntryMode(measurements.map(m => ({ ...m, organizationId: 'x' })), indicatorId, 'x', year)
+    : null;
+  const [chosenMode, setChosenMode] = useState<EntryMode>('MENSAL');
+  const entryMode: EntryMode = !isAnnualInd ? 'MENSAL' : !flexible ? 'ANUAL' : lockedMode || chosenMode;
+  // Anual (total) é gravado no mês 12
+  const effectiveMonth = isAnnualInd && entryMode === 'ANUAL' ? 12 : month;
 
   const existingMeasurement = measurements.find(
-    m => m.indicatorId === indicatorId && m.year === year && m.month === month
+    m => m.indicatorId === indicatorId && m.year === year && m.month === effectiveMonth
   );
 
   React.useEffect(() => {
@@ -84,7 +97,8 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
     onSave({
       indicatorId,
       year,
-      month,
+      month: effectiveMonth,
+      entryMode,
       value: numValue,
       unit: selectedIndicator?.unit || '',
       sourceType,
@@ -216,9 +230,9 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
 
             <div>
               <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {selectedIndicator?.periodicity === 'ANUAL' ? 'Periodicidade' : 'Competência (Mês) *'}
+                {isAnnualInd && entryMode === 'ANUAL' ? 'Periodicidade' : 'Competência (Mês) *'}
               </label>
-              {selectedIndicator?.periodicity === 'ANUAL' ? (
+              {isAnnualInd && entryMode === 'ANUAL' ? (
                 <div className="w-full bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 text-xs text-emerald-900 font-bold flex items-center justify-between">
                   <span>Exercício Integral (Anual)</span>
                   <span className="text-[10px] bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded font-mono">Consolidado</span>
@@ -242,7 +256,44 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
             </div>
           </div>
 
-          {selectedIndicator?.periodicity === 'ANUAL' && (
+          {flexible && (
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 space-y-2">
+              <div className="font-semibold">Como este indicador será lançado em {year}?</div>
+              <div className="flex gap-2" role="radiogroup" aria-label="Forma de lançamento">
+                {(['MENSAL', 'ANUAL'] as EntryMode[]).map(mode => {
+                  const disabled = !!lockedMode && lockedMode !== mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={entryMode === mode}
+                      disabled={disabled}
+                      onClick={() => {
+                        setChosenMode(mode);
+                        setValue('');
+                        setIsConfirmingChange(false);
+                      }}
+                      className={`flex-1 rounded-lg border px-2 py-1.5 font-semibold ${
+                        entryMode === mode
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      {mode === 'MENSAL' ? 'Mês a mês' : 'Total anual'}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-slate-500 leading-snug">
+                {lockedMode
+                  ? `Em ${year} este indicador já está sendo lançado como ${lockedMode === 'MENSAL' ? 'mês a mês (o total do ano é a soma dos meses)' : 'total anual'}. Os dois modos não se misturam no mesmo ano.`
+                  : 'Escolha um modo para o ano: no mês a mês, o total do exercício é a soma dos meses informados.'}
+              </p>
+            </div>
+          )}
+
+          {isAnnualInd && !flexible && (
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
               💡 <strong>Apuração Anual:</strong> Esta variável possui consolidação única por ano, servindo de base estrutural para todos os cálculos derivados de sustentabilidade.
             </div>
@@ -269,7 +320,7 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
               {(() => {
                 const prevYear = year - 1;
                 const prevM = measurements.find(m => m.indicatorId === indicatorId && m.year === prevYear);
-                if (prevM && !value) {
+                if (prevM && !value && !(isAnnualInd && entryMode === 'MENSAL')) {
                   return (
                     <button
                       type="button"

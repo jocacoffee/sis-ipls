@@ -357,7 +357,7 @@ export function parseSpreadsheetBuffer(
               matchedIndicatorName: matched.name,
               value: val,
               unit: matched.unit,
-              processNumber: '0001245-88.2026.4.01.8012',
+              processNumber: undefined,
               reference: `Planilha ${effectiveOrg ? effectiveOrg.acronym + ' ' : ''}${sheetName}`,
               isAnnualConsolidation: false,
               organizationId: effectiveOrg?.id,
@@ -473,7 +473,7 @@ export function parseSpreadsheetBuffer(
         if (val === null || isNaN(val)) continue;
 
         const unit = (colUni >= 0 && row[colUni]) ? String(row[colUni]).trim() : matched.unit;
-        const process = (colProc >= 0 && row[colProc]) ? String(row[colProc]).trim() : '0001245-88.2026.4.01.8012';
+        const process = (colProc >= 0 && row[colProc]) ? String(row[colProc]).trim() : undefined;
         const ref = (colRef >= 0 && row[colRef]) ? String(row[colRef]).trim() : `Importação ${sheetName}`;
 
         const rowItem: ParsedSpreadsheetRow = {
@@ -571,7 +571,7 @@ export function prepareMeasurementsForBatchPersistence(
       unit: row.unit,
       sourceType: 'spreadsheet',
       sourceReference: row.reference || `Planilha ${report.fileName}`,
-      processNumber: row.processNumber || '0001245-88.2026.4.01.8012',
+      processNumber: row.processNumber || undefined,
       validationStatus: 'VALIDADO',
       confidenceScore: 100,
       notes: row.notes || `Importado de planilha [${row.organizationAcronym || 'PLS'}] (${row.year}/${m})`,
@@ -616,7 +616,7 @@ export function prepareMeasurementsForBatchPersistence(
         unit: row.unit || indObj?.unit || '',
         sourceType: 'spreadsheet',
         sourceReference: row.reference || `Consolidado Anual ${row.year} (${report.fileName})`,
-        processNumber: row.processNumber || '0001245-88.2026.4.01.8012',
+        processNumber: row.processNumber || undefined,
         validationStatus: 'VALIDADO',
         confidenceScore: 100,
         notes: row.notes || `Consolidado Anual Oficial [${row.organizationAcronym || 'PLS'}] (${row.year})`,
@@ -647,7 +647,7 @@ export function prepareMeasurementsForBatchPersistence(
           unit: row.unit || indObj?.unit || '',
           sourceType: 'spreadsheet',
           sourceReference: row.reference || `Consolidado Anual ${row.year} (Rateio Mensal)`,
-          processNumber: row.processNumber || '0001245-88.2026.4.01.8012',
+          processNumber: row.processNumber || undefined,
           validationStatus: 'VALIDADO',
           confidenceScore: 100,
           notes: row.notes || `Rateio do Consolidado Anual (${row.year})`,

@@ -147,6 +147,8 @@ export interface Indicator {
   baselineValue?: number;
   /** Regra do consolidado regional: SOMA dos órgãos ou NENHUMA (percentuais, razões, códigos). */
   consolidation?: 'SOMA' | 'NENHUMA';
+  /** Indicador anual que também aceita lançamento mês a mês (ex.: combustíveis, km). */
+  allowMonthlyEntry?: boolean;
 }
 
 export type TargetCriticality = 'CRITICA' | 'NAO_CRITICA';
@@ -205,6 +207,8 @@ export interface IndicatorMeasurement {
   validatedAt?: string;
   confidenceScore?: number; // 0-100
   notes?: string;
+  /** Lançamento mensal de indicador anual (o total do ano é a soma dos meses). */
+  isMonthlyEntry?: boolean;
   createdAt: string;
   updatedAt: string;
 }

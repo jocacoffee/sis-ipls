@@ -22,6 +22,7 @@ import { canManageOrg, canWriteOrg, currentUser, requireLogin, requireRole } fro
 import { defaultAIProvider, publicAIConfig } from './localLLM';
 import { calculateCNJIDS } from '../services/idsCalculator';
 import { indicatorConsolidates, CONSOLIDATED_ORG_ID } from '../services/orgScope';
+import { EntryMode, yearEntryMode } from '../services/periodicity';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -312,11 +313,36 @@ export function createApiRouter() {
       return res.status(404).json({ error: 'Indicador não encontrado.' });
     }
 
+    // Periodicidade: anual = total no mês 12; anual com lançamento mensal = um modo por exercício
+    let effMonth = Number(month);
+    let isMonthlyEntry: boolean | undefined;
+    if (ind.periodicity === 'ANUAL') {
+      const requested: EntryMode = ind.allowMonthlyEntry && req.body.entryMode === 'MENSAL' ? 'MENSAL' : 'ANUAL';
+      const current = yearEntryMode(db.measurements, indicatorId, organizationId, Number(year));
+      if (current && current !== requested) {
+        return res.status(409).json({
+          error: current === 'ANUAL'
+            ? `Já existe um total anual de ${year} para este indicador. Para lançar mês a mês, o total anual precisa ser removido antes.`
+            : `Este indicador já está sendo lançado mês a mês em ${year}. Continue informando os meses (o total do ano é a soma).`
+        });
+      }
+      if (requested === 'ANUAL') {
+        effMonth = 12;
+      } else {
+        if (!(effMonth >= 1 && effMonth <= 12)) {
+          return res.status(400).json({ error: 'Informe o mês (1 a 12).' });
+        }
+        isMonthlyEntry = true;
+      }
+    } else if (!(effMonth >= 1 && effMonth <= 12)) {
+      return res.status(400).json({ error: 'Informe o mês (1 a 12).' });
+    }
+
     const existingIndex = db.measurements.findIndex(
       m =>
         m.indicatorId === indicatorId &&
         m.year === Number(year) &&
-        m.month === Number(month) &&
+        m.month === effMonth &&
         orgIdOf(m) === organizationId
     );
 
@@ -356,7 +382,8 @@ export function createApiRouter() {
         indicatorId,
         organizationId,
         year: Number(year),
-        month: Number(month),
+        month: effMonth,
+        ...(isMonthlyEntry ? { isMonthlyEntry: true } : {}),
         value: Number(value),
         unit: unit || ind.unit,
         sourceType: sourceType || 'manual',
@@ -438,7 +465,7 @@ export function createApiRouter() {
           unit: item.unit || db.measurements[existingIndex].unit,
           sourceType: (item.sourceType as any) || 'spreadsheet',
           sourceReference: item.sourceReference || sourceDescription,
-          processNumber: item.processNumber || db.measurements[existingIndex].processNumber || '0001245-88.2026.4.01.8012',
+          processNumber: item.processNumber || db.measurements[existingIndex].processNumber || undefined,
           validationStatus: 'VALIDADO',
           validatedBy: userId,
           validatedAt: now,
@@ -456,7 +483,7 @@ export function createApiRouter() {
           unit: item.unit || 'unidades',
           sourceType: (item.sourceType as any) || 'spreadsheet',
           sourceReference: item.sourceReference || sourceDescription,
-          processNumber: item.processNumber || '0001245-88.2026.4.01.8012',
+          processNumber: item.processNumber || undefined,
           validationStatus: 'VALIDADO',
           validatedBy: userId,
           validatedAt: now,
