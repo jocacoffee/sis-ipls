@@ -184,6 +184,14 @@ export interface IndicatorTarget {
   baselineValue: number;
   baselineYear: number;
   reductionPercentage?: number;
+  /** NUMERICA: valor informado; PERCENTUAL: base do ano-base × (1 + percentChange/100). */
+  targetMode?: 'NUMERICA' | 'PERCENTUAL';
+  /** Variação sobre a linha de base, em % (negativo = redução). */
+  percentChange?: number;
+  /** TETO: resultado deve ficar até a meta; PISO: resultado deve alcançar a meta. */
+  limitKind?: 'TETO' | 'PISO';
+  /** Meta percentual sem dado no ano-base (não avaliável). */
+  baselineMissing?: boolean;
   notes?: string;
   plsMetaNumber?: number;
   criticality?: TargetCriticality;

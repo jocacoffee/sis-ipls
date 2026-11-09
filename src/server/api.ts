@@ -23,6 +23,7 @@ import { defaultAIProvider, publicAIConfig } from './localLLM';
 import { calculateCNJIDS } from '../services/idsCalculator';
 import { indicatorConsolidates, CONSOLIDATED_ORG_ID } from '../services/orgScope';
 import { EntryMode, yearEntryMode } from '../services/periodicity';
+import { legacyTargetType, resolveTarget } from '../services/targets';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -31,7 +32,9 @@ export function createApiRouter() {
   /** Dados do órgão selecionado: medições próprias (ou consolidadas) e metas. */
   const scopeFor = (orgId: string) => ({
     measurements: scopeMeasurements(orgId, db.measurements, db.indicators, db.organizations),
-    targets: scopeTargets(orgId, db.targets),
+    targets: scopeTargets(orgId, db.targets).map(t =>
+      resolveTarget(t, db.indicators.find(i => i.id === t.indicatorId), db.measurements.filter(m => orgIdOf(m) === orgId))
+    ),
     ...orgDenominators(orgId, db.organizations)
   });
 
@@ -823,8 +826,8 @@ export function createApiRouter() {
       userName = 'Dr. Roberto Magalhães'
     } = req.body;
 
-    if (!target || !target.indicatorId || target.targetValue === undefined) {
-      return res.status(400).json({ error: 'Dados da meta incompletos (indicatorId e targetValue são obrigatórios).' });
+    if (!target || !target.indicatorId || (target.targetMode !== 'PERCENTUAL' && target.targetValue === undefined)) {
+      return res.status(400).json({ error: 'Dados da meta incompletos (indicador e valor da meta, ou percentual e ano-base).' });
     }
 
     const year = Number(target.year) || 2026;
@@ -836,6 +839,48 @@ export function createApiRouter() {
     if (!canManageOrg(currentUser(), targetOrgId)) {
       return res.status(403).json({ error: 'Somente o master do órgão (ou o administrador) altera metas.' });
     }
+
+    // Meta numérica ou percentual sobre a linha de base (teto ou piso)
+    const targetInd = db.indicators.find(i => i.id === target.indicatorId);
+    if (!targetInd) return res.status(404).json({ error: 'Indicador não encontrado.' });
+    if (targetInd.themeId === 'theme-1') {
+      return res.status(400).json({ error: 'Variáveis gerais são base de cálculo e não recebem meta.' });
+    }
+    const mode: 'NUMERICA' | 'PERCENTUAL' = target.targetMode === 'PERCENTUAL' ? 'PERCENTUAL' : 'NUMERICA';
+    const limit: 'TETO' | 'PISO' = target.limitKind === 'PISO' ? 'PISO' : 'TETO';
+    target.targetMode = mode;
+    target.limitKind = limit;
+    if (mode === 'PERCENTUAL') {
+      const pct = Number(target.percentChange);
+      const baseYear = Number(target.baselineYear);
+      if (!Number.isFinite(pct) || pct <= -100 || pct > 1000) {
+        return res.status(400).json({ error: 'Informe um percentual válido (maior que −100%).' });
+      }
+      if (!Number.isInteger(baseYear) || baseYear >= year) {
+        return res.status(400).json({ error: 'O ano-base deve ser anterior ao exercício da meta.' });
+      }
+      const resolved = resolveTarget(
+        { ...target, percentChange: pct, baselineYear: baseYear, year, organizationId: targetOrgId } as any,
+        targetInd,
+        db.measurements.filter(m => orgIdOf(m) === targetOrgId)
+      );
+      if (resolved.baselineMissing) {
+        return res.status(400).json({ error: `Não há dado de ${targetInd.acronym || targetInd.name} em ${baseYear} para este órgão: escolha outro ano-base ou use meta numérica.` });
+      }
+      target.percentChange = pct;
+      target.baselineYear = baseYear;
+      target.baselineValue = resolved.baselineValue;
+      target.targetValue = resolved.targetValue;
+      target.reductionPercentage = pct;
+    } else {
+      if (!Number.isFinite(Number(target.targetValue))) {
+        return res.status(400).json({ error: 'Informe o valor numérico da meta.' });
+      }
+      delete target.percentChange;
+    }
+    target.targetType = legacyTargetType(mode, limit, target.percentChange);
+    delete target.baselineMissing;
+
     const existingIdx = db.targets.findIndex(
       t =>
         t.indicatorId === target.indicatorId &&
@@ -854,6 +899,10 @@ export function createApiRouter() {
         targetValue: Number(target.targetValue),
         baselineValue: target.baselineValue !== undefined ? Number(target.baselineValue) : oldTarget.baselineValue
       };
+      if (mode === 'NUMERICA') {
+        delete updatedTarget.percentChange;
+        delete updatedTarget.reductionPercentage;
+      }
       db.targets[existingIdx] = updatedTarget;
 
       const ind = db.indicators.find(i => i.id === target.indicatorId);

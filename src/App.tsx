@@ -1141,6 +1141,7 @@ export function App() {
         {activeTab === 'targets' && (
           <TargetsView
             indicators={indicators}
+            measurements={measurements}
             targets={targets}
             themes={themes}
             performances={indicatorPerformances}

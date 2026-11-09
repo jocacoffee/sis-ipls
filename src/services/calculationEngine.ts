@@ -262,11 +262,15 @@ export function calculateIndicatorPerformance(
   // Só há avaliação de meta quando existe meta cadastrada para o órgão/exercício
   // (uma meta cadastrada com valor zero, ex.: zero copos, é uma meta válida)
   const isGeneralVariable = indicator.themeId === 'theme-1';
-  const hasTarget = !!target && !isGeneralVariable;
+  const hasTarget = !!target && !isGeneralVariable && !target.baselineMissing;
+  // Sentido da meta: TETO (não ultrapassar) ou PISO (alcançar); sem definição, usa o do indicador
+  const direction = target?.limitKind
+    ? (target.limitKind === 'TETO' ? 'MENOR_MELHOR' : 'MAIOR_MELHOR')
+    : indicator.targetDirection;
   if (monthsReported === 0 || !hasTarget) {
     fulfillmentPercentage = 0;
   } else if (targetValue > 0) {
-    if (indicator.targetDirection === 'MENOR_MELHOR') {
+    if (direction === 'MENOR_MELHOR') {
       // For reduction targets: if projection is lower than target, fulfillment > 100%
       // If projection is higher than target, fulfillment decreases
       fulfillmentPercentage = Math.max(0, Math.round(((targetValue - (annualProjection - targetValue)) / targetValue) * 100));
@@ -310,7 +314,9 @@ export function calculateIndicatorPerformance(
     statusReason = 'Variável geral: base de cálculo dos indicadores (per capita, por m²). Não possui meta.';
   } else if (!hasTarget) {
     status = 'SEM_META';
-    statusReason = `Sem meta cadastrada para ${year}: o cumprimento de meta não é avaliado.`;
+    statusReason = target?.baselineMissing
+      ? `A meta percentual usa o ano-base ${target.baselineYear}, que não tem dado informado: o cumprimento não é avaliado.`
+      : `Sem meta cadastrada para ${year}: o cumprimento de meta não é avaliado.`;
   } else if (targetValue === 0) {
     // Target zero (e.g. copos plásticos descartáveis)
     if (accumulatedValue === 0) {
@@ -322,7 +328,7 @@ export function calculateIndicatorPerformance(
       status = 'RISCO';
       statusReason = `Meta de zero violada: detectadas ${accumulatedValue} unidades consumidas no período.`;
     }
-  } else if (indicator.targetDirection === 'MENOR_MELHOR') {
+  } else if (direction === 'MENOR_MELHOR') {
     const deviationPercent = ((annualProjection - targetValue) / targetValue) * 100;
     
     if (annualProjection <= targetValue) {

@@ -23,13 +23,16 @@ import {
   Plus,
   Trash2
 } from 'lucide-react';
-import { Indicator, IndicatorTarget, IndicatorCalculationResult, PLSTheme, TargetType } from '../types';
+import { Indicator, IndicatorMeasurement, IndicatorTarget, IndicatorCalculationResult, PLSTheme, TargetType } from '../types';
+import { baselineFor, describeTarget, percentTargetValue } from '../services/targets';
 import { StatusPill } from './Charts';
 import { OFFICIAL_NORMATIVE_INCONSISTENCIES } from '../data/normativeInconsistencies';
 import { getSelectableYears, getPlsCycleForYear } from '../utils/yearUtils';
 
 interface TargetsViewProps {
   indicators: Indicator[];
+  /** Medições do órgão selecionado (linha de base das metas percentuais). */
+  measurements?: IndicatorMeasurement[];
   targets: IndicatorTarget[];
   themes: PLSTheme[];
   performances: { indicator: Indicator; target?: IndicatorTarget; result: IndicatorCalculationResult }[];
@@ -52,13 +55,27 @@ interface TargetEditFormState {
   targetUnit: string;
   targetType: TargetType;
   reductionPercentage?: number;
+  targetMode: 'NUMERICA' | 'PERCENTUAL';
+  limitKind: 'TETO' | 'PISO';
+  /** Variação sobre a base, com sinal (negativo = redução). */
+  percentChange?: number;
   notes: string;
   reason: string;
   isNew?: boolean;
 }
 
+/** Regras de meta percentual: sentido (teto/piso) e sinal da variação. */
+const PERCENT_RULES = [
+  { key: 'TETO:-', limit: 'TETO' as const, sign: -1, label: 'Reduzir em', hint: 'teto = base − X%' },
+  { key: 'TETO:+', limit: 'TETO' as const, sign: 1, label: 'Limitar o aumento a', hint: 'teto = base + X%' },
+  { key: 'PISO:+', limit: 'PISO' as const, sign: 1, label: 'Aumentar em pelo menos', hint: 'piso = base + X%' },
+  { key: 'PISO:-', limit: 'PISO' as const, sign: -1, label: 'Limitar a redução a', hint: 'piso = base − X%' }
+];
+const ruleKey = (limit: 'TETO' | 'PISO', pct?: number) => `${limit}:${(pct ?? -1) < 0 ? '-' : '+'}`;
+
 export const TargetsView: React.FC<TargetsViewProps> = ({
   indicators,
+  measurements = [],
   targets,
   themes,
   performances,
@@ -135,6 +152,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
       targetUnit: target?.targetUnit || ind.unit,
       targetType: target?.targetType || ind.targetType || 'REDUCAO_PERCENTUAL',
       reductionPercentage: target?.reductionPercentage,
+      targetMode: target?.targetMode || 'NUMERICA',
+      limitKind: target?.limitKind || (ind.targetDirection === 'MAIOR_MELHOR' ? 'PISO' : 'TETO'),
+      percentChange: target?.percentChange,
       notes: target?.notes || '',
       reason: '',
       isNew: !hasTargetAlready
@@ -142,9 +162,11 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
   };
 
   const handleOpenNewTarget = (preselectedIndicatorId?: string) => {
+    // Variáveis gerais (tema 1) não recebem meta
+    const targetable = indicators.filter(i => i.themeId !== 'theme-1');
     const defaultInd = preselectedIndicatorId
-      ? indicators.find(i => i.id === preselectedIndicatorId) || indicators[0]
-      : indicators[0];
+      ? targetable.find(i => i.id === preselectedIndicatorId) || targetable[0]
+      : targetable[0];
 
     const existingTarget = defaultInd
       ? targets.find(t => t.indicatorId === defaultInd.id && t.year === selectedYear)
@@ -160,6 +182,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
       targetUnit: existingTarget?.targetUnit || defaultInd?.unit || 'unidades',
       targetType: existingTarget?.targetType || defaultInd?.targetType || 'REDUCAO_PERCENTUAL',
       reductionPercentage: existingTarget?.reductionPercentage,
+      targetMode: existingTarget?.targetMode || 'NUMERICA',
+      limitKind: existingTarget?.limitKind || (defaultInd?.targetDirection === 'MAIOR_MELHOR' ? 'PISO' : 'TETO'),
+      percentChange: existingTarget?.percentChange,
       notes: existingTarget?.notes || '',
       reason: existingTarget ? 'Ajuste de meta do indicador' : 'Definição de nova meta vinculada a indicador do PLS',
       isNew: !existingTarget
@@ -186,6 +211,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         baselineValue: existingTargetForThisInd?.baselineValue ?? newInd.baselineValue ?? 0,
         baselineYear: existingTargetForThisInd?.baselineYear ?? newInd.baselineYear ?? 2025,
         reductionPercentage: existingTargetForThisInd?.reductionPercentage,
+        targetMode: existingTargetForThisInd?.targetMode || 'NUMERICA',
+        limitKind: existingTargetForThisInd?.limitKind || (newInd.targetDirection === 'MAIOR_MELHOR' ? 'PISO' : 'TETO'),
+        percentChange: existingTargetForThisInd?.percentChange,
         notes: existingTargetForThisInd?.notes || '',
         isNew: !existingTargetForThisInd
       };
@@ -195,6 +223,17 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
   const handleSaveTargetSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTarget || !onSaveTarget) return;
+    if (editingTarget.targetMode === 'PERCENTUAL') {
+      const ind = indicators.find(i => i.id === editingTarget.indicatorId);
+      if (!ind || !baselineFor(ind, measurements, editingTarget.baselineYear)) {
+        window.alert(`Não há dado do indicador em ${editingTarget.baselineYear} para servir de base. Escolha outro ano-base ou use valor numérico.`);
+        return;
+      }
+      if (editingTarget.percentChange === undefined || isNaN(Number(editingTarget.percentChange))) {
+        window.alert('Informe o percentual da meta.');
+        return;
+      }
+    }
 
     onSaveTarget(
       {
@@ -206,7 +245,9 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
         baselineYear: Number(editingTarget.baselineYear),
         targetUnit: editingTarget.targetUnit,
         targetType: editingTarget.targetType,
-        reductionPercentage: editingTarget.reductionPercentage !== undefined ? Number(editingTarget.reductionPercentage) : undefined,
+        targetMode: editingTarget.targetMode,
+        limitKind: editingTarget.limitKind,
+        percentChange: editingTarget.targetMode === 'PERCENTUAL' ? Number(editingTarget.percentChange) : undefined,
         notes: editingTarget.notes
       },
       editingTarget.reason || (editingTarget.isNew
@@ -604,8 +645,14 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                     <div className="bg-emerald-50/40 p-3 rounded-xl border border-emerald-100 shadow-2xs">
                       <span className="text-emerald-700 text-[11px] block font-medium">Meta {selectedYear}</span>
                       <span className="font-mono font-bold text-emerald-700 text-sm mt-0.5 block tabular-nums">
-                        {res.targetValue.toLocaleString('pt-BR')} {ind.unit}
+                        {target ? `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}` : <span className="font-sans font-normal text-slate-400 text-xs">sem meta definida</span>}
                       </span>
+                      {target && (
+                        <span className="text-[10px] text-emerald-800/80 block mt-0.5">
+                          {describeTarget(target)}
+                          {target.targetMode === 'PERCENTUAL' && ` (base ${target.baselineValue.toLocaleString('pt-BR')} ${ind.unit})`}
+                        </span>
+                      )}
                     </div>
 
                     <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
@@ -695,7 +742,7 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                   required
                 >
                   {themes.map(th => {
-                    const thIndicators = indicators.filter(i => i.themeId === th.id);
+                    const thIndicators = th.id === 'theme-1' ? [] : indicators.filter(i => i.themeId === th.id);
                     if (thIndicators.length === 0) return null;
                     return (
                       <optgroup key={th.id} label={`${th.code} — ${th.name}`}>
@@ -762,111 +809,136 @@ export const TargetsView: React.FC<TargetsViewProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Meta para o Exercício ({editingTarget.year}) *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={editingTarget.targetValue}
-                      onChange={e => setEditingTarget({ ...editingTarget, targetValue: Number(e.target.value) })}
-                      className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-sans">
-                      {editingTarget.targetUnit}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Valor numérico teto ou piso
-                  </span>
-                </div>
+              </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-semibold text-slate-700">
-                      Linha de Base *
-                    </label>
-                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                      <span>Ano-Base:</span>
-                      <select
-                        value={editingTarget.baselineYear}
-                        onChange={e => setEditingTarget({ ...editingTarget, baselineYear: Number(e.target.value) })}
-                        className="bg-transparent font-bold text-slate-800 border-b border-slate-300 px-1 py-0.5 focus:outline-none text-[11px]"
-                      >
-                        {Array.from({ length: 10 }, (_, i) => Math.max(2015, editingTarget.year - 1 - i)).map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
+              {/* Forma da meta: numérica ou percentual sobre o ano-base */}
+              {(() => {
+                const currentInd = indicators.find(i => i.id === editingTarget.indicatorId);
+                const unit = currentInd?.unit || editingTarget.targetUnit;
+                const base = currentInd ? baselineFor(currentInd, measurements, editingTarget.baselineYear) : null;
+                const pct = editingTarget.percentChange;
+                const preview = editingTarget.targetMode === 'PERCENTUAL' && base && pct !== undefined && !isNaN(pct)
+                  ? percentTargetValue(base.value, pct)
+                  : null;
+                const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+                const rule = PERCENT_RULES.find(r => r.key === ruleKey(editingTarget.limitKind, pct)) || PERCENT_RULES[0];
+                const set = (patch: Partial<TargetEditFormState>) => setEditingTarget({ ...editingTarget, ...patch });
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Forma da meta">
+                      <span className="font-semibold text-slate-700 mr-1">Meta definida por:</span>
+                      {(['NUMERICA', 'PERCENTUAL'] as const).map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          role="radio"
+                          aria-checked={editingTarget.targetMode === m}
+                          onClick={() => set({
+                            targetMode: m,
+                            percentChange: m === 'PERCENTUAL' ? (pct ?? (editingTarget.limitKind === 'PISO' ? 10 : -10)) : pct
+                          })}
+                          className={`rounded-lg border px-3 py-1.5 font-semibold ${
+                            editingTarget.targetMode === m ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {m === 'NUMERICA' ? 'Valor numérico' : 'Percentual sobre o ano-base'}
+                        </button>
+                      ))}
                     </div>
+
+                    {editingTarget.targetMode === 'NUMERICA' ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className="block">
+                          <span className="block font-semibold text-slate-700 mb-1">Meta para {editingTarget.year} *</span>
+                          <span className="relative block">
+                            <input
+                              type="number"
+                              step="any"
+                              required
+                              value={editingTarget.targetValue}
+                              onChange={e => set({ targetValue: Number(e.target.value) })}
+                              className="w-full rounded-xl bg-white border border-slate-300 p-2.5 pr-20 font-mono text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <span className="absolute right-3 top-2.5 text-xs text-slate-500">{unit}</span>
+                          </span>
+                        </label>
+                        <label className="block">
+                          <span className="block font-semibold text-slate-700 mb-1">A meta é um</span>
+                          <select
+                            value={editingTarget.limitKind}
+                            onChange={e => set({ limitKind: e.target.value as 'TETO' | 'PISO' })}
+                            className="w-full rounded-xl bg-white border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value="TETO">Teto — o resultado não deve ultrapassar</option>
+                            <option value="PISO">Piso — o resultado deve alcançar no mínimo</option>
+                          </select>
+                        </label>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <label className="block">
+                            <span className="block font-semibold text-slate-700 mb-1">Regra</span>
+                            <select
+                              value={rule.key}
+                              onChange={e => {
+                                const r = PERCENT_RULES.find(x => x.key === e.target.value)!;
+                                set({ limitKind: r.limit, percentChange: r.sign * Math.abs(pct ?? 10) });
+                              }}
+                              className="w-full rounded-xl bg-white border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            >
+                              {PERCENT_RULES.map(r => (
+                                <option key={r.key} value={r.key}>{r.label} X% ({r.hint})</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="block font-semibold text-slate-700 mb-1">Percentual (X) *</span>
+                            <span className="relative block">
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                max={rule.sign < 0 ? 99.99 : 1000}
+                                required
+                                value={pct === undefined ? '' : Math.abs(pct)}
+                                onChange={e => set({ percentChange: e.target.value === '' ? undefined : rule.sign * Math.abs(Number(e.target.value)) })}
+                                className="w-full rounded-xl bg-white border border-slate-300 p-2.5 pr-8 font-mono text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                              <span className="absolute right-3 top-2.5 text-xs text-slate-500">%</span>
+                            </span>
+                          </label>
+                          <label className="block">
+                            <span className="block font-semibold text-slate-700 mb-1">Ano-base</span>
+                            <select
+                              value={editingTarget.baselineYear}
+                              onChange={e => set({ baselineYear: Number(e.target.value) })}
+                              className="w-full rounded-xl bg-white border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            >
+                              {Array.from({ length: 8 }, (_, i) => editingTarget.year - 1 - i).filter(y => y >= 2021).map(y => (
+                                <option key={y} value={y}>{y}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <div className={`rounded-lg border px-3 py-2 ${base ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`} aria-live="polite">
+                          {!base ? (
+                            <>Não há dado deste indicador em {editingTarget.baselineYear} para o órgão. Escolha outro ano-base ou use valor numérico.</>
+                          ) : (
+                            <>
+                              Realizado em {editingTarget.baselineYear}: <strong>{fmt(base.value)} {unit}</strong>
+                              {currentInd?.periodicity === 'MENSAL' && base.monthsReported < 12 && <span> ({base.monthsReported}/12 meses informados)</span>}
+                              {preview !== null && (
+                                <> → {editingTarget.limitKind === 'TETO' ? 'teto' : 'piso'} para {editingTarget.year}: <strong>{fmt(preview)} {unit}</strong></>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={editingTarget.baselineValue}
-                      onChange={e => setEditingTarget({ ...editingTarget, baselineValue: Number(e.target.value) })}
-                      className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-slate-500 font-sans">
-                      {editingTarget.targetUnit}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Referência histórica comparativa (Ano {editingTarget.baselineYear})
-                  </span>
-                </div>
-              </div>
-
-              {/* Tipos e Percentual */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Tipo de Meta
-                  </label>
-                  <select
-                    value={editingTarget.targetType}
-                    onChange={e => setEditingTarget({ ...editingTarget, targetType: e.target.value as TargetType })}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="REDUCAO_PERCENTUAL">Redução Percentual (Ex: -5%)</option>
-                    <option value="AUMENTO_PERCENTUAL">Aumento Percentual (Ex: +15%)</option>
-                    <option value="LIMITE_MAXIMO">Limite Máximo / Teto Absoluto</option>
-                    <option value="LIMITE_MINIMO">Limite Mínimo (Ex: 100%)</option>
-                    <option value="ABSOLUTA">Meta Absoluta</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Unidade de Medida
-                  </label>
-                  <input
-                    type="text"
-                    value={editingTarget.targetUnit}
-                    onChange={e => setEditingTarget({ ...editingTarget, targetUnit: e.target.value })}
-                    placeholder="Ex: kWh, m³, resmas, %"
-                    className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Variação Esperada (%)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={editingTarget.reductionPercentage ?? ''}
-                    onChange={e => setEditingTarget({ ...editingTarget, reductionPercentage: e.target.value !== '' ? Number(e.target.value) : undefined })}
-                    placeholder="Ex: 5.0 ou -15.0"
-                    className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 font-mono text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
+                );
+              })()}
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
