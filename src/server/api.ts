@@ -20,6 +20,8 @@ import {
 } from '../services/orgScope';
 import { canManageOrg, canWriteOrg, currentUser, requireLogin, requireRole } from './auth';
 import { defaultAIProvider, publicAIConfig } from './localLLM';
+import { calculateCNJIDS } from '../services/idsCalculator';
+import { indicatorConsolidates, CONSOLIDATED_ORG_ID } from '../services/orgScope';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -132,6 +134,59 @@ export function createApiRouter() {
   });
 
   // GET /api/indicators
+  /**
+   * GET /api/consolidated/breakdown?year=AAAA
+   * Contribuição de cada órgão (2º grau e seções) para o consolidado da 1ª Região:
+   * - totais do exercício por indicador somável (consumos, gastos, quantidades);
+   * - IDS de cada órgão e do consolidado (o IDS é um índice: não se soma).
+   */
+  router.get('/consolidated/breakdown', (req: Request, res: Response) => {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const parts = db.organizations.filter(o => !o.isConsolidated);
+    const summable = db.indicators.filter(indicatorConsolidates);
+    const summableIds = new Set(summable.map(i => i.id));
+
+    // Totais por indicador e órgão no exercício
+    const totals: Record<string, Record<string, { total: number; months: number }>> = {};
+    for (const m of db.measurements) {
+      if (m.year !== year || !summableIds.has(m.indicatorId)) continue;
+      const org = m.organizationId || LEGACY_DEFAULT_ORG_ID;
+      if (org === CONSOLIDATED_ORG_ID) continue;
+      const byOrg = (totals[m.indicatorId] ||= {});
+      const cell = (byOrg[org] ||= { total: 0, months: 0 });
+      cell.total += m.value;
+      cell.months += 1;
+    }
+
+    const idsFor = (orgId: string) => {
+      const org = db.organizations.find(o => o.id === orgId)!;
+      const scoped = scopeFor(orgId);
+      const r = calculateCNJIDS(scoped.measurements, year, {
+        context: {
+          indicators: db.indicators,
+          complements: (db.idsComplements || []).filter(c => c.organizationId === orgId),
+          organization: org
+        }
+      });
+      return { score: r.hasScore ? r.idsScore : null, available: r.coverage.available, total: r.coverage.total };
+    };
+
+    res.json({
+      year,
+      organizations: parts
+        .filter(o => o.active !== false || Object.values(totals).some(t => t[o.id]))
+        .map(o => ({ id: o.id, acronym: o.acronym, name: o.name, type: o.type })),
+      indicators: summable
+        .filter(i => totals[i.id])
+        .map(i => ({ id: i.id, code: i.code, acronym: i.acronym, name: i.name, unit: i.unit, periodicity: i.periodicity, themeId: i.themeId })),
+      totals,
+      ids: {
+        consolidated: idsFor(CONSOLIDATED_ORG_ID),
+        byOrganization: Object.fromEntries(parts.filter(o => o.active !== false).map(o => [o.id, idsFor(o.id)]))
+      }
+    });
+  });
+
   router.get('/indicators', (req: Request, res: Response) => {
     res.json(db.indicators);
   });

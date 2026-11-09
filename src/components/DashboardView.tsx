@@ -72,6 +72,7 @@ import {
 } from './Charts';
 import { SexenniumBarComparisonCard } from './SexenniumBarComparisonCard';
 import { IndicatorSexenniumBarCard } from './IndicatorSexenniumBarCard';
+import { OrgContributionCard } from './OrgContributionCard';
 import { IDSThermometerCard } from './IDSThermometerCard';
 import {
   hasGeneralVariablesForYear,
@@ -1594,6 +1595,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </div>
       )}
+
+      {/* 3b. Consolidado da 1ª Região: contribuição de cada unidade (consumo e IDS) */}
+      {organization?.isConsolidated && <OrgContributionCard year={selectedYear} />}
 
       {/* 4. Abas de Navegação das Seções */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-2">
