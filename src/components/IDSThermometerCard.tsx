@@ -23,6 +23,7 @@ import {
   Minimize2
 } from 'lucide-react';
 import { IDSComplement, Indicator, IndicatorMeasurement, Organization } from '../types';
+import { getCycleFromYear, getYearsForCycle } from '../utils/yearUtils';
 import {
   BENCHMARK_STATUS,
   calculateCNJIDS,
@@ -115,7 +116,9 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
 
   // Cálculo da Série Quinquenal oficial com os dados reais
   const multiYear = useMemo(() => {
-    return calculateMultiYearCNJIDS(measurements, selectedDisplayYear, scope, idsContext);
+    // Série fixa: os 6 anos do ciclo (sexênio) do PLS a que pertence o ano selecionado
+    const cycleYears = getYearsForCycle(getCycleFromYear(selectedDisplayYear));
+    return calculateMultiYearCNJIDS(measurements, selectedDisplayYear, scope, idsContext, cycleYears);
   }, [measurements, selectedDisplayYear, scope, idsContext]);
 
   // Cálculo com simulação ativa se o usuário estiver simulando no ano selecionado
@@ -638,12 +641,12 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
                 <span className={`text-xs font-mono font-bold ${multiYear.fiveYearChange >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700'}`}>
                   {multiYear.fiveYearChange >= 0 ? `+${multiYear.fiveYearChange.toFixed(1)}%` : `${multiYear.fiveYearChange.toFixed(1)}%`}
                 </span>
-                <span className="text-[10px] text-slate-400 block">no quinquênio</span>
+                <span className="text-[10px] text-slate-400 block">no sexênio até {selectedDisplayYear}</span>
               </div>
             </div>
 
             {/* Mini-Relógios ou Mini-Termômetros para os 5 anos */}
-            <div className="grid grid-cols-5 gap-2 pt-1">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
               {multiYear.history.map(item => {
                 const isSelected = item.year === selectedDisplayYear;
                 const isCurrent = item.year === currentYear;

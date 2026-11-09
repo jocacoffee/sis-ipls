@@ -393,13 +393,15 @@ export function calculateCNJIDS(
 }
 
 /**
- * Série de 5 exercícios do IDS encerrando no ano corrente.
+ * Série do IDS. Por padrão, os 5 exercícios encerrando no ano corrente; com `years`,
+ * exatamente esses exercícios (ex.: os 6 anos do ciclo do PLS).
  */
 export function calculateMultiYearCNJIDS(
   measurements: IndicatorMeasurement[],
   currentYear: number = 2026,
   scope?: IDSScope,
-  context?: IDSContext
+  context?: IDSContext,
+  yearsOverride?: number[]
 ): {
   currentResult: CNJIDSResult;
   history: CNJIDSResult[];
@@ -408,7 +410,7 @@ export function calculateMultiYearCNJIDS(
   bestYear: number;
   bestScore: number;
 } {
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
+  const years = yearsOverride && yearsOverride.length ? yearsOverride : Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
   const history: CNJIDSResult[] = [];
 
   years.forEach(yr => {
