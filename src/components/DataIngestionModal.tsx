@@ -1,3 +1,4 @@
+import { IndicatorInfo } from './IndicatorInfo';
 import React, { useState } from 'react';
 import { X, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { Indicator, IndicatorMeasurement, SourceType } from '../types';
@@ -180,8 +181,9 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
 
           {/* Indicator Select */}
           <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
               Indicador PLS *
+              {selectedIndicator && <IndicatorInfo indicator={selectedIndicator} />}
             </label>
             <select
               value={indicatorId}

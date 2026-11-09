@@ -149,6 +149,25 @@ export interface Indicator {
   consolidation?: 'SOMA' | 'NENHUMA';
   /** Indicador anual que também aceita lançamento mês a mês (ex.: combustíveis, km). */
   allowMonthlyEntry?: boolean;
+  /** Referência oficial no Anexo da Res. CNJ nº 400/2021 (redação 2024/2025). */
+  annex?: AnnexInfo;
+}
+
+/** Informação do Anexo da Res. CNJ 400/2021 associada a um indicador do iPLS. */
+export interface AnnexInfo {
+  /** ITEM = indicador do Anexo; VARIAVEL = variável usada na fórmula de um item; FORA = não consta do Anexo. */
+  kind: 'ITEM' | 'VARIAVEL' | 'FORA';
+  item?: string;
+  acronym?: string;
+  title?: string;
+  definition?: string;
+  unit?: string;
+  periodicity?: string;
+  plsJud?: string;
+  formula?: string | null;
+  variables?: { acronym: string; text: string }[] | null;
+  amendments?: string[] | null;
+  parent?: { item: string; acronym: string; title: string; formula?: string | null; unit?: string; periodicity?: string };
 }
 
 export type TargetCriticality = 'CRITICA' | 'NAO_CRITICA';

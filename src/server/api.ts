@@ -179,7 +179,7 @@ export function createApiRouter() {
         .map(o => ({ id: o.id, acronym: o.acronym, name: o.name, type: o.type })),
       indicators: summable
         .filter(i => totals[i.id])
-        .map(i => ({ id: i.id, code: i.code, acronym: i.acronym, name: i.name, unit: i.unit, periodicity: i.periodicity, themeId: i.themeId })),
+        .map(i => ({ id: i.id, code: i.code, acronym: i.acronym, name: i.name, unit: i.unit, periodicity: i.periodicity, themeId: i.themeId, annex: i.annex })),
       totals,
       ids: {
         consolidated: idsFor(CONSOLIDATED_ORG_ID),

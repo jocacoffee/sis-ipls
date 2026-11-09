@@ -173,7 +173,10 @@ const ALIAS: Record<string, string> = {
   DEl: 'DEI/DEl',
   'm² Cont': 'm²Cont',
   GEEComp: 'GEE-Comp',
-  GEE3: 'GEE-Esc3'
+  GEE3: 'GEE-Esc3',
+  // Na planilha, ServCI = servidores capacitados para inventários (variável do CultGEE1),
+  // não o 19.16 ServCI (servidores indígenas em chefia): ver scripts/apply-annex.ts
+  ServCI: 'ServCInv'
 };
 // Tema do iPLS para os indicadores que serão criados
 const NEW_THEME: Record<string, string> = {
@@ -204,7 +207,7 @@ for (const s of bundle.indicadores) {
       id: `indicator-${code.replace('.', '-')}`,
       organizationId: 'org-sjrr',
       code,
-      acronym: s.codigo,
+      acronym: ALIAS[s.codigo] || s.codigo,
       name: s.nome,
       description: `${s.nome} (tema de origem: ${s.tema}).`,
       themeId,

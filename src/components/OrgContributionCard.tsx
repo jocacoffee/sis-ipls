@@ -1,8 +1,10 @@
+import { IndicatorInfo } from './IndicatorInfo';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Building2, Gauge, Loader2, Table2, BarChart3 } from 'lucide-react';
+import type { Indicator } from '../types';
 
 interface BreakdownOrg { id: string; acronym: string; name: string; type: string }
-interface BreakdownIndicator { id: string; code: string; acronym?: string; name: string; unit: string; periodicity: 'MENSAL' | 'ANUAL' }
+interface BreakdownIndicator { id: string; code: string; acronym?: string; name: string; unit: string; periodicity: 'MENSAL' | 'ANUAL'; annex?: Indicator['annex'] }
 interface IdsCell { score: number | null; available: number; total: number }
 interface Breakdown {
   year: number;
@@ -118,6 +120,7 @@ export const OrgContributionCard: React.FC<OrgContributionCardProps> = ({ year }
                     <option key={i.id} value={i.id}>{i.acronym || i.code} — {i.name} ({i.unit})</option>
                   ))}
                 </select>
+                {indicator && <IndicatorInfo indicator={indicator} />}
               </label>
             </div>
 

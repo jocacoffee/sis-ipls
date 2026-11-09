@@ -1,3 +1,4 @@
+import { IndicatorInfo } from './IndicatorInfo';
 import React, { useState } from 'react';
 import {
   X,
@@ -104,8 +105,9 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
               <StatusPill status={result.status} />
             </div>
 
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
               {indicator.name}
+              <IndicatorInfo indicator={indicator} size={16} />
             </h2>
             <p className="text-xs text-slate-500 mt-1 line-clamp-2">
               {indicator.description}

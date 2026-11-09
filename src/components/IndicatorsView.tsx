@@ -1,3 +1,4 @@
+import { IndicatorInfo } from './IndicatorInfo';
 import React, { useState } from 'react';
 import {
   BarChart3,
@@ -386,8 +387,9 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                             {res && <StatusPill status={res.status} />}
                           </div>
 
-                          <h4 className="text-xs font-bold text-slate-900 line-clamp-2 group-hover:text-emerald-700 transition-colors">
-                            {ind.name}
+                          <h4 className="text-xs font-bold text-slate-900 line-clamp-2 group-hover:text-emerald-700 transition-colors flex items-start gap-1">
+                            <span>{ind.name}</span>
+                            <IndicatorInfo indicator={ind} className="mt-0.5" />
                           </h4>
 
                           {/* Data strip */}
@@ -486,6 +488,7 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                       <td className="py-3 px-3">
                         <div className="font-semibold text-slate-900 flex items-center gap-1.5">
                           {ind.name}
+                          <IndicatorInfo indicator={ind} />
                           {ind.acronym && (
                             <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1 rounded">
                               {ind.acronym}

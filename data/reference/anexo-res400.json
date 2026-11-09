@@ -1,0 +1,2777 @@
+{
+ "source": "Anexo da Resolução CNJ nº 400/2021, redação dada pelas Resoluções nº 550/2024, nº 594/2024 e nº 641/2025",
+ "indicators": {
+  "MagP": {
+   "kind": "ITEM",
+   "item": "1.1",
+   "acronym": "MagP",
+   "title": "Total de cargos de magistrados(as) providos",
+   "definition": "número total de cargos de magistrados(as) providos no órgão ao final do período-base, somando-se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, devem ser computados os juízes auxiliares convocados para o tribunal. Para os conselhos, devem ser considerados todos os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TPEfet": {
+   "kind": "ITEM",
+   "item": "1.2",
+   "acronym": "TPEfet",
+   "title": "Total de pessoal do quadro efetivo",
+   "definition": "total de pessoal do quadro efetivo do órgão, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009, somando -se os(as) servidores(as) lotados(as) em todos os graus de jurisdição e na área administrativa.",
+   "unit": "servidores(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TPI": {
+   "kind": "ITEM",
+   "item": "1.3",
+   "acronym": "TPI",
+   "title": "Total de pessoal que ingressou por cessão ou requisição",
+   "definition": "total de pessoal que ingressou por cessão ou requisição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009, somando-se os(as) servidores(as) lotados(as) em todos os graus de jurisdição e na área administrativa.",
+   "unit": "servidores(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TPIExt": {
+   "kind": "ITEM",
+   "item": "1.4",
+   "acronym": "TPIExt",
+   "title": "Total de Pessoal que ingressou extraordinariamente por cessão ou requisição para Realização de Pleitos Eleitorais",
+   "definition": "total de pessoal que ingressou extraordinariamente por cessão ou requisição para realização de pleitos eleitorais, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009, somando -se os(as) servidores(as) lotados(as) em todos os graus de jurisdição e na área administrativa.",
+   "unit": "servidores(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TPSV": {
+   "kind": "ITEM",
+   "item": "1.5",
+   "acronym": "TPSV",
+   "title": "Total de pessoal comissionado sem vínculo efetivo",
+   "definition": "total de pessoal comissionado sem vínculo efetivo, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009, somando -se os(as) servidores(as) lotados(as) em todos os graus de jurisdição e na área administrativa.",
+   "unit": "servidores(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "Serv": {
+   "kind": "ITEM",
+   "item": "1.6",
+   "acronym": "Serv",
+   "title": "Total de servidores(as)",
+   "definition": "número de servidores(as) do quadro efetivo, dos que se encontram cedidos(as) ou requisitados(as) e dos comissionados(as) sem vínculo com o órgão. Não são computados os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "Serv = TPEfet + TPI + TPSV + TPIExt",
+   "variables": [
+    {
+     "acronym": "TPEfet",
+     "text": "Total de pessoal do quadro efetivo, conforme item 1.2"
+    },
+    {
+     "acronym": "TPI",
+     "text": "Total de pessoal que ingressou por cessão ou requisição, conforme item 1.3"
+    },
+    {
+     "acronym": "TPSV",
+     "text": "Total de pessoal comissionado sem vínculo efetivo, conforme item 1.5."
+    },
+    {
+     "acronym": "TPIExt",
+     "text": "Total de pessoal que ingressou extraordinariamente por cessão ou requisição, conforme item 1.4."
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxT": {
+   "kind": "ITEM",
+   "item": "1.7",
+   "acronym": "TFAuxT",
+   "title": "Total de trabalhadores(as) terceirizados(as)",
+   "definition": "número total de terceirizados(as) lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009.",
+   "unit": "trabalhadores(as) terceirizados(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxE": {
+   "kind": "ITEM",
+   "item": "1.8",
+   "acronym": "TFAuxE",
+   "title": "Total de estagiários(as)",
+   "definition": "número total de estagiários(as) lotados(as) no órgão ao final do período-base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009.",
+   "unit": "estagiários(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxJL": {
+   "kind": "ITEM",
+   "item": "1.9",
+   "acronym": "TFAuxJL",
+   "title": "Total de juízes(as) leigos(as)",
+   "definition": "número total de juízes(as) leigos(as) lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes no anexo da Resolução CNJ nº 76/2009.",
+   "unit": "juízes(as) leigos(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxSP": {
+   "kind": "ITEM",
+   "item": "1.10",
+   "acronym": "TFAuxSP",
+   "title": "Trabalhadores(as) de Serventias Judiciais Privatizadas",
+   "definition": "número total de trabalhadores(as) de serventias judiciais privatizadas lotados(as) no órgão ao final do período -base, aferido com base nos glossários constantes no anexo da Resolução CNJ nº 76/2009.",
+   "unit": "trabalhadores(as) de Serventias Judiciais",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxC": {
+   "kind": "ITEM",
+   "item": "1.11",
+   "acronym": "TFAuxC",
+   "title": "Total de conciliadores(as)",
+   "definition": "número total de conciliadores(as) lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes no anexo da Resolução CNJ nº 76/2009.",
+   "unit": "conciliadores(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxV": {
+   "kind": "ITEM",
+   "item": "1.12",
+   "acronym": "TFAuxV",
+   "title": "Total de voluntários(as)",
+   "definition": "número total de trabalhadores(as) voluntários(as) lotados(as) no órgão ao final do período-base, aferido com base nos glossários constantes no anexo da Resolução CNJ nº 76/2009.",
+   "unit": "trabalhadores(as) voluntários(as)",
+   "periodicity": "mensal",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxA": {
+   "kind": "ITEM",
+   "item": "1.13",
+   "acronym": "TFAuxA",
+   "title": "Total de aprendizes",
+   "definition": "número total de aprendizes lotados(as) no órgão ao final do período - base, com base na Lei nº 10.097/2000, ampliada pelo Decreto Federal nº 5.598/2005, que define aprendiz como jovem de 14 a 24 anos incompletos, que esteja cursando o ensino fundamental ou o ensino médio.",
+   "unit": "aprendizes",
+   "periodicity": "mensal",
+   "plsJud": "Serão utilizados dados do SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAuxRJ": {
+   "kind": "ITEM",
+   "item": "1.14",
+   "acronym": "TFAuxRJ",
+   "title": "Total de residentes jurídicos",
+   "definition": "número total de residentes jurídicos lotados(as) no órgão ao final do período-base, conforme previsto na Resolução 439/2022.",
+   "unit": "residentes jurídicos",
+   "periodicity": "mensal",
+   "plsJud": "Serão utilizados dados do SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TFAux": {
+   "kind": "ITEM",
+   "item": "1.15",
+   "acronym": "TFAux",
+   "title": "Total da força de trabalho do quadro auxiliar",
+   "definition": "total de trabalhadores(as) do quadro auxiliar lotados(as) no órgão ao final do período-base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009. Consideram -se os(as) terceirizados(as), estagiários(as), juízes(as) leigos(as), trabalhadores(as) de serventias privatizadas, conciliadores(as), voluntários(as), aprendizes e residentes jurídicos;",
+   "unit": "trabalhadores(as) auxiliares",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "TFAux = TFAuxT + TFAuxE + TFAuxJL + TFAuxSP + TFAuxC + TFAuxV + TFAuxA + TFauxRJ TFAuxT – Total de trabalhadores(as) terceirizados(as), conforme item 1.7; TFAuxE – Total de estagiários(as), conforme item 1.8; TFAuxJL – Total de juízes(as) leigos(as), conforme item 1.9; TFAuxSP – Total de trabalhadores(as) de serventias judiciais privatizadas, conforme item 1.10; TFAuxC – Total de conciliadores(as), conforme item 1.11; TFAuxV – Total de voluntários(as), conforme item 1.12; TFAuxA – Total de aprendizes, conforme item 1.13. TFAuxRJ – Total de residentes jurídicos, conforme item 1.14",
+   "variables": null,
+   "amendments": null
+  },
+  "FTT": {
+   "kind": "ITEM",
+   "item": "1.16",
+   "acronym": "FTT",
+   "title": "Força de trabalho total de magistrados(as), servidores(as) e auxiliares",
+   "definition": "número total da força de trabalho, incluindo os(as) magistrados(as), os(as) servidores(as) e a força de trabalho auxiliar no órgão, ao final do ano-base.",
+   "unit": "trabalhadores(as)",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "FTT= MagP + Serv + TFAux. MagP – total de cargos de magistrados(as) providos, conforme item 1.1; Serv – total de servidores(as), conforme item 1.6; TFAux – total da força de trabalho auxiliar, conforme item 1.15",
+   "variables": null,
+   "amendments": null
+  },
+  "m²Total": {
+   "kind": "ITEM",
+   "item": "1.17",
+   "acronym": "m²Total",
+   "title": "Área total em metros quadrados",
+   "definition": "a área total, conforme definição da ABNT NBR, de todos os prédios (próprios ou não) das unidades integrantes da estrutura do órgão. Essa é a variável que será utilizada em todos os indicadores que envolverem área de edificações. A área total engloba tanto a área construída quanto as áreas externas, como estacionamentos privativos e jardins.",
+   "unit": "m2",
+   "periodicity": "anual",
+   "plsJud": "conselhos, TRFs e seções judiciárias devem preencher. Para os demais órgãos serão utilizados dados do Justiça em Números/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CPP": {
+   "kind": "ITEM",
+   "item": "2.1",
+   "acronym": "CPP",
+   "title": "Consumo de papel próprio",
+   "definition": "quantidade de resmas de papel reciclado e não reciclado, tamanhos A4 e Ofício, requisitada pelas unidades. Não considerar o consumo de papel fornecido por empresa contratada para serviços de impressão e reprografia, pois está contemplado no item 2.3.",
+   "unit": "resmas",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GPP": {
+   "kind": "ITEM",
+   "item": "2.2",
+   "acronym": "GPP",
+   "title": "Gasto com papel próprio",
+   "definition": "despesa realizada com a aquisição de resmas de papel reciclado e não reciclado, tamanhos A4 e Ofício. Considera -se como evento gerador a data da compra pelo órgão, conforme regime de competência. Não considerar o gasto de papel fornecido por empresa contratada para serviços de impressão e reprografia, pois está contemplado no item 5.4.",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CPC": {
+   "kind": "ITEM",
+   "item": "2.3",
+   "acronym": "CPC",
+   "title": "Consumo de papel contratado",
+   "definition": "quantidade total consumida de resmas de papel reciclado e não reciclado, tamanhos A4 e Ofício, fornecidas por empresa contratada para serviços de impressão e reprografia.",
+   "unit": "resmas",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CC": {
+   "kind": "ITEM",
+   "item": "3.1",
+   "acronym": "CC",
+   "title": "Consumo de copos descartáveis",
+   "definition": "quantidade de copos descartáveis, usualmente utilizados para consumo de água e café, requisitados pelas unidades.",
+   "unit": "cento",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GCD": {
+   "kind": "ITEM",
+   "item": "3.2",
+   "acronym": "GCD",
+   "title": "Gasto com copos descartáveis",
+   "definition": "despesa realizada com a aquisição de copos descartáveis usualmente destinados para consumo de água e café. Considera -se evento gerador a data da compra pelo órgão, conforme regime de competência.",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CED": {
+   "kind": "ITEM",
+   "item": "4.1",
+   "acronym": "CED",
+   "title": "Consumo de embalagens descartáveis para água mineral",
+   "definition": "quantidade de embalagens plásticas descartáveis de água mineral (com ou sem gás) requisitada pelas unidades.",
+   "unit": "unidades",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CER": {
+   "kind": "ITEM",
+   "item": "4.2",
+   "acronym": "CER",
+   "title": "Consumo de embalagens retornáveis para água mineral",
+   "definition": "quantidade de embalagens plásticas retomáveis para água mineral envasada (galões ou garrafões retomáveis) requisitada pelas unidades.",
+   "unit": "unidades",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GAED": {
+   "kind": "ITEM",
+   "item": "4.3",
+   "acronym": "GAED",
+   "title": "Gasto com água mineral em embalagens descartáveis",
+   "definition": "despesa realizada com aquisição de água mineral envasada em embalagens plásticas descartáveis. Considera-se evento gerador a data da compra pelo órgão, conforme regime de competência.",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GAER": {
+   "kind": "ITEM",
+   "item": "4.4",
+   "acronym": "GAER",
+   "title": "Gasto com água mineral em embalagens retornáveis",
+   "definition": "despesa realizada com aquisição de água mineral envasada em embalagens plásticas retomáveis (galões ou garrafões retornáveis). Considera -se evento gerador a data da compra pelo órgão, conforme regime de competência.",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "QI": {
+   "kind": "ITEM",
+   "item": "5.1",
+   "acronym": "QI",
+   "title": "Quantidade de impressões",
+   "definition": "quantidade total de impressões realizadas nos equipamentos do órgão, sejam próprios ou locados. Incluem -se as impressões oriundas dos contratos de serviços de impressão e reprografia.",
+   "unit": "impressões",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "QEI": {
+   "kind": "ITEM",
+   "item": "5.2",
+   "acronym": "QEI",
+   "title": "Quantidade de equipamentos de impressão",
+   "definition": "quantidade de equipamentos de impressão, próprios ou locados, instalados ao final do ano. Incluir os equipamentos utilizados nos contratos de serviços de impressão e reprografia. A unidade responsável pela informação é a executora do contrato ou a gestora das impressoras.",
+   "unit": "equipamentos de impressão",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "QIP": {
+   "kind": "ITEM",
+   "item": "5.3",
+   "acronym": "QIP",
+   "title": "Quantidade de impressões per capita",
+   "definition": "quantidade de impressões em relação ao total do corpo funcional do órgão.",
+   "unit": "impressões/corpo funcional",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "QIP: QI / FTT",
+   "variables": [
+    {
+     "acronym": "QI",
+     "text": "Quantidade de impressões, conforme item 5.1"
+    },
+    {
+     "acronym": "FTT",
+     "text": "Força de trabalho total de magistrados(as), servidores(as) e auxiliares, conforme item 1.16."
+    }
+   ],
+   "amendments": null
+  },
+  "GCI": {
+   "kind": "ITEM",
+   "item": "5.4",
+   "acronym": "GCI",
+   "title": "Gasto com contratos de terceirização de impressão",
+   "definition": "despesa realizada com o pagamento de serviços de terceirização (outsourcing) de impressão e reprografia (incluem -se equipamentos, manutenções, impressões por folha e suprimentos, bem como papel fornecido pela contratada, conforme o contrato). Considera -se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CEE": {
+   "kind": "ITEM",
+   "item": "6.1",
+   "acronym": "CEE",
+   "title": "Consumo de energia elétrica",
+   "definition": "consumo total de energia elétrica fornecida pela concessionária.",
+   "unit": "kWh",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CRE": {
+   "kind": "ITEM",
+   "item": "6.2",
+   "acronym": "CRE",
+   "title": "Consumo de energia elétrica por m2",
+   "definition": "consumo total de energia elétrica fornecida pela concessionária em relação à área total do órgão.",
+   "unit": "kWh / m2",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "CRE: CEE /m2 Total",
+   "variables": [
+    {
+     "acronym": "CEE",
+     "text": "Consumo de energia elétrica, conforme item 6.1; • m2 total – Área total em metros quadrados, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "GEE": {
+   "kind": "ITEM",
+   "item": "6.3",
+   "acronym": "GEE",
+   "title": "Gasto com energia elétrica",
+   "definition": "valor da fatura de energia elétrica, em valores brutos. Considera -se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRE": {
+   "kind": "ITEM",
+   "item": "6.4",
+   "acronym": "GRE",
+   "title": "Gasto com energia elétrica por m2",
+   "definition": "valor total das faturas de energia elétrica, em valores brutos, em relação à área total do órgão. Considera-se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais/ m2 Periodicidade da apuração: mensal",
+   "periodicity": "",
+   "plsJud": "cálculo automático",
+   "formula": "GRE: GEE / m2 Total",
+   "variables": [
+    {
+     "acronym": "GEE",
+     "text": "Gasto com energia elétrica, conforme item 6.3; • m2 Total – Área total em metros quadrados, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "Uso de energia alternativa": {
+   "kind": "ITEM",
+   "item": "6.5",
+   "acronym": null,
+   "title": "Uso de energia alternativa",
+   "definition": "uso de energia alternativa ou renovável. A energia alternativa ou renovável é aquela gerada por fontes renováveis e que não emitem poluentes na atmosfera. As principais fontes alternativas de energia são: energia solar, eólica, maremotriz e geotérmica.",
+   "unit": "não se aplica",
+   "periodicity": "mensal",
+   "plsJud": "indicar se utiliza fonte alternativa de energia e qual(is)",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "NT": {
+   "kind": "ITEM",
+   "item": "6.6",
+   "acronym": "NT",
+   "title": "Negociação tarifária",
+   "definition": "verificar se o órgão possui iniciativas de negociação de melhores tarifas com a concessionária de energia elétrica ou se promove ações que resultam em redução dos gastos com energia.",
+   "unit": "não se aplica",
+   "periodicity": "anual",
+   "plsJud": "Deverão ser respondidos os seguintes questionamentos: a) se o órgão possui tratativas com as concessionárias de energia, no sentido de utilizar tarifas com critérios de economicidade, como tarifas verdes, contratação com tarifa hora sazonal (Exemplos: contratação para uso em horário de \"ponta\", \"fora de ponta\") ou outros critérios como geração de energia renovável (fotovoltaico, eólico). Não devem ser consideradas campanhas e práticas de redução de consumo; b) quais são as tratativas ou ações (preencher no campo observação)",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "kWhI": {
+   "kind": "ITEM",
+   "item": "6.7",
+   "acronym": "kWhI",
+   "title": "kWh injetados na rede de energia por sistemas de fontes alternativas (solar, eólica, térmica), em kwh",
+   "definition": "total de kWh injetados na rede de energia elétrica por fontes alternativas (solar, eólica, térmica), em kWh.",
+   "unit": "kWh",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CA": {
+   "kind": "ITEM",
+   "item": "7.1",
+   "acronym": "CA",
+   "title": "Consumo de água",
+   "definition": "consumo total de água fornecida pela concessionária.",
+   "unit": "metros cúbicos (m3)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CRA": {
+   "kind": "ITEM",
+   "item": "7.2",
+   "acronym": "CRA",
+   "title": "Consumo de água por m2",
+   "definition": "consumo total de água fornecida pela concessionária em relação à área total do órgão.",
+   "unit": "metros cúbicos de água (m3) / metro quadrado de área (m2)",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "CRA = CA/(m2 Total)",
+   "variables": [
+    {
+     "acronym": "CA",
+     "text": "consumo de água, conforme item 7.1; • m2 Total – Área total em metros quadrados, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "GA": {
+   "kind": "ITEM",
+   "item": "7.3",
+   "acronym": "GA",
+   "title": "Gasto com água",
+   "definition": "valor da fatura de água e esgoto, em valores brutos. Considera-se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRA": {
+   "kind": "ITEM",
+   "item": "7.4",
+   "acronym": "GRA",
+   "title": "Gasto com água por m2",
+   "definition": "valor da fatura de água e esgoto, em valores brutos, em relação à área total do órgão. Considera -se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais/ m2",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "GRA = GA / (m2 Total)",
+   "variables": [
+    {
+     "acronym": "GA",
+     "text": "Gasto com água, conforme item 7.3; • m2 Total – Total da Área Construída, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "DPa": {
+   "kind": "ITEM",
+   "item": "8.1",
+   "acronym": "DPa",
+   "title": "Destinação de resíduos de papel",
+   "definition": "quantidade de papel, papelão e derivados destinados a cooperativas ou associações de catadores para reciclagem ou, na ausência de interessados, a empresas recicladoras.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DPl": {
+   "kind": "ITEM",
+   "item": "8.2",
+   "acronym": "DPl",
+   "title": "Destinação de resíduos de plásticos",
+   "definition": "quantidade de plásticos destinados a cooperativas ou associações de catadores para reciclagem ou, na ausência de interessados, a empresas recicladoras.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DMt": {
+   "kind": "ITEM",
+   "item": "8.3",
+   "acronym": "DMt",
+   "title": "Destinação de resíduos de metais",
+   "definition": "quantidade de metais destinados a cooperativas ou associações de catadores para reciclagem ou, na ausência de interessados, a empresas recicladoras.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DVd": {
+   "kind": "ITEM",
+   "item": "8.4",
+   "acronym": "DVd",
+   "title": "Destinação de resíduos de vidros",
+   "definition": "quantidade de vidros destinados a cooperativas ou associações de catadores para reciclagem ou, na ausência de interessados, a empresas recicladoras.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CGe": {
+   "kind": "ITEM",
+   "item": "8.5",
+   "acronym": "CGe",
+   "title": "Coleta geral",
+   "definition": "quantidade total de resíduos recicláveis destinados a cooperativas, associações de catadores ou empresas recicladoras no caso de localidades onde não seja feita coleta seletiva com separação por materiais, ou seja, quando a única separação for entre \"orgânicos\" e \"recicláveis\".",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "TMR": {
+   "kind": "ITEM",
+   "item": "8.6",
+   "acronym": "TMR",
+   "title": "Total de materiais destinados à reciclagem",
+   "definition": "soma dos resíduos recicláveis destinados a cooperativas, associações de catadores e empresas recicladoras.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "MR = DPA + DPL + DMT +DVD+ CGe",
+   "variables": [
+    {
+     "acronym": "DPA",
+     "text": "Destinação de papel para reciclagem, conforme item 8.1"
+    },
+    {
+     "acronym": "DPL",
+     "text": "Destinação de plásticos para reciclagem, conforme item 8.2"
+    },
+    {
+     "acronym": "DMT",
+     "text": "Destinação de metais para reciclagem, conforme item 8.3"
+    },
+    {
+     "acronym": "Dvn",
+     "text": "Destinação de vidros para reciclagem, conforme item 8.4"
+    },
+    {
+     "acronym": "Coe",
+     "text": "Coleta geral, conforme item 8.5."
+    }
+   ],
+   "amendments": null
+  },
+  "DEI/DEl": {
+   "kind": "ITEM",
+   "item": "8.7",
+   "acronym": "DEI",
+   "title": "Destinação de resíduos eletroeletrônicos",
+   "definition": "quantidade de resíduos de informática (fitas, cabos, mídias, equipamentos eletrônicos etc.) destinados à reciclagem, ao reaproveitamento ou a outra destinação correta. Excluem -se os cartuchos e toners que são específicos para impressão, já contemplados no indicador 8.8.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DImp": {
+   "kind": "ITEM",
+   "item": "8.8",
+   "acronym": "DImp",
+   "title": "Destinação de resíduos de suprimentos de impressão",
+   "definition": "quantidade de suprimentos de impressão (carcaças, toners, cartuchos, fotocondutores) destinados a empresas de logística reversa para reuso e reciclagem. Na ausência dessas empresas na localidade, os resíduos devem ser doados com exigência de Manifesto de Transporte de Resíduos ou destinação final à logística reversa por ser classificado pela ABNT NBR 10.004/2004 como Resíduo Perigoso. Devem ser considerados os resíduos de impressoras próprias e locadas (outsourcing).",
+   "unit": "quilogramas (kg)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DPB": {
+   "kind": "ITEM",
+   "item": "8.9",
+   "acronym": "DPB",
+   "title": "Destinação de resíduos de pilhas e baterias",
+   "definition": "quantidade de pilhas e baterias enviadas para descontaminação e destinação correta, com exigência de Manifesto de Transporte de Resíduos ou destinação final à logística reversa por ser classificado pela ABNT NBR 10.004/2004 como Resíduo Perigoso.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DLp": {
+   "kind": "ITEM",
+   "item": "8.10",
+   "acronym": "DLp",
+   "title": "Destinação de resíduos de lâmpadas",
+   "definition": "quantidade de lâmpadas enviadas para descontaminação e destinação correta, com exigência de Manifesto de Transporte de Resíduos ou destinação final à logística reversa.",
+   "unit": "número de lâmpadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DRS": {
+   "kind": "ITEM",
+   "item": "8.11",
+   "acronym": "DRS",
+   "title": "Destinação de resíduos de saúde",
+   "definition": "quantidade total de resíduos de serviços de saúde encaminhados para descontaminação e tratamento, com exigência de Manifesto de Transporte de Resíduos.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "DOB": {
+   "kind": "ITEM",
+   "item": "8.12",
+   "acronym": "DOB",
+   "title": "Destinação de resíduos de obras e reformas",
+   "definition": "quantidade de resíduos de obra ou de reformas enviados para o aterro de resíduos da construção civil, inclusive os encaminhados para reuso.",
+   "unit": "quilogramas (kg)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRef": {
+   "kind": "ITEM",
+   "item": "9.1",
+   "acronym": "GRef",
+   "title": "Gastos com reformas no período-base",
+   "definition": "corresponde à despesa realizada com reformas ou mudanças de leiaute durante o período -base. Devem ser considerados: materiais de construção utilizados, mão de obra, pintura, fiação elétrica e de rede, divisórias, mobiliário. Não são considerados os gastos com construção de novos edifícios, que devem ser considerados no item 9.2. Considera-se a data de realização das reformas.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GConst": {
+   "kind": "ITEM",
+   "item": "9.2",
+   "acronym": "GConst",
+   "title": "Gastos com construção de novos edifícios no período-base",
+   "definition": "corresponde à despesa realizada com a construção de novos edifícios no período-base.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GLB": {
+   "kind": "ITEM",
+   "item": "10.1",
+   "acronym": "GLB",
+   "title": "Gastos com contratos de limpeza no período-base",
+   "definition": "totalização da despesa realizada com os contratos e/ou termos aditivos dos serviços de limpeza durante o período -base. Incluem -se as despesas decorrentes dos contratos de jardinagem, limpeza de vidros, entre outros.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "m²Cont": {
+   "kind": "ITEM",
+   "item": "10.2",
+   "acronym": "m²Cont",
+   "title": "Área contratada",
+   "definition": "área especificada nos instrumentos de contrato de manutenção e limpeza, conforme instruções normativas sobre o tema.",
+   "unit": "m2",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRL": {
+   "kind": "ITEM",
+   "item": "10.3",
+   "acronym": "GRL",
+   "title": "Gasto com contratos limpeza por m2",
+   "definition": "despesa total realizada com o contrato de limpeza dos órgãos em relação à área contratada. Corresponde ao custo médio por m 2 dos serviços de manutenção da limpeza do órgão durante o período-base.",
+   "unit": "reais/m2",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "GRL = (GLB / m2Cont)",
+   "variables": [
+    {
+     "acronym": "GLB",
+     "text": "Gastos com contratos de limpeza no período-base, conforme item 10.1"
+    },
+    {
+     "acronym": "m2Cont",
+     "text": "Área contratada, conforme item 10.2."
+    }
+   ],
+   "amendments": null
+  },
+  "GML": {
+   "kind": "ITEM",
+   "item": "10.4",
+   "acronym": "GML",
+   "title": "Gasto com material de limpeza",
+   "definition": "despesa total realizada com a aquisição de materiais de limpeza durante o período -base. Consideram -se como material de limpeza todos os insumos adquiridos com finalidade de limpeza e conservação do órgão. Não considerar a despesa referente aos materiais de limpeza fornecidos por empresa contratada para serviços de limpeza, pois está contemplada no item 10.1. Considera-se evento gerador a data da compra pelo órgão, conforme regime de competência.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GV": {
+   "kind": "ITEM",
+   "item": "11.1",
+   "acronym": "GV",
+   "title": "Gastos com contratos de vigilância armada e desarmada",
+   "definition": "totalização da despesa realizada com os contratos e/ou termos aditivos dos serviços de vigilância durante o período -base, englobando todos os gastos, tais como despesas com vigilância armada, vigilância desarmada, supervisor e encarregado, pagamento de auxílios e repactuação, inclusive custos indiretos. Considerar o custo com armas e coletes balísticos.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "QPV": {
+   "kind": "ITEM",
+   "item": "11.2",
+   "acronym": "QPV",
+   "title": "Quantidade total de pessoas contratadas para o serviço de vigilância armada e desarmada",
+   "definition": "quantidade de pessoas contratadas para o serviço de vigilância ao final do período-base.",
+   "unit": "número de trabalhadores",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRV": {
+   "kind": "ITEM",
+   "item": "11.3",
+   "acronym": "GRV",
+   "title": "Gasto médio com contrato de vigilância armada e desarmada",
+   "definition": "despesa total realizada com contrato de vigilância em relação à quantidade de pessoas contratadas para o serviço de vigilância.",
+   "unit": "reais/número de trabalhadores",
+   "periodicity": "anual",
+   "plsJud": "automático",
+   "formula": "GmV = (GV / QPV)",
+   "variables": [
+    {
+     "acronym": "GV",
+     "text": "Gastos com contratos de vigilância: conforme item 11.1."
+    },
+    {
+     "acronym": "QPV",
+     "text": "Quantidade de pessoas contratadas para o serviço de vigilância: conforme item 11.2."
+    }
+   ],
+   "amendments": null
+  },
+  "GVe": {
+   "kind": "ITEM",
+   "item": "11.4",
+   "acronym": "GVe",
+   "title": "Gasto com contrato de vigilância eletrônica",
+   "definition": "despesa total com contratos firmados com empresas especializadas para prestação de serviços de vigilância eletrônica, compreendendo a mão de obra, a instalação e a locação de equipamentos de circuito fechado de TV; a instalação de alarmes; a aquisição e instalação de pórticos detectores de metais e outros itens de vigilância eletrônica.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GTF": {
+   "kind": "ITEM",
+   "item": "12.1",
+   "acronym": "GTF",
+   "title": "Gasto com telefonia fixa",
+   "definition": "despesa realizada com serviços de telefonia fixa, inclusive tecnologia VoIP. Considera -se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "LTF": {
+   "kind": "ITEM",
+   "item": "12.2",
+   "acronym": "LTF",
+   "title": "Linhas Telefônicas Fixas",
+   "definition": "quantidade total de linhas telefônicas fixas, incluindo linhas fixas, ramais e terminais VoIP. No caso de uso de PABX não deverá ser usado nem o número de linhas fixas, nem o número de troncos e sim o número total de ramais disponíveis.",
+   "unit": "número de linhas fixas",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRTF": {
+   "kind": "ITEM",
+   "item": "12.3",
+   "acronym": "GRTF",
+   "title": "Gasto relativo com telefonia fixa",
+   "definition": "despesa realizada com serviços de telefonia fixa, inclusive tecnologia VoIP, em relação ao total de linhas. Considera -se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais/ número de linhas telefônicas fixas",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "GRTF = (GTF / LTF)",
+   "variables": [
+    {
+     "acronym": "GTF",
+     "text": "Gasto total com telefonia fixa, conforme item 12.1"
+    },
+    {
+     "acronym": "LTF",
+     "text": "Linhas telefônicas fixas, conforme item 12.2."
+    }
+   ],
+   "amendments": null
+  },
+  "GTM": {
+   "kind": "ITEM",
+   "item": "12.4",
+   "acronym": "GTM",
+   "title": "Gasto com telefonia móvel",
+   "definition": "despesa realizada com pagamento das faturas de telefonia móvel e reembolsos/ressarcimentos. São contabilizados gastos com voz, dados e assinatura. Considera-se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "LTM": {
+   "kind": "ITEM",
+   "item": "12.5",
+   "acronym": "LTM",
+   "title": "Linhas Telefônicas Móveis",
+   "definition": "quantidade total de linhas telefônicas móveis, (celulares, dados e assinaturas) e a quantidade de linhas que recebem reembolso.",
+   "unit": "número de linhas móveis",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRTM": {
+   "kind": "ITEM",
+   "item": "12.6",
+   "acronym": "GRTM",
+   "title": "Gasto relativo com telefonia móvel",
+   "definition": "despesa realizada com pagamento das faturas de telefonia móvel em relação à quantidade de linhas móveis. São contabilizados gastos com voz, dados e assinatura. Considera-se evento gerador o mês de competência (ao qual a fatura corresponde).",
+   "unit": "reais/ número de linhas telefônicas móveis",
+   "periodicity": "mensal",
+   "plsJud": "cálculo automático",
+   "formula": "GRTM = (GTM / LTM)",
+   "variables": [
+    {
+     "acronym": "GTM",
+     "text": "Gasto com telefonia móvel, conforme item 12.4"
+    },
+    {
+     "acronym": "LTM",
+     "text": "Linhas telefônicas móveis, conforme item 12.5."
+    }
+   ],
+   "amendments": null
+  },
+  "Km": {
+   "kind": "ITEM",
+   "item": "13.1",
+   "acronym": "Km",
+   "title": "Quilometragem",
+   "definition": "quilometragem total percorrida pelos veículos, próprios ou locados.",
+   "unit": "quilômetros (km)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "VGEF": {
+   "kind": "ITEM",
+   "item": "13.2",
+   "acronym": "VGEF",
+   "title": "Quantidade de veículos a gasolina, etanol e flex",
+   "definition": "quantidade total de veículos movidos exclusivamente à gasolina, etanol e flex existentes no órgão ao final do período -base, incluindo veículos de serviço, de transporte de magistrados(as) e veículos pesados, sejam próprios ou locados.",
+   "unit": "número de veículos",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "VD": {
+   "kind": "ITEM",
+   "item": "13.3",
+   "acronym": "VD",
+   "title": "Quantidade de veículos a diesel",
+   "definition": "quantidade total de veículos movidos, exclusivamente, a diesel existentes no órgão ao final do período -base, incluindo veículos de serviço, de transporte de magistrados(as) e veículos pesados, sejam próprios ou locados.",
+   "unit": "número de veículos",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "VAlt": {
+   "kind": "ITEM",
+   "item": "13.4",
+   "acronym": "VAlt",
+   "title": "Quantidade de veículos movidos por fontes alternativas",
+   "definition": "quantidade total de veículos movidos por fontes alternativas (exemplos: energia solar, energia elétrica, hidrogênio, etc.) existentes no órgão ao final do período -base, incluindo veículos de serviço, de transporte de magistrados(as) e veículos pesados, sejam próprios ou locados.",
+   "unit": "número de veículos",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "QVe": {
+   "kind": "ITEM",
+   "item": "13.5",
+   "acronym": "QVe",
+   "title": "Quantidade de veículos",
+   "definition": "quantidade total de veículos existentes no órgão ao final do período - base, incluindo veículos de serviço e veículos destinados a magistrados(as), sejam próprios ou locados. A quantidade total de veículos (QVe) deve coincidir com a soma da quantidade de veí culos de serviço (QVS) e a quantidade de veículos de magistrados(as) (QVM).",
+   "unit": "número de veículos",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "QVe = VGEF + VD + VAlt",
+   "variables": [
+    {
+     "acronym": "VGEF",
+     "text": "Veículos a gasolina, etanol e flex, conforme item 13.2"
+    },
+    {
+     "acronym": "VD",
+     "text": "Veículos a diesel, conforme item 13.3"
+    },
+    {
+     "acronym": "VAlt",
+     "text": "Veículos alternativos, conforme item 13.4."
+    }
+   ],
+   "amendments": null
+  },
+  "QVS": {
+   "kind": "ITEM",
+   "item": "13.6",
+   "acronym": "QVS",
+   "title": "Quantidade de veículos de serviço",
+   "definition": "total de veículos do órgão, próprios ou locados, exceto os utilizados para locomoção dos(as) magistrados(as).",
+   "unit": "número de veículos de serviço",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "UVS": {
+   "kind": "ITEM",
+   "item": "13.7",
+   "acronym": "UVS",
+   "title": "Usuários por veículo de serviço",
+   "definition": "quantidade relativa de usuários por veículos de serviço, próprios ou locados.",
+   "unit": "número de usuários/ número de veículos de serviço",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "UVS = (Serv + TFaux) / QVS",
+   "variables": [
+    {
+     "acronym": "Serv",
+     "text": "Total de servidores(as), conforme item 1.5"
+    },
+    {
+     "acronym": "TFAux",
+     "text": "Total da força de trabalho auxiliar, conforme item 1.13"
+    },
+    {
+     "acronym": "QVS",
+     "text": "Quantidade de veículos de serviço, conforme item 13.6."
+    }
+   ],
+   "amendments": null
+  },
+  "QVM": {
+   "kind": "ITEM",
+   "item": "13.8",
+   "acronym": "QVM",
+   "title": "Quantidade de veículos destinados à locomoção de magistrados(as)",
+   "definition": "total de veículos do órgão, próprios ou locados, utilizados exclusivamente para a locomoção de magistrados(as). Excluem -se os veículos já computados no item 13.6.",
+   "unit": "número de veículos de magistrado(a)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "UVM": {
+   "kind": "ITEM",
+   "item": "13.9",
+   "acronym": "UVM",
+   "title": "Usuários por veículo destinado à locomoção de magistrados(as)",
+   "definition": "quantidade relativa de usuários por veículos, próprios ou locados, utilizados exclusivamente para a locomoção de magistrados(as).",
+   "unit": "número de usuários/ número de veículos de magistrado(a)",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "UVM = MagP / QVM",
+   "variables": [
+    {
+     "acronym": "MagP",
+     "text": "Total de cargos de magistrados(as) providos, conforme item 1.1"
+    },
+    {
+     "acronym": "QVM",
+     "text": "Quantidade de veículos para locomoção de magistrados(as), conforme item 13.8."
+    }
+   ],
+   "amendments": null
+  },
+  "GMV": {
+   "kind": "ITEM",
+   "item": "13.10",
+   "acronym": "GMV",
+   "title": "Gasto com manutenção de veículos",
+   "definition": "corresponde à despesa realizada com pagamento de serviços de manutenção dos veículos do órgão. Computam -se as despesas com contratos ou com demais serviços relacionados (ex.: peças de reposição, pneus, lubrificantes, custos com oficina, lavagem, seguro con tratado, licenciamento, DPVAT, IPVA, entre outros). Não devem ser considerados os gastos com combustível nem com terceirização de motoristas.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRMV": {
+   "kind": "ITEM",
+   "item": "13.11",
+   "acronym": "GRMV",
+   "title": "Gasto relativo com manutenção por veículo",
+   "definition": "despesa total realizada com manutenção de veículos em relação à quantidade total de veículos.",
+   "unit": "reais/ número de veículos",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "GRMV = GMV / QVe",
+   "variables": [
+    {
+     "acronym": "GMV",
+     "text": "Gasto com manutenção de veículos, conforme item 13.10"
+    },
+    {
+     "acronym": "QVe",
+     "text": "Quantidade de veículos, conforme item 13.5."
+    }
+   ],
+   "amendments": null
+  },
+  "GCM": {
+   "kind": "ITEM",
+   "item": "13.12",
+   "acronym": "GCM",
+   "title": "Gastos com contratos de motoristas",
+   "definition": "despesa total realizada com contratos de motoristas e/ou termos aditivos durante o período-base.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GRCM": {
+   "kind": "ITEM",
+   "item": "13.13",
+   "acronym": "GRCM",
+   "title": "Gasto com contrato de motoristas por veículo",
+   "definition": "despesa total realizada com contratos de motoristas em relação à quantidade de veículos.",
+   "unit": "reais/ número de veículos",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "GRCM = GCM / QVe",
+   "variables": [
+    {
+     "acronym": "GCM",
+     "text": "Gasto com contratos de motoristas, conforme item 13.12"
+    },
+    {
+     "acronym": "QVe",
+     "text": "Quantidade de veículos, conforme item 13.5."
+    }
+   ],
+   "amendments": null
+  },
+  "GCV": {
+   "kind": "ITEM",
+   "item": "13.14",
+   "acronym": "GCV",
+   "title": "Gasto com contratos de agenciamento de transporte terrestre",
+   "definition": "despesa total realizada com contratos de agenciamento de transporte terrestre de pessoal a serviço.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CG": {
+   "kind": "ITEM",
+   "item": "14.1",
+   "acronym": "CG",
+   "title": "Consumo de gasolina",
+   "definition": "quantidade total de litros de gasolina (comum e aditivada) consumida por veículos. Não deve ser computado o consumo desse combustível, quando utilizado para funcionamento de outros tipos de máquinas, tais como geradores.",
+   "unit": "litro (l)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CE": {
+   "kind": "ITEM",
+   "item": "14.2",
+   "acronym": "CE",
+   "title": "Consumo de etanol",
+   "definition": "quantidade total de litros de etanol consumido por veículos.",
+   "unit": "litro (l)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CD": {
+   "kind": "ITEM",
+   "item": "14.3",
+   "acronym": "CD",
+   "title": "Consumo de diesel",
+   "definition": "quantidade total de litros de óleo diesel (comum, S50, Slü e outros) consumido por veículos. Não deve ser computado o consumo desse combustível, quando utilizado para funcionamento de outros tipos de máquinas, tais como geradores.",
+   "unit": "litro (l)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CRAG": {
+   "kind": "ITEM",
+   "item": "14.4",
+   "acronym": "CRAG",
+   "title": "Consumo de gasolina e etanol por veículo",
+   "definition": "quantidade relativa de litros de gasolina e etanol consumidos por cada veículo.",
+   "unit": "litro (l) / número de veículos",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "CRAG = (CG +CE)/ VGEF",
+   "variables": [
+    {
+     "acronym": "CG",
+     "text": "Consumo de gasolina, conforme item 14.1"
+    },
+    {
+     "acronym": "CE",
+     "text": "Consumo de etanol, conforme item 14.2"
+    },
+    {
+     "acronym": "VGEF",
+     "text": "Quantidade de veículos a gasolina, etanol e flex, conforme item 13.2."
+    }
+   ],
+   "amendments": null
+  },
+  "CRD": {
+   "kind": "ITEM",
+   "item": "14.5",
+   "acronym": "CRD",
+   "title": "Consumo de diesel por veículo",
+   "definition": "quantidade relativa de litros de diesel consumido por cada veículo.",
+   "unit": "litro (l) / número de veículos",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "CRD =CD/ VD",
+   "variables": [
+    {
+     "acronym": "CD",
+     "text": "Consumo de diesel, conforme item 14.3"
+    },
+    {
+     "acronym": "VD",
+     "text": "Veículos a diesel, conforme item 13.3."
+    }
+   ],
+   "amendments": null
+  },
+  "GC": {
+   "kind": "ITEM",
+   "item": "14.6",
+   "acronym": "GC",
+   "title": "Gasto com combustível",
+   "definition": "gasto com combustível para abastecimento de veículos movidos à gasolina, etanol, gasolina e etanol, diesel, Gás Natural Veicular (GNV), hidrogênio e outros.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GCGraf": {
+   "kind": "ITEM",
+   "item": "15.1",
+   "acronym": "GCGraf",
+   "title": "Gastos com serviços gráficos no período-base",
+   "definition": "despesas realizadas com serviços gráficos (exemplos: impressão de adesivos, banners, cartões de visita, crachás, credenciais, convites, calendários, envelopes, fotografias, folders, jornais informativos, panfletos, papéis timbrados, pastas e outros). Deve ser contabilizada também a despesa com mão de obra. Não considerar os gastos advindos dos contratos de outsourcing de reprografia, que devem ser lançados item 5.5.",
+   "unit": "reais",
+   "periodicity": "mensal",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ACR": {
+   "kind": "ITEM",
+   "item": "16.1",
+   "acronym": "ACR",
+   "title": "Aquisições e contratações realizadas no período-base",
+   "definition": "quantidade total de aquisições e contratos no período-base.",
+   "unit": "número de contratos celebrados",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ACS": {
+   "kind": "ITEM",
+   "item": "16.2",
+   "acronym": "ACS",
+   "title": "Aquisições e contratações sustentáveis realizadas no período-base",
+   "definition": "quantidade total de aquisições e contratos celebrados no período -base com base no guia de contratações sustentáveis utilizado pela unidade, podendo ser próprio ou de outro órgão público.",
+   "unit": "número de contratos celebrados com critério de sustentabilidade",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PCS": {
+   "kind": "ITEM",
+   "item": "16.3",
+   "acronym": "PCS",
+   "title": "Percentual de Aquisições e Contratações Sustentáveis sobre a totalidade",
+   "definition": "Percentual de aquisições e contratações realizadas no exercício com a inclusão de critério de sustentabilidade.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PCS = (ACS / ACR) x 100",
+   "variables": null,
+   "amendments": null
+  },
+  "PQV": {
+   "kind": "ITEM",
+   "item": "17.1",
+   "acronym": "PQV",
+   "title": "Participações em ações de qualidade de vida",
+   "definition": "quantidade de participações da força de trabalho total em ações de qualidade de vida no trabalho.",
+   "unit": "número de participantes",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "AQV": {
+   "kind": "ITEM",
+   "item": "17.2",
+   "acronym": "AQV",
+   "title": "Quantidade de ações de qualidade de vida",
+   "definition": "quantidade de ações de qualidade de vida no trabalho organizadas e realizadas pelo próprio órgão ou em parcerias. Aqui devem ser consideradas somente as ações e não as participações, que devem ser consideradas no item 17.1.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PRQV": {
+   "kind": "ITEM",
+   "item": "17.3",
+   "acronym": "PRQV",
+   "title": "Percentual de participantes em ações de qualidade de vida",
+   "definition": "percentual da força de trabalho total participante nas ações de qualidade de vida no trabalho.",
+   "unit": "percentual por ação",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PRQV = PQV / (FTT x AQV) x 100",
+   "variables": [
+    {
+     "acronym": "PQV",
+     "text": "Participações em ações de qualidade de vida, conforme item 16.1"
+    },
+    {
+     "acronym": "AQV",
+     "text": "Ações de qualidade de vida, conforme item 16.2"
+    },
+    {
+     "acronym": "FTT",
+     "text": "Força de trabalho total de magistrados(as), servidores(as) e auxiliares, conforme item 1.14."
+    }
+   ],
+   "amendments": null
+  },
+  "PAS": {
+   "kind": "ITEM",
+   "item": "17.4",
+   "acronym": "PAS",
+   "title": "Participações em ações solidárias",
+   "definition": "quantidade de participações do corpo funcional em ações solidárias.",
+   "unit": "número de participantes",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "AS": {
+   "kind": "ITEM",
+   "item": "17.5",
+   "acronym": "AS",
+   "title": "Quantidade de ações solidárias",
+   "definition": "quantidade de ações solidárias que foram organizadas e realizadas pelo próprio órgão ou em parcerias.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PRAS": {
+   "kind": "ITEM",
+   "item": "17.6",
+   "acronym": "PRAS",
+   "title": "Percentual de participantes em ações solidárias",
+   "definition": "percentual da força de trabalho total que participa como voluntária nas ações solidárias em relação ao total do corpo funcional do órgão.",
+   "unit": "percentual por ação",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PRAS =PS/ (FTT x AS) x 100",
+   "variables": [
+    {
+     "acronym": "PS",
+     "text": "Participação em ações solidárias, conforme item 16.4"
+    },
+    {
+     "acronym": "AS",
+     "text": "Quantidade de ações solidárias, conforme item 16.5"
+    },
+    {
+     "acronym": "FTT",
+     "text": "Força de trabalho total de magistrados(as), servidores(as) e auxiliares, conforme item 1.14."
+    }
+   ],
+   "amendments": null
+  },
+  "ACap": {
+   "kind": "ITEM",
+   "item": "18.1",
+   "acronym": "ACap",
+   "title": "Ações de capacitação em sustentabilidade",
+   "definition": "quantidade de ações de capacitação relacionadas à sustentabilidade organizadas e realizadas pelo próprio órgão ou em parcerias. As ações de capacitação devem ser realizadas para um público definido e/ou possuir certificação e/ou serem válidas para Adiciona l de Qualificação (AQ) e/ou possuírem mediador de conteúdo. São considerados eventos de capacitação: Curso, Oficina, Palestra, Seminário, Fórum, Congresso, Semana, Jornada, Convenção, Colóquio, entre outros.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ASen": {
+   "kind": "ITEM",
+   "item": "18.2",
+   "acronym": "ASen",
+   "title": "Ações de sensibilização em sustentabilidade",
+   "definition": "quantidade de ações de sensibilização relacionadas à sustentabilidade organizadas e realizadas pelo próprio órgão ou em parcerias. As ações de sensibilização englobam as ações realizadas pelo órgão que não forem classificadas como ações de capacitação.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PCap": {
+   "kind": "ITEM",
+   "item": "18.3",
+   "acronym": "PCap",
+   "title": "Participação em ações de capacitação em sustentabilidade",
+   "definition": "total de participações em ações de capacitação durante o período-base.",
+   "unit": "número de participantes",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PRCap": {
+   "kind": "ITEM",
+   "item": "18.4",
+   "acronym": "PRCap",
+   "title": "Percentual de participantes em ações de capacitação em sustentabilidade",
+   "definition": "percentual de participantes nas ações de capacitação relacionadas à temática de sustentabilidade em relação à força de trabalho total do órgão.",
+   "unit": "percentual por ação",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PRCap = (PCap / (FTT x Acap)) x 100",
+   "variables": [
+    {
+     "acronym": "PCap",
+     "text": "Participação em ações de capacitação em sustentabilidade, conforme item 18.3"
+    },
+    {
+     "acronym": "ACap",
+     "text": "Ações de capacitação em sustentabilidade, conforme item 18.1"
+    },
+    {
+     "acronym": "FTT",
+     "text": "Força de trabalho total de magistrados(as), servidores(as) e auxiliares, conforme item 1.14."
+    }
+   ],
+   "amendments": null
+  },
+  "ACapED": {
+   "kind": "ITEM",
+   "item": "19.1",
+   "acronym": "ACapED",
+   "title": "Ações de capacitação em equidade e diversidade",
+   "definition": "quantidade de ações de capacitação relacionadas à equidade e diversidade organizadas e realizadas pelo próprio órgão ou em parceria. As ações de capacitação devem ser realizadas para um público definido e/ou possuir certificação e/ou serem válidas para Ad icional de Qualificação (AQ) e/ou possuírem mediador(a) de conteúdo. São considerados eventos de capacitação: Curso, Oficina, Palestra, Seminário, Fórum, Congresso, Jornada, Convenção, Colóquio, entre outros. Devem ser considerados eventos específicos de t emáticas voltadas a combater o racismo, o capacitismo, o etarismo, a discriminação por aparência física, a violência doméstica, a intolerância religiosa, a xenofobia, a homofobia e todas as demais formas de discriminação.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ASenED": {
+   "kind": "ITEM",
+   "item": "19.2",
+   "acronym": "ASenED",
+   "title": "Ações de sensibilização em equidade e diversidade",
+   "definition": "quantidade de ações de sensibilização relacionadas à equidade e diversidade organizadas e realizadas pelo próprio órgão ou em parcerias. As ações de sensibilização englobam as ações realizadas pelo órgão que não forem classificadas como ações de capacitaç ão. Deve -se considerar para este levantamento ações específicas de temáticas voltadas a combater o racismo, o capacitismo, o etarismo, a discriminação por aparência física, a violência doméstica, a intolerância religiosa, a xenofobia, a homofobia e todas as demais formas de discriminação.",
+   "unit": "número de ações realizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPF": {
+   "kind": "ITEM",
+   "item": "19.3",
+   "acronym": "MagPF",
+   "title": "Total magistradas do sexo feminino",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas do sexo feminino no órgão, ao final do período -base, somando-se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar as juízas auxiliares convocadas para o tribunal. Para os conselhos, considerar todas as conselheiras, independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistradas",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PMagPF": {
+   "kind": "ITEM",
+   "item": "19.4",
+   "acronym": "PMagPF",
+   "title": "Percentual de magistradas do sexo feminino",
+   "definition": "percentual de cargos de magistrados(as) providos por pessoas do sexo feminino na data-base, em relação ao total de cargos de magistrados(as) providos.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PMagPF = (MagPF / MagP)",
+   "variables": [
+    {
+     "acronym": "MagPF",
+     "text": "Total de magistradas do sexo feminino, conforme item 19.3."
+    },
+    {
+     "acronym": "MagP",
+     "text": "Total de cargos de magistrados(as) providos, conforme item 1.1."
+    }
+   ],
+   "amendments": null
+  },
+  "MagPN": {
+   "kind": "ITEM",
+   "item": "19.5",
+   "acronym": "MagPN",
+   "title": "Total magistrados(as) negros(as)",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas negras no órgão ao final do período -base, somando -se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar os(as) juízes(as) auxiliares convocados(as) para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PMagPN": {
+   "kind": "ITEM",
+   "item": "19.6",
+   "acronym": "PMagPN",
+   "title": "Percentual de magistrados(as) negros(as)",
+   "definition": "percentual de cargos de magistrados(as) providos na data -base por pessoas que se autodeclararam com a raça/cor negra, ou seja, pretos(as) ou pardos(as), em relação ao total de cargos de magistrados(as) providos.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PMagPN = (MagPN / MagP)",
+   "variables": [
+    {
+     "acronym": "MagPN",
+     "text": "Total de magistrados(as) negros(as), conforme item 19.5."
+    },
+    {
+     "acronym": "MagP",
+     "text": "Total de cargos de magistrados(as) providos, conforme item 1.1."
+    }
+   ],
+   "amendments": null
+  },
+  "MagPI": {
+   "kind": "ITEM",
+   "item": "19.7",
+   "acronym": "MagPI",
+   "title": "Total de magistrados(as) indígenas",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas indígenas no órgão ao final do período -base, somando -se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superio res, considerar os juízes auxiliares convocados para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PMagPI": {
+   "kind": "ITEM",
+   "item": "19.8",
+   "acronym": "PMagPI",
+   "title": "Percentual de magistrados(as) indígenas",
+   "definition": "percentual de cargos de magistrados(as) providos na data -base por pessoas que se autodeclararam com a raça/cor indígena, em relação ao total de cargos de magistrados(as) providos.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PMagPI = (MagPI / MagP)",
+   "variables": [
+    {
+     "acronym": "MagPI",
+     "text": "Total de magistrados(as) indígenas, conforme item 19.7."
+    },
+    {
+     "acronym": "MagP",
+     "text": "Total de cargos de magistrados(as) providos, conforme item 1.1."
+    }
+   ],
+   "amendments": null
+  },
+  "MagPD": {
+   "kind": "ITEM",
+   "item": "19.9",
+   "acronym": "MagPD",
+   "title": "Total de magistrados(as) com deficiência",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas com deficiência no órgão ao final do período -base, somando -se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais s uperiores, considerar os juízes auxiliares convocados para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PMagPD": {
+   "kind": "ITEM",
+   "item": "19.10",
+   "acronym": "PMagPD",
+   "title": "Percentual de magistrados(as) com deficiência",
+   "definition": "percentual de cargos magistrados(as) providos na data-base por pessoas com deficiência, em relação ao total de cargos de magistrados(as) providos.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PMagPD = (MagPD / MagP)",
+   "variables": [
+    {
+     "acronym": "MagPD",
+     "text": "Total de magistrados(as) com deficiência, conforme item 19.9."
+    },
+    {
+     "acronym": "MagP",
+     "text": "Total de cargos de magistrados(as) providos, conforme item 1.1."
+    }
+   ],
+   "amendments": null
+  },
+  "ServC": {
+   "kind": "ITEM",
+   "item": "19.11",
+   "acronym": "ServC",
+   "title": "Total de servidores(as) ocupantes de cargo de chefia",
+   "definition": "número de servidores(as) que ocupam cargo de chefia. Incluem -se os(as) pertencentes ao quadro efetivo, os(as) cedidos(as) ou requisitados(as) para o órgão e os comissionados(as) sem vínculo. Não são computados os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServCF": {
+   "kind": "ITEM",
+   "item": "19.12",
+   "acronym": "ServCF",
+   "title": "Total de servidoras ocupantes de cargo de chefia",
+   "definition": "número de servidoras do sexo feminino que ocupam cargo de chefia. Incluem-se as pertencentes ao quadro efetivo, as cedidas ou requisitadas para o órgão e as comissionadas sem vínculo. Não são computadas as servidoras que saíram do órgão por cessão ou requisição.",
+   "unit": "servidoras",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PServCF": {
+   "kind": "ITEM",
+   "item": "19.13",
+   "acronym": "PServCF",
+   "title": "Percentual de servidoras ocupantes de cargo de chefia",
+   "definition": "percentual de servidoras do sexo feminino que ocupam cargo de chefia na data-base, em relação ao total de servidores(as) que ocupam cargo de chefia.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PServCF = (ServCF / ServC)",
+   "variables": [
+    {
+     "acronym": "ServCF",
+     "text": "Total de servidoras ocupantes de cargo de chefia, conforme item 19.12."
+    },
+    {
+     "acronym": "ServC",
+     "text": "Total de servidores(as) ocupantes de cargo de chefia, conforme item 19.11."
+    }
+   ],
+   "amendments": null
+  },
+  "ServCN": {
+   "kind": "ITEM",
+   "item": "19.14",
+   "acronym": "ServCN",
+   "title": "Total de servidores(as) negros(as) ocupantes de cargo de chefia",
+   "definition": "número de servidores(as) negros(as) que ocupam cargo de chefia. Incluem-se os(as) pertencentes ao quadro efetivo, os(as) cedidos(as) ou requisitados(as) para o órgão e comissionados(as) sem vínculo. Não são computados os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PServCN": {
+   "kind": "ITEM",
+   "item": "19.15",
+   "acronym": "PServCN",
+   "title": "Percentual de servidores(as) negros(as) ocupantes de cargo de chefia",
+   "definition": "percentual de servidores(as) que se autodeclararam como raça/cor negros(as), ou seja, pretos(as) ou pardos(as), e que ocupam cargo de chefia na data- base, em relação ao total de servidores(as) que ocupam cargo de chefia.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PServCN = (ServCN / ServC)",
+   "variables": [
+    {
+     "acronym": "ServCN",
+     "text": "Percentual de servidores(as) negros(as) ocupantes de cargo de chefia, conforme item 19.15."
+    },
+    {
+     "acronym": "ServC",
+     "text": "Total de servidores(as) ocupantes de cargo de chefia, conforme item 19.11."
+    }
+   ],
+   "amendments": null
+  },
+  "ServCI": {
+   "kind": "ITEM",
+   "item": "19.16",
+   "acronym": "ServCI",
+   "title": "Total de servidores(as) indígenas ocupantes de cargo de chefia",
+   "definition": "número de servidores(as) indígenas que ocupam cargo de chefia. Incluem-se os(as) pertencentes ao quadro efetivo, os(as) cedidos(as) ou requisitados(as) para o órgão e os comissionados(as) sem vínculo. Não são computados os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PServCI": {
+   "kind": "ITEM",
+   "item": "19.17",
+   "acronym": "PServCI",
+   "title": "Percentual de servidores(as) indígenas ocupantes de cargo de chefia",
+   "definition": "percentual de servidores(as) que se autodeclararam como raça/cor “indígena”, que ocupam cargo de chefia na data -base, em relação ao total de servidores(as) ocupantes de cargo de chefia.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PServCI = (ServCI / ServC)",
+   "variables": [
+    {
+     "acronym": "ServCI",
+     "text": "Total de servidores(as) indígenas ocupantes de cargo de chefia, conforme item 19.16"
+    },
+    {
+     "acronym": "ServC",
+     "text": "Total de servidores(as) ocupantes de cargo de chefia, conforme item 19.11."
+    }
+   ],
+   "amendments": null
+  },
+  "ServCD": {
+   "kind": "ITEM",
+   "item": "19.18",
+   "acronym": "ServCD",
+   "title": "Total de servidores(as) com deficiência ocupantes de cargo de chefia",
+   "definition": "número de servidores(as) com deficiência que ocupam cargo de chefia. Incluem-se os(as) pertencentes ao quadro efetivo, os(as) cedidos(as) ou requisitados(as) para o órgão e comissionados(as) sem vínculo. Não são computados os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PServCD": {
+   "kind": "ITEM",
+   "item": "19.19",
+   "acronym": "PServCD",
+   "title": "Percentual de servidores(as) com deficiência ocupantes de cargo de chefia",
+   "definition": "percentual de servidores(as) com deficiência ocupantes de cargo de chefia na data -base, em relação ao total de servidores(as) ocupantes de cargo de chefia.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PServCD = (ServCD / ServC)",
+   "variables": [
+    {
+     "acronym": "ServCD",
+     "text": "Total de servidores(as) com deficiência ocupantes de cargo de chefia, conforme item 19.18"
+    },
+    {
+     "acronym": "ServC",
+     "text": "Total de servidores(as) ocupantes de cargo de chefia, conforme item 19.11"
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxF": {
+   "kind": "ITEM",
+   "item": "19.20",
+   "acronym": "TFAuxF",
+   "title": "Total de mulheres da força de trabalho do quadro auxiliar",
+   "definition": "total de mulheres trabalhadoras do quadro auxiliar lotadas no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009. Consideram -se as terceirizadas, estagiárias, juízas leigas, trabalhadoras de s erventias privatizadas, conciliadoras, voluntárias, aprendizes e residentes jurídicas;",
+   "unit": "trabalhadoras auxiliares",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PTFauxF": {
+   "kind": "ITEM",
+   "item": "19.21",
+   "acronym": "PTFauxF",
+   "title": "Percentual de mulheres no quadro auxiliar",
+   "definition": "percentual de mulheres no quadro auxiliar na data -base, em relação ao total de profissionais do quadro auxiliar.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PTFauxF = (TFauxF / TFaux)",
+   "variables": [
+    {
+     "acronym": "TFauxF",
+     "text": "Total de mulheres da força de trabalho do quadro auxiliar, conforme item 19.20."
+    },
+    {
+     "acronym": "TFAux",
+     "text": "Número de profissionais do quadro auxiliar, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxN": {
+   "kind": "ITEM",
+   "item": "19.22",
+   "acronym": "TFAuxN",
+   "title": "Total de negros(as) da força de trabalho do quadro auxiliar",
+   "definition": "total de negros(as) trabalhadores(as) do quadro auxiliar lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009. Consideram -se os(as) terceirizados(as), estagiários(as), juízes(as) leigos(as), trabalhadores(as) de serventias privatizadas, conciliadores(as), voluntários(as), aprendizes e residentes jurídicos;",
+   "unit": "trabalhadores(as) auxiliares",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PTFAuxN": {
+   "kind": "ITEM",
+   "item": "19.23",
+   "acronym": "PTFAuxN",
+   "title": "Percentual de profissionais do quadro auxiliar negros(as)",
+   "definition": "percentual de profissionais do quadro auxiliar na data -base e que se autodeclararam como raça/cor negros(as), ou seja, pretos(as) ou pardos(as), em relação ao total de profissionais do quadro auxiliar.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PTFAuxN = (TFAuxN / TFAux)",
+   "variables": [
+    {
+     "acronym": "TFAuxN",
+     "text": "Total de negros(as) da força de trabalho do quadro auxiliar, conforme item 19.22."
+    },
+    {
+     "acronym": "TFAux",
+     "text": "Número de profissionais do quadro auxiliar, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxI": {
+   "kind": "ITEM",
+   "item": "19.24",
+   "acronym": "TFAuxI",
+   "title": "Total de indígenas da força de trabalho do quadro auxiliar",
+   "definition": "total de indígenas trabalhadores(as) do quadro auxiliar lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009. Consideram -se os(as) terceirizados(as), estagiários(as), juízes(as) leigos(as), trabalhadores(as) de serventias privatizadas, conciliadores(as), voluntários(as), aprendizes e residentes jurídicos;",
+   "unit": "trabalhadores(as) auxiliares",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PTFAuxI": {
+   "kind": "ITEM",
+   "item": "19.25",
+   "acronym": "PTFAuxI",
+   "title": "Percentual de profissionais do quadro auxiliar indígenas",
+   "definition": "percentual de profissionais do quadro auxiliar na data -base e que se autodeclararam como raça/cor “indígena”, em relação ao total de profissionais do quadro auxiliar.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PTFauxI = (TFauxI / TFaux)",
+   "variables": [
+    {
+     "acronym": "TFAuxI",
+     "text": "Número de profissionais do quadro auxiliar indígenas no último dia do período-base, conforme item 19.24."
+    },
+    {
+     "acronym": "TFAux",
+     "text": "Número de profissionais do quadro auxiliar, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxD": {
+   "kind": "ITEM",
+   "item": "19.26",
+   "acronym": "TFAuxD",
+   "title": "Total da força de trabalho do quadro auxiliar com deficiência",
+   "definition": "total trabalhadores(as) do quadro auxiliar com deficiência lotados(as) no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009. Consideram -se os(as) terceirizados(as), estagiários(as), juízes(as) leigos(as), trabalhadores(as) de serventias privatizadas, conciliadores(as), voluntários(as), aprendizes e residentes jurídicos;",
+   "unit": "trabalhadores(as) auxiliares",
+   "periodicity": "anual",
+   "plsJud": "serão utilizados dados do MPM/SIESPJ",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PTFAuxD": {
+   "kind": "ITEM",
+   "item": "19.27",
+   "acronym": "PTFAuxD",
+   "title": "Percentual de profissionais do quadro auxiliar com deficiência",
+   "definition": "percentual de profissionais do quadro auxiliar na data -base com deficiência, em relação ao total de profissionais do quadro auxiliar.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PTFauxD = (TFauxD / TFaux)",
+   "variables": [
+    {
+     "acronym": "TFAuxD",
+     "text": "Número de profissionais do quadro auxiliar com deficiência no último dia do período-base, conforme item 19.26."
+    },
+    {
+     "acronym": "TFAux",
+     "text": "Número de profissionais do quadro auxiliar, conforme item 1.15."
+    }
+   ],
+   "amendments": null
+  },
+  "TFAuxTFV": {
+   "kind": "ITEM",
+   "item": "19.28",
+   "acronym": "TFAuxTFV",
+   "title": "Total de trabalhadoras terceirizadas em condição de vulnerabilidade econômico-social",
+   "definition": "número total de mulheres terceirizadas que estejam em condição de vulnerabilidade econômico -social, lotadas no órgão ao final do período base, aferido com base nos glossários constantes nos anexos da Resolução CNJ nº 76/2009.",
+   "unit": "trabalhadoras terceirizadas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PTFAuxTFV": {
+   "kind": "ITEM",
+   "item": "19.29",
+   "acronym": "PTFAuxTFV",
+   "title": "Percentual de mulheres terceirizadas em condição de vulnerabilidade econômico-social",
+   "definition": "percentual de mulheres terceirizadas em condição de vulnerabilidade econômico-social, nos termos da Resolução CNJ nº 497/2023, em relação ao total de trabalhadores(as) terceirizados(as).",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PTFauxTFV = (TFauxTFV / TFauxT)",
+   "variables": [
+    {
+     "acronym": "TFAuxTFV",
+     "text": "Número de mulheres terceirizadas e que estejam em condição de vulnerabilidade econômico-social, considerando os grupos constantes do art. 2º da Resolução CNJ nº 497/2023: I – mulheres vítimas de violência física, moral, patrimonial, psicológica ou sexual, em razão do gênero, no contexto doméstico e familiar; II – mulheres trans e travestis; III – mulheres migrantes e refugiadas; IV – mulheres em situação de rua; V – mulheres egressas do sistema prisional; e VI – mulheres indígenas, campesinas e quilombolas."
+    },
+    {
+     "acronym": "TFAuxT",
+     "text": "Total de trabalhadores(as) terceirizado(as), conforme item 1.7. Os itens 19.30 a 19.43 destinam -se ao monitoramento do disposto no art. 2º, III da Resolução CNJ 255/2018, na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Os dados deverão ser preenchidos no PLS-Jud."
+    }
+   ],
+   "amendments": null
+  },
+  "MagPG": {
+   "kind": "ITEM",
+   "item": "19.30",
+   "acronym": "MagPG",
+   "title": "Total de magistrados(as) na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados(as) providos que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período -base, somando -se todos os graus de jurisdição, conforme fórmulas e glossários constan tes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar os(as) juízes(as) auxiliares convocados(as) para o tribunal. Para os conselhos, considerar todos os(as) conselheiros(as), independentemente de serem ou não pert encentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPGF": {
+   "kind": "ITEM",
+   "item": "19.31",
+   "acronym": "MagPGF",
+   "title": "Total de magistradas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas do sexo feminino que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período-base, somando-se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar as juízas auxiliares convocadas para o tribunal. Para os conselhos, considerar todas as conselheiras, independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistradas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPGFN": {
+   "kind": "ITEM",
+   "item": "19.32",
+   "acronym": "MagPGFN",
+   "title": "Total de magistradas do sexo feminino e negras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas do sexo feminino e negras que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período-base, somando-se todos os graus de jurisdição, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar as juízas auxiliares convocadas para o tribunal. Para os conselhos, considerar todas as conselheiras, independentemente de serem ou não pertencentes à magistratura. São consideradas como negras as que se autodeclararam como pretas ou pardas, segundo cadastro do MPM.",
+   "unit": "magistradas",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPGMN": {
+   "kind": "ITEM",
+   "item": "19.33",
+   "acronym": "MagPGMN",
+   "title": "Total de magistrados do sexo masculino e negros na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados providos por pessoas do sexo masculino e negras que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período-base, somando-se todos os graus de jurisdição, con forme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar os juízes auxiliares convocados para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independent emente de serem ou não pertencentes à magistratura. São considerados como negros os que se autodeclararam como preto ou pardo, segundo cadastro do MPM.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPGFI": {
+   "kind": "ITEM",
+   "item": "19.34",
+   "acronym": "MagPGFI",
+   "title": "Total de magistradas do sexo feminino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas do sexo feminino e indígenas que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período-base, somando- se todos os graus de jurisdiçã o, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar os(as) juízes(as) auxiliares convocados(as) para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MagPGMI": {
+   "kind": "ITEM",
+   "item": "19.35",
+   "acronym": "MagPGMI",
+   "title": "Total de magistrados do sexo masculino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número total de cargos de magistrados(as) providos por pessoas do sexo masculino e indígenas que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação no órgão ao final do período-base, somando- se todos os graus de jurisdiç ão, conforme fórmulas e glossários constantes nos anexos da Resolução CNJ nº 76/2009. Para os tribunais superiores, considerar os(as) juízes(as) auxiliares convocados(as) para o tribunal. Para os conselhos, considerar todos(as) os(as) conselheiros(as), independentemente de serem ou não pertencentes à magistratura.",
+   "unit": "magistrados(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServG": {
+   "kind": "ITEM",
+   "item": "19.36",
+   "acronym": "ServG",
+   "title": "Total de servidores(as) na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidores(as) que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem -se os pertencentes ao quadro efetivo, os(as) cedidos(as) ou requisitados(as) para o órgão e comissionados(as) sem vínculo. Não são computados(as) os(as) servidores(as) que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServGF": {
+   "kind": "ITEM",
+   "item": "19.37",
+   "acronym": "ServGF",
+   "title": "Total de servidoras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidoras do sexo feminino que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem -se as pertencentes ao quadro efetivo, as cedidas ou requisitadas para o órgão e as comissionadas sem vínculo. Não são computadas as servidoras que saíram do órgão por cessão ou requisição.",
+   "unit": "servidoras",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServGFN": {
+   "kind": "ITEM",
+   "item": "19.38",
+   "acronym": "ServGFN",
+   "title": "Total de servidoras do sexo feminino e negras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidoras negras que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem -se as pertencentes ao quadro efetivo, as cedidas ou requisitadas para o órgão e as comissionadas sem vínculo. Não são computadas as servidoras que saíram do órgão por cessão ou requisição. São consideradas como negras as que se autodeclararam como preta ou parda, segundo cadastro do MPM.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServGMN": {
+   "kind": "ITEM",
+   "item": "19.39",
+   "acronym": "ServGMN",
+   "title": "Total de servidores do sexo masculino e negros na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidores do sexo masculino e negros que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem-se os pertencentes ao quadro efetivo, os cedidos ou requisitados para o órgão e os comissionados sem vínculo. Não são computados os servidores que saíram do órgão por cessão ou requisição. São considerados como negros os que se autodeclararam como preto ou pardo, segundo cadastro do MPM.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServGFI": {
+   "kind": "ITEM",
+   "item": "19.40",
+   "acronym": "ServGFI",
+   "title": "Total de servidoras do sexo feminino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidoras do sexo feminino e indígenas que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem-se as pertencentes ao quadro efetivo, as cedidas ou requisitadas para o órgão e as comissionadas sem víncu lo. Não são computadas as servidoras que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "ServGMI": {
+   "kind": "ITEM",
+   "item": "19.41",
+   "acronym": "ServGMI",
+   "title": "Total de servidores do sexo masculino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "número de servidores do sexo masculino e indígenas que integram comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação. Incluem-se os pertencentes ao quadro efetivo, os cedidos ou requisitados para o órgão e os comissionados sem vínculo. Não são computados os servidores que saíram do órgão por cessão ou requisição.",
+   "unit": "servidores(as)",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "PGF": {
+   "kind": "ITEM",
+   "item": "19.42",
+   "acronym": "PGF",
+   "title": "Percentual de mulheres na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "percentual de mulheres magistradas e servidoras integrantes de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação na data-base, em relação ao total de magistrados(as) e servidores(as) integrantes de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação na data-base.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PGF = (MagPGF + ServGF) / (MagPG + ServGP)",
+   "variables": [
+    {
+     "acronym": "MagPGF",
+     "text": "Total de magistradas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.31"
+    },
+    {
+     "acronym": "ServGF",
+     "text": "Total de servidoras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.37."
+    },
+    {
+     "acronym": "MagPG",
+     "text": "Total de magistrados(as) na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.30."
+    },
+    {
+     "acronym": "ServG",
+     "text": "Total de servidores(as) na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.36."
+    }
+   ],
+   "amendments": null
+  },
+  "PGFNI": {
+   "kind": "ITEM",
+   "item": "19.43",
+   "acronym": "PGFNI",
+   "title": "Percentual de mulheres negras ou indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação",
+   "definition": "percentual de mulheres magistradas e servidoras negras ou indígenas integrantes de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação na data-base, em relação ao total de magistradas e servidoras integrantes de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação na data-base.",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "cálculo automático",
+   "formula": "PGF = (MagPGFN + MagPGFI + ServGFN + ServGFI) / (MagPGF + ServGF)",
+   "variables": [
+    {
+     "acronym": "MagPGFN",
+     "text": "Total de magistradas do sexo feminino e negras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.32."
+    },
+    {
+     "acronym": "MagPGFI",
+     "text": "Total de magistradas do sexo feminino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.34."
+    },
+    {
+     "acronym": "MagPGF",
+     "text": "Total de magistradas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.31."
+    },
+    {
+     "acronym": "ServGFN",
+     "text": "Total de servidoras do sexo feminino e negras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.38."
+    },
+    {
+     "acronym": "ServGFI",
+     "text": "Total de servidoras do sexo feminino e indígenas na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.40."
+    },
+    {
+     "acronym": "ServGF",
+     "text": "Total de servidoras na composição de comissões, comitês, grupos de trabalho ou outros coletivos de livre indicação, conforme item 19.37."
+    }
+   ],
+   "amendments": null
+  },
+  "GEE-Esc1": {
+   "kind": "FORA"
+  },
+  "GEE-Esc2": {
+   "kind": "FORA"
+  },
+  "GEE-Esc3": {
+   "kind": "VARIAVEL",
+   "item": "20.2.5",
+   "acronym": "GEE3",
+   "title": "total de emissões diretas e indiretas inventariadas no escopo 3",
+   "definition": "total de emissões diretas e indiretas inventariadas no escopo 3",
+   "parent": {
+    "item": "20.2.5",
+    "acronym": "Inv5",
+    "title": "Quantidade de Emissões de GEE",
+    "formula": "GEE = GEE1e2 + GEE3",
+    "unit": "Toneladas métricas de CO2 equivalente (tCO2e)",
+    "periodicity": "Anual"
+   }
+  },
+  "GEE-Tot": {
+   "kind": "FORA"
+  },
+  "GEE-PC": {
+   "kind": "FORA"
+  },
+  "GEE-Comp": {
+   "kind": "VARIAVEL",
+   "item": "20.4.3",
+   "acronym": "GEEComp",
+   "title": "Total de emissões de GEE compensadas.",
+   "definition": "Total de emissões de GEE compensadas.",
+   "parent": {
+    "item": "20.4.3",
+    "acronym": "CompGEE4",
+    "title": "Percentual de Emissões de GEE compensadas",
+    "formula": "GEEComp / GEE",
+    "unit": "Percentual (%)",
+    "periodicity": "Anual"
+   }
+  },
+  "ANT": {
+   "kind": "FORA"
+  },
+  "RDC": {
+   "kind": "ITEM",
+   "item": "21.1",
+   "acronym": "RDC",
+   "title": "Redução de custos decorrentes da adoção de novas tecnologias ou processos",
+   "definition": "percentual que representa a economia realizada após a implementação de novas tecnologias ou processos",
+   "unit": "percentual",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": "RDC = (custos antes da implementação da nova tecnologia ou processo – custos após a implementação)/custos antes",
+   "variables": null,
+   "amendments": [
+    "Resolução n. 641, de 22.9.2025"
+   ]
+  },
+  "VHib": {
+   "kind": "VARIAVEL",
+   "item": "20.3.4",
+   "acronym": "VAltH",
+   "title": "quantidade de veículos híbridos, ou seja, movidos por fontes alternativas e, também, por outras formas de combustão (gas",
+   "definition": "quantidade de veículos híbridos, ou seja, movidos por fontes alternativas e, também, por outras formas de combustão (gasolina, etanol ou diesel)",
+   "parent": {
+    "item": "20.3.4",
+    "acronym": "RedGEE4",
+    "title": "Percentual da frota de veículos sustentáveis",
+    "formula": "RedGEE4 = (VAltE + VAltH) / QVe",
+    "unit": "percentual (%)",
+    "periodicity": "Anual"
+   }
+  },
+  "GOT": {
+   "kind": "ITEM",
+   "item": "13.15",
+   "acronym": "GOT",
+   "title": "Gasto com outros tipos de transportes",
+   "definition": "gastos com passagens aéreas, transporte fluvial, rodoviário, ferroviário entre outros.",
+   "unit": "reais",
+   "periodicity": "anual",
+   "plsJud": "preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "MSedeInv": {
+   "kind": "VARIAVEL",
+   "item": "20.2.2",
+   "acronym": "MSedeInv",
+   "title": "número de municípios-sede abrangidos no inventário",
+   "definition": "número de municípios-sede abrangidos no inventário",
+   "parent": {
+    "item": "20.2.2",
+    "acronym": "Inv2",
+    "title": "Abrangência do Inventário de Emissões",
+    "formula": "MSedeInv / MSede",
+    "unit": "percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "Inv3": {
+   "kind": "ITEM",
+   "item": "20.2.3",
+   "acronym": "Inv3",
+   "title": "Inclusão de emissões dos Escopos 1, 2 e 3 no Inventário de Emissões",
+   "definition": "inclusão no inventário de emissões da quantificação de emissões dos Escopos 1, 2 ou 3.",
+   "unit": "Deverá ser informado 1 ou 2 ou 3, de acordo com o escopo considerado no inventário",
+   "periodicity": "Anual",
+   "plsJud": "Preencher",
+   "formula": null,
+   "variables": [
+    {
+     "acronym": "Escopo1",
+     "text": "emissões diretas de Gases de Efeito Estufa (GEE), de fontes próprias ou controladas pela unidade judiciária inventariantes"
+    },
+    {
+     "acronym": "Escopo2",
+     "text": "emissões indiretas de Gases de Efeito Estufa (GEE) associadas à geração de energia elétrica e/ou térmica comprada ou trazida para dentro dos limites organizacionais da unidade judiciária"
+    },
+    {
+     "acronym": "Escopo3",
+     "text": "emissões indiretas de Gases de Efeito Estufa (GEE), não abrangidas na Etapa 2, em fontes que não sejam de propriedade e/ou controle da unidade judiciária."
+    }
+   ],
+   "amendments": null
+  },
+  "Inv4": {
+   "kind": "ITEM",
+   "item": "20.2.4",
+   "acronym": "Inv4",
+   "title": "Verificação de inventário de emissões",
+   "definition": "realização de verificação do inventário de emissões por organismo independente e acreditado, com avaliação da precisão e integridade das informações reportadas e da conformidade da metodologia utilizada.",
+   "unit": "Não se aplica, uma vez que deve ser respondido “sim” ou “não”, sobre se verificado ou não o inventário",
+   "periodicity": "Anual",
+   "plsJud": "Preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "GEE1e2": {
+   "kind": "VARIAVEL",
+   "item": "20.2.5",
+   "acronym": "GEE1e2",
+   "title": "total de emissões diretas e indiretas inventariadas nos escopos 1 e 2",
+   "definition": "total de emissões diretas e indiretas inventariadas nos escopos 1 e 2",
+   "parent": {
+    "item": "20.2.5",
+    "acronym": "Inv5",
+    "title": "Quantidade de Emissões de GEE",
+    "formula": "GEE = GEE1e2 + GEE3",
+    "unit": "Toneladas métricas de CO2 equivalente (tCO2e)",
+    "periodicity": "Anual"
+   }
+  },
+  "AC1": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC1",
+   "title": "Energias renováveis",
+   "definition": "Energias renováveis: ações realizadas no ano-base para ampliar o uso de fontes alternativas de energia, como por exemplo a implementação de sistemas fotovoltaicos pelo órgão ou de projetos para recebimento de energia proveniente de usinas solares externas",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC2": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC2",
+   "title": "Eficiência energética",
+   "definition": "Eficiência energética: ações realizadas no ano-base voltadas para ampliação da eficiência energética, tais como substituição de lâmpadas fluorescentes por LED, implantação de práticas de eficiência energética e de sistemas automatizados de gestão de energia, entre outros",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC3": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC3",
+   "title": "Consumo sustentável da água",
+   "definition": "Consumo sustentável da água: ações realizadas no ano-base voltadas ao consumo sustentável de água, tais como reutilização da água, substituição de descargas, uso de torneiras automáticas, orientações e campanhas para profissionais da limpeza, entre outras",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC4": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC4",
+   "title": "Transporte sustentável",
+   "definition": "Transporte sustentável: ações realizadas no ano-base voltadas à redução de emissões de GEE no transporte, tais como aquisição de veículos elétricos ou híbridos, abastecimento preferencial da frota com etanol, incentivo à mobilidade sustentável (bicicletas, caronas, infraestrutura para veículos elétricos etc.)",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC5": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC5",
+   "title": "Contratações sustentáveis",
+   "definition": "Contratações sustentáveis: ações realizadas no ano-base voltadas às práticas de gestão sustentável, racionalização e consumo consciente e observância de critérios de sustentabilidade das aquisições e contratações, conforme critérios da Resolução CNJ nº 400/2021. Não devem ser informadas as quantidades de contratações sustentáveis, já contabilizadas na variável “16.2 ACS”, mas sim as práticas realizadas para sua promoção",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC6": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC6",
+   "title": "Destinação adequada de resíduos",
+   "definition": "Destinação adequada de resíduos: ações realizadas no ano-base voltadas à redução da geração de resíduos e de sua destinação ambientalmente correta, tais como práticas de reutilização, reciclagem, compostagem, postos de coleta de pilhas, lâmpadas, baterias etc. Não devem ser informadas as quantidades de resíduos destinados, já contemplados nos indicadores do Capítulo 8 do Anexo, mas sim as ações realizadas para sua promoção, tais como campanhas de conscientização, capacitação, treinamentos, práticas de compostagem e de reutilização praticadas no órgão, acordos com cooperativas etc.",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC7": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC7",
+   "title": "Reengenharia de ocupação de espaços",
+   "definition": "Reengenharia de ocupação de espaços: medidas para ocupação mais eficiente de ambientes físicos, de modo a reduzir a quantidade de espaço necessário para a prestação de serviços.",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "AC8": {
+   "kind": "VARIAVEL",
+   "item": "20.3.1",
+   "acronym": "AC8",
+   "title": "outras ações",
+   "definition": "outras ações: outras ações realizadas no ano-base, não computadas nos indicadores AC1, AC2, AC3, AC4, AC5, AC6 e AC7.",
+   "parent": {
+    "item": "20.3.1",
+    "acronym": "RedGEE1",
+    "title": "Número de Ações de Redução de Emissões de GEE",
+    "formula": "RedGEE1 = AC1 + AC2 + AC3 + AC4 + AC5 + AC6 + AC7 + AC8",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual. As descrições das ações deverão constar no relatório previsto no art. 10-A da Resolução CNJ n. 400/2021, bem como no Plano de Descarbonização"
+   }
+  },
+  "CEEs": {
+   "kind": "VARIAVEL",
+   "item": "20.3.2",
+   "acronym": "CEEs",
+   "title": "Energia Solar",
+   "definition": "Energia Solar: energia consumida pelo órgão proveniente de fonte solar",
+   "parent": {
+    "item": "20.3.2",
+    "acronym": "RedGEE2",
+    "title": "Percentual de energia renovável utilizada",
+    "formula": "RedGEE2 = (CEEs + CEEe + CEEm + CEEg + CEEo) / (CEEs + CEEe + CEEm + CEEg + CEEo + CEE)",
+    "unit": "as variáveis são informadas em KWh e o indicador RedGEE2 será apresentado em percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "CEEe": {
+   "kind": "VARIAVEL",
+   "item": "20.3.2",
+   "acronym": "CEEe",
+   "title": "Energia Eólica",
+   "definition": "Energia Eólica: energia consumida pelo órgão proveniente de fonte eólica",
+   "parent": {
+    "item": "20.3.2",
+    "acronym": "RedGEE2",
+    "title": "Percentual de energia renovável utilizada",
+    "formula": "RedGEE2 = (CEEs + CEEe + CEEm + CEEg + CEEo) / (CEEs + CEEe + CEEm + CEEg + CEEo + CEE)",
+    "unit": "as variáveis são informadas em KWh e o indicador RedGEE2 será apresentado em percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "CEEm": {
+   "kind": "VARIAVEL",
+   "item": "20.3.2",
+   "acronym": "CEEm",
+   "title": "Energia Maremotriz",
+   "definition": "Energia Maremotriz: energia consumida pelo órgão proveniente de fonte maremotriz",
+   "parent": {
+    "item": "20.3.2",
+    "acronym": "RedGEE2",
+    "title": "Percentual de energia renovável utilizada",
+    "formula": "RedGEE2 = (CEEs + CEEe + CEEm + CEEg + CEEo) / (CEEs + CEEe + CEEm + CEEg + CEEo + CEE)",
+    "unit": "as variáveis são informadas em KWh e o indicador RedGEE2 será apresentado em percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "CEEg": {
+   "kind": "VARIAVEL",
+   "item": "20.3.2",
+   "acronym": "CEEg",
+   "title": "Energia Geotérmica",
+   "definition": "Energia Geotérmica: energia consumida pelo órgão proveniente de fonte geotérmica",
+   "parent": {
+    "item": "20.3.2",
+    "acronym": "RedGEE2",
+    "title": "Percentual de energia renovável utilizada",
+    "formula": "RedGEE2 = (CEEs + CEEe + CEEm + CEEg + CEEo) / (CEEs + CEEe + CEEm + CEEg + CEEo + CEE)",
+    "unit": "as variáveis são informadas em KWh e o indicador RedGEE2 será apresentado em percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "CEEo": {
+   "kind": "VARIAVEL",
+   "item": "20.3.2",
+   "acronym": "CEEo",
+   "title": "Energia de outras fontes renováveis",
+   "definition": "Energia de outras fontes renováveis: energia consumida pelo órgão proveniente de outras fontes renováveis, não consideradas nos indicadores CEEs, CEEe, CEEm e CEEg",
+   "parent": {
+    "item": "20.3.2",
+    "acronym": "RedGEE2",
+    "title": "Percentual de energia renovável utilizada",
+    "formula": "RedGEE2 = (CEEs + CEEe + CEEm + CEEg + CEEo) / (CEEs + CEEe + CEEm + CEEg + CEEo + CEE)",
+    "unit": "as variáveis são informadas em KWh e o indicador RedGEE2 será apresentado em percentual",
+    "periodicity": "Anual"
+   }
+  },
+  "IEEs": {
+   "kind": "VARIAVEL",
+   "item": "20.3.3",
+   "acronym": "IEEs",
+   "title": "Energia Solar",
+   "definition": "Energia Solar: total de KWh injetados na rede de energia elétrica provenientes de fonte solar",
+   "parent": {
+    "item": "20.3.3",
+    "acronym": "RedGEE3",
+    "title": "Energia elétrica injetada na rede de energia por sistemas de fontes alternativas",
+    "formula": "RedGEE3 = IEEs + IEEe + IEEm + IEEg + IEEo",
+    "unit": "KWh",
+    "periodicity": "Anual"
+   }
+  },
+  "IEEe": {
+   "kind": "VARIAVEL",
+   "item": "20.3.3",
+   "acronym": "IEEe",
+   "title": "Energia Eólica",
+   "definition": "Energia Eólica: total de KWh injetados na rede de energia elétrica provenientes de fonte eólica",
+   "parent": {
+    "item": "20.3.3",
+    "acronym": "RedGEE3",
+    "title": "Energia elétrica injetada na rede de energia por sistemas de fontes alternativas",
+    "formula": "RedGEE3 = IEEs + IEEe + IEEm + IEEg + IEEo",
+    "unit": "KWh",
+    "periodicity": "Anual"
+   }
+  },
+  "IEEm": {
+   "kind": "VARIAVEL",
+   "item": "20.3.3",
+   "acronym": "IEEm",
+   "title": "Energia Maremotriz",
+   "definition": "Energia Maremotriz: total de KWh injetados na rede de energia elétrica provenientes de fonte maremotriz",
+   "parent": {
+    "item": "20.3.3",
+    "acronym": "RedGEE3",
+    "title": "Energia elétrica injetada na rede de energia por sistemas de fontes alternativas",
+    "formula": "RedGEE3 = IEEs + IEEe + IEEm + IEEg + IEEo",
+    "unit": "KWh",
+    "periodicity": "Anual"
+   }
+  },
+  "IEEg": {
+   "kind": "VARIAVEL",
+   "item": "20.3.3",
+   "acronym": "IEEg",
+   "title": "Energia Geotérmica",
+   "definition": "Energia Geotérmica: total de KWh injetados na rede de energia elétrica provenientes de fonte geotérmica",
+   "parent": {
+    "item": "20.3.3",
+    "acronym": "RedGEE3",
+    "title": "Energia elétrica injetada na rede de energia por sistemas de fontes alternativas",
+    "formula": "RedGEE3 = IEEs + IEEe + IEEm + IEEg + IEEo",
+    "unit": "KWh",
+    "periodicity": "Anual"
+   }
+  },
+  "IEEo": {
+   "kind": "VARIAVEL",
+   "item": "20.3.3",
+   "acronym": "IEEo",
+   "title": "Energia de outras fontes renováveis",
+   "definition": "Energia de outras fontes renováveis: total de KWh injetados na rede de energia elétrica provenientes de outras fontes renováveis, não consideradas nos indicadores IEEs, IEEe, IEEm e IEEg. O valor de RedGEE3 deve corresponder ao valor do indicador 6.7 (kWhI, que mede o total de energia injetada na rede de energia elétrica).",
+   "parent": {
+    "item": "20.3.3",
+    "acronym": "RedGEE3",
+    "title": "Energia elétrica injetada na rede de energia por sistemas de fontes alternativas",
+    "formula": "RedGEE3 = IEEs + IEEe + IEEm + IEEg + IEEo",
+    "unit": "KWh",
+    "periodicity": "Anual"
+   }
+  },
+  "TMC": {
+   "kind": "VARIAVEL",
+   "item": "20.3.5",
+   "acronym": "TMC",
+   "title": "Total de resíduos compostados",
+   "definition": "Total de resíduos compostados",
+   "parent": {
+    "item": "20.3.5",
+    "acronym": "RedGEE5",
+    "title": "Total de Resíduos Reciclados ou Compostados",
+    "formula": "RedGEE5 = (TMR + TMC)",
+    "unit": "quilogramas (kg)",
+    "periodicity": "Anual"
+   }
+  },
+  "CompGEE": {
+   "kind": "ITEM",
+   "item": "20.4.1",
+   "acronym": "CompGEE",
+   "title": "Número de Ações de Compensação de Emissões de GEE",
+   "definition": "número de ações para compensação de emissões de GEE, como medidas ou projetos de florestamento, reflorestamento e revegetação, aquisição de créditos de carbono conforme disciplina legal e/ou regulação do CNJ. Cada projeto deve ser contado apenas como uma ação.",
+   "unit": "número absoluto de ações",
+   "periodicity": "Anual",
+   "plsJud": "preencher. As ações detalhadas deverão constar do Plano de Descarbonização",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "CompGEE2": {
+   "kind": "ITEM",
+   "item": "20.4.2",
+   "acronym": "CompGEE2",
+   "title": "Verificação das medidas de compensação",
+   "definition": "verificação das medidas de compensação adotadas por entidade independente e acreditada, quando possível.",
+   "unit": "Não se aplica, uma vez que deve ser respondido “sim” ou “não”",
+   "periodicity": "Anual",
+   "plsJud": "Preencher",
+   "formula": null,
+   "variables": null,
+   "amendments": null
+  },
+  "AIncent": {
+   "kind": "VARIAVEL",
+   "item": "20.5.2",
+   "acronym": "AInc",
+   "title": "ações de incentivo a práticas de sustentabilidade, como premiações, reconhecimento público etc.",
+   "definition": "ações de incentivo a práticas de sustentabilidade, como premiações, reconhecimento público etc.",
+   "parent": {
+    "item": "20.5.2",
+    "acronym": "CultGEE2",
+    "title": "Número de Ações de capacitação e de sensibilização de Emissões de GEE e incentivos a práticas sustentáveis",
+    "formula": "CultGEE2 = ACap + ASen + AInc",
+    "unit": "número absoluto de ações",
+    "periodicity": "Anual"
+   }
+  },
+  "ServCInv": {
+   "kind": "VARIAVEL",
+   "item": "20.5.1",
+   "acronym": "ServCI",
+   "title": "Total de servidores que, ao final do período-base, estavam capacitados para elaborar inventários, independentemente do a",
+   "definition": "Total de servidores que, ao final do período-base, estavam capacitados para elaborar inventários, independentemente do ano que realizou a capacitação.",
+   "parent": {
+    "item": "20.5.1",
+    "acronym": "CultGEE1",
+    "title": "Percentual de servidores(as) capacitados(as) para elaborar inventários",
+    "formula": "CultGEE1 = ServCI / Serv",
+    "unit": "número absoluto de servidores capacitados",
+    "periodicity": "Anual"
+   }
+  }
+ }
+}
