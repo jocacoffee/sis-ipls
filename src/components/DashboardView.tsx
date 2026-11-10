@@ -80,6 +80,7 @@ import {
   getGeneralVariablesSummary
 } from '../utils/generalVariablesUtils';
 import { getPlsCycleForYear } from '../utils/yearUtils';
+import { calculateCNJIDS, scopeForOrganization } from '../services/idsCalculator';
 
 interface DashboardViewProps {
   indicators: Indicator[];
@@ -625,36 +626,83 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const trainingTarget = getTargetForIndicator('indicator-16-1', selectedYear, 12);
   const contractsTarget = getTargetForIndicator('indicator-15-1', selectedYear, 90);
 
-  const maxEvalMonth = currYear === 2026 ? 8 : 12;
+  // Combustível total = gasolina + etanol + diesel (CG + CE + CD)
+  const fuelSeriesParts = ['indicator-14-1', 'indicator-14-2', 'indicator-14-3'].map(getSeries);
+  const sumSeries = (pick: (s: ReturnType<typeof getSeries>) => (number | null)[]) =>
+    Array.from({ length: 12 }, (_, i) => {
+      const vals = fuelSeriesParts.map(s => pick(s)[i]).filter((v): v is number => v !== null);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+    });
+  const fuelTotalSeries = { dataCurr: sumSeries(s => s.dataCurr), dataPrev: sumSeries(s => s.dataPrev) };
+
+  // Período avaliado: até o último mês com dado no exercício (comparação com o mesmo período do ano anterior)
+  const lastMonthWithData = (series: (number | null)[]) => {
+    for (let i = 11; i >= 0; i--) if (series[i] !== null) return i + 1;
+    return 0;
+  };
+  const maxEvalMonth =
+    Math.max(
+      lastMonthWithData(energySeries.dataCurr),
+      lastMonthWithData(fuelTotalSeries.dataCurr),
+      lastMonthWithData(mileageSeries.dataCurr)
+    ) || 12;
   const sumEvalPeriod = (series: (number | null)[]) =>
     series.slice(0, maxEvalMonth).filter((v): v is number => v !== null).reduce((a, b) => a + b, 0);
+  const evalPeriodLabel = maxEvalMonth < 12 ? `jan–${['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][maxEvalMonth - 1]}` : '';
+  const hasTargetFor = (...ids: string[]) => targets.some(t => ids.includes(t.indicatorId) && t.year === selectedYear);
+  const fmtMonthlyTarget = (ids: string[], annual: number) =>
+    hasTargetFor(...ids) ? `${Math.round(annual / 12).toLocaleString('pt-BR')}/mês` : 'sem meta definida';
 
   const energy26 = sumEvalPeriod(energySeries.dataCurr);
   const energy25 = sumEvalPeriod(energySeries.dataPrev);
   const energyDelta = energy25 > 0 ? ((energy26 - energy25) / energy25) * 100 : 0;
 
-  const fuel26 = sumEvalPeriod(fuelSeries.dataCurr);
-  const fuel25 = sumEvalPeriod(fuelSeries.dataPrev);
+  const fuel26 = sumEvalPeriod(fuelTotalSeries.dataCurr);
+  const fuel25 = sumEvalPeriod(fuelTotalSeries.dataPrev);
+  const fuelTotalTarget = ['indicator-14-1', 'indicator-14-2', 'indicator-14-3']
+    .reduce((acc, id) => acc + getTargetForIndicator(id, selectedYear), 0);
   const fuelDelta = fuel25 > 0 ? ((fuel26 - fuel25) / fuel25) * 100 : 0;
 
   const km26 = sumEvalPeriod(mileageSeries.dataCurr);
   const km25 = sumEvalPeriod(mileageSeries.dataPrev);
   const kmDelta = km25 > 0 ? ((km26 - km25) / km25) * 100 : 0;
 
-  const ispDimensions = [
-    { name: 'Energia Elétrica (CEE / CRE)', score: 79, weight: 20, status: 'ATENCAO' as const },
-    { name: 'Água e Efluentes (CA / CRA)', score: 95, weight: 15, status: 'EXCELENTE' as const },
-    { name: 'Combustível e Eficiência da Frota (CG / Km)', score: 92, weight: 15, status: 'EXCELENTE' as const },
-    { name: 'Eliminação de Copos Plásticos (Descarte Zero)', score: 100, weight: 10, status: 'EXCELENTE' as const },
-    { name: 'Papel A4 e Impressões (CPP / QI)', score: 91, weight: 15, status: 'EXCELENTE' as const },
-    { name: 'Destinação de Resíduos Recicláveis (TMR)', score: 94, weight: 10, status: 'EXCELENTE' as const },
-    { name: 'Telefonia e Telecomunicações (GTF)', score: 72, weight: 15, status: 'ATENCAO' as const }
-  ];
-
-  const currentIspScore = Number(
-    ispDimensions.reduce((acc, d) => acc + (d.score * d.weight) / 100, 0).toFixed(1)
+  // Índice PLS = IDS (Res. CNJ 400) calculado com os mesmos dados e regras do relógio do IDS
+  const idsScope = scopeForOrganization(organization);
+  const idsCtx = useMemo(
+    () => ({ indicators, complements: idsComplements, organization }),
+    [indicators, idsComplements, organization]
   );
-  const previousYearIsp = 81.2;
+  const idsCurrent = useMemo(
+    () => calculateCNJIDS(measurements, currYear, { scope: idsScope, context: idsCtx }),
+    [measurements, currYear, idsScope, idsCtx]
+  );
+  const idsPrevious = useMemo(
+    () => (prevYear < currYear ? calculateCNJIDS(measurements, prevYear, { scope: idsScope, context: idsCtx }) : null),
+    [measurements, prevYear, currYear, idsScope, idsCtx]
+  );
+  const currentIspScore = Number(idsCurrent.idsScore.toFixed(1));
+  const previousYearIsp = idsPrevious?.hasScore ? Number(idsPrevious.idsScore.toFixed(1)) : currentIspScore;
+  const idsDelta = idsPrevious?.hasScore && idsCurrent.hasScore ? currentIspScore - previousYearIsp : null;
+
+  // Dimensões do IDS agrupadas por categoria dos subindicadores (pontuação 0–100 e peso efetivo)
+  const ispDimensions = useMemo(() => {
+    const labels: Record<string, string> = {
+      UTILIDADES: 'Utilidades (energia, água, telefonia)',
+      MATERIAIS: 'Materiais e resíduos (papel, copos, resíduos)',
+      FROTA: 'Frota e combustíveis',
+      GESTAO_PESSOAS: 'Gestão de pessoas (capacitação e paridade)'
+    };
+    return Object.entries(labels)
+      .map(([cat, name]) => {
+        const items = idsCurrent.subIndicators.filter(i => i.category === cat && i.available);
+        const weight = items.reduce((a, i) => a + i.weightPct, 0);
+        const score = weight > 0 ? items.reduce((a, i) => a + i.normalizedValue * 100 * i.weightPct, 0) / weight : 0;
+        const status = score >= 80 ? 'EXCELENTE' as const : score >= 60 ? 'BOM' as const : score >= 40 ? 'ATENCAO' as const : 'CRITICO' as const;
+        return { name, score: Math.round(score), weight: Math.round(weight), status };
+      })
+      .filter(d => d.weight > 0);
+  }, [idsCurrent]);
 
   // Filtragem de indicadores para o catálogo da modal
   const allAvailableCardsForCatalog = useMemo(() => {
@@ -1428,7 +1476,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ) : (
                 <>
                   {energyDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                  {energyDelta > 0 ? `+${energyDelta.toFixed(1)}%` : `${energyDelta.toFixed(1)}%`} vs {prevYear}
+                  {energyDelta > 0 ? `+${energyDelta.toFixed(1)}%` : `${energyDelta.toFixed(1)}%`} vs {prevYear}{evalPeriodLabel && ` (${evalPeriodLabel})`}
                 </>
               )}
             </span>
@@ -1440,7 +1488,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
               <span>Média: <strong>{energy26 > 0 ? Math.round(energy26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> kWh/mês</span>
-              <span>Meta: <strong>{Math.round(energyTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Meta: <strong>{fmtMonthlyTarget(['indicator-6-1'], energyTarget)}</strong></span>
             </div>
           </div>
         </div>
@@ -1468,7 +1516,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ) : (
                 <>
                   {fuelDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                  {fuelDelta > 0 ? `+${fuelDelta.toFixed(1)}%` : `${fuelDelta.toFixed(1)}%`} vs {prevYear}
+                  {fuelDelta > 0 ? `+${fuelDelta.toFixed(1)}%` : `${fuelDelta.toFixed(1)}%`} vs {prevYear}{evalPeriodLabel && ` (${evalPeriodLabel})`}
                 </>
               )}
             </span>
@@ -1476,11 +1524,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="mt-3">
             <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
               {Math.round(fuel26).toLocaleString('pt-BR')}{' '}
-              <span className="text-xs font-normal text-slate-400">litros</span>
+              <span className="text-xs font-normal text-slate-400" title="Gasolina + etanol + diesel (CG + CE + CD)">litros (CG+CE+CD)</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
               <span>Média: <strong>{fuel26 > 0 ? Math.round(fuel26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> L/mês</span>
-              <span>Meta: <strong>{Math.round(fuelTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Meta: <strong>{fmtMonthlyTarget(['indicator-14-1', 'indicator-14-2', 'indicator-14-3'], fuelTotalTarget)}</strong></span>
             </div>
           </div>
         </div>
@@ -1508,7 +1556,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ) : (
                 <>
                   {kmDelta <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                  {kmDelta > 0 ? `+${kmDelta.toFixed(1)}%` : `${kmDelta.toFixed(1)}%`} vs {prevYear}
+                  {kmDelta > 0 ? `+${kmDelta.toFixed(1)}%` : `${kmDelta.toFixed(1)}%`} vs {prevYear}{evalPeriodLabel && ` (${evalPeriodLabel})`}
                 </>
               )}
             </span>
@@ -1520,7 +1568,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
               <span>Média: <strong>{km26 > 0 ? Math.round(km26 / maxEvalMonth).toLocaleString('pt-BR') : '0'}</strong> km/mês</span>
-              <span>Meta: <strong>{Math.round(mileageTarget / 12).toLocaleString('pt-BR')}</strong>/mês</span>
+              <span>Meta: <strong>{fmtMonthlyTarget(['indicator-13-1'], mileageTarget)}</strong></span>
             </div>
           </div>
         </div>
@@ -1532,20 +1580,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
                 <Gauge className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-700">Índice PLS (CNJ 400)</span>
+              <span className="text-xs font-semibold text-slate-700" title="IDS da Res. CNJ 400/2021 — mesmo cálculo do relógio do IDS">IDS (Res. CNJ 400)</span>
             </div>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" />
-              +{(currentIspScore - previousYearIsp).toFixed(1)} pts
-            </span>
+            {idsDelta !== null ? (
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${idsDelta >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-rose-700 bg-rose-50'}`}>
+                {idsDelta >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {idsDelta >= 0 ? '+' : ''}{idsDelta.toFixed(1)} pts vs {prevYear}
+              </span>
+            ) : (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-slate-500 bg-slate-100 border border-slate-200">
+                sem comparação
+              </span>
+            )}
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold font-mono text-emerald-700 tracking-tight">
-              {currentIspScore.toFixed(1)}%
+            <div className="text-2xl font-bold font-mono tracking-tight" style={{ color: idsCurrent.hasScore ? idsCurrent.classification.color : '#64748b' }}>
+              {idsCurrent.hasScore ? `${currentIspScore.toFixed(1)}%` : 'n.d.'}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-              <span>Status: <strong className="text-emerald-700">Conforme</strong></span>
-              <span>Meta CNJ: <strong>≥ 80%</strong></span>
+            <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between gap-2">
+              <span className="truncate" title={idsCurrent.notes.join('\n')}>
+                <strong style={{ color: idsCurrent.classification.color }}>{idsCurrent.classification.label}</strong>
+              </span>
+              <span className="shrink-0" title="Indicadores do IDS com dados no exercício">
+                {idsCurrent.coverage.available}/{idsCurrent.coverage.total} ind.
+              </span>
             </div>
           </div>
         </div>
