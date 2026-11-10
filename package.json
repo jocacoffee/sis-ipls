@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit",
     "data:load": "tsx scripts/load-pls-data.ts",
     "db:import": "tsx scripts/db-import.ts",
+    "db:export": "tsx scripts/db-export.ts",
     "ids:report": "tsx scripts/ids-report.ts"
   },
   "dependencies": {

@@ -1,0 +1,81 @@
+# =========================================================================
+# iPLS no Easypanel (serviço "Compose", fonte Git)
+#
+# Diferenças em relação ao docker-compose.yml (uso local):
+# - Sem "ports": o acesso é pelo domínio configurado na aba Domains do Easypanel
+#   (serviço ipls-app, porta 3000). O PostgreSQL fica só na rede interna.
+# - Sem container_name e sem nomes fixos de rede/volume: o Easypanel prefixa
+#   tudo com o nome do projeto, evitando conflito com outras aplicações.
+# - Senhas obrigatórias: o deploy falha se POSTGRES_PASSWORD ou SESSION_SECRET
+#   não estiverem na aba Environment.
+# Passo a passo: docs/IMPLANTACAO-EASYPANEL.md
+# =========================================================================
+services:
+  ipls-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Banco vazio na primeira subida: a base é importada de data/database.json
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD na aba Environment}@postgres:5432/${POSTGRES_DB:-ipls_db}
+      # Autenticação no AD
+      - AUTH_MODE=${AUTH_MODE:-ldap}
+      - SESSION_SECRET=${SESSION_SECRET:?Defina SESSION_SECRET na aba Environment}
+      - SESSION_HOURS=${SESSION_HOURS:-}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
+      - AUTH_DEFAULT_DOMAIN=${AUTH_DEFAULT_DOMAIN:-}
+      - AUTH_DOMAIN_SUFFIX=${AUTH_DOMAIN_SUFFIX:-}
+      - LDAP_URL=${LDAP_URL:-}
+      - LDAP_BIND_DN=${LDAP_BIND_DN:-}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD:-}
+      - LDAP_TLS_CA_FILE=${LDAP_TLS_CA_FILE:-/app/certs/ac-trf1.pem}
+      - LDAP_TLS_REJECT_UNAUTHORIZED=${LDAP_TLS_REJECT_UNAUTHORIZED:-}
+      - IPLS_ADMINS=${IPLS_ADMINS:-}
+      # IA local compatível com a API da OpenAI (LM Studio, Ollama, vLLM) — opcional
+      - AI_PROVIDER=${AI_PROVIDER:-}
+      - LOCAL_AI_ENDPOINT=${LOCAL_AI_ENDPOINT:-}
+      - LOCAL_AI_MODEL=${LOCAL_AI_MODEL:-}
+      - LOCAL_AI_API_KEY=${LOCAL_AI_API_KEY:-}
+      - LOCAL_AI_TEMPERATURE=${LOCAL_AI_TEMPERATURE:-}
+      - LOCAL_AI_MAX_TOKENS=${LOCAL_AI_MAX_TOKENS:-}
+      - LOCAL_AI_TIMEOUT_S=${LOCAL_AI_TIMEOUT_S:-}
+      - LOCAL_AI_REPORT_TIMEOUT_S=${LOCAL_AI_REPORT_TIMEOUT_S:-}
+      - LOCAL_AI_CONTEXT_TOKENS=${LOCAL_AI_CONTEXT_TOKENS:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      # Cadeia da AC TRF1 (pública) versionada no repositório, para o LDAPS
+      - ./certs:/app/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ipls_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ipls_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD na aba Environment}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipls_admin} -d ${POSTGRES_DB:-ipls_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  pgdata:

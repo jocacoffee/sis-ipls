@@ -10,5 +10,6 @@ coverage/
 # Backups locais gerados pela carga de dados
 data/backups/
 
-# Certificados da AC interna (específicos de cada instalação)
-certs/
+# Certificados da AC interna: só a cadeia pública da AC TRF1 é versionada (usada no Easypanel)
+certs/*
+!certs/ac-trf1.pem
