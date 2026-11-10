@@ -37,7 +37,7 @@ No `.env` do servidor:
 
 ```
 AUTH_MODE=ldap
-IPLS_ADMINS=<usuario>@<secao>.trf1.gov.br          # primeiros administradores regionais
+IPLS_ADMINS=<usuario>@<secao>.trf1.gov.br         # primeiros administradores regionais
 SESSION_SECRET=<openssl rand -hex 32>
 COOKIE_SECURE=true                            # atrás de HTTPS
 TRUST_PROXY=true                              # atrás de proxy reverso (nginx)

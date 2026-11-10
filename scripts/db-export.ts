@@ -5,8 +5,8 @@
  * Uso:
  *   DATABASE_URL=postgresql://... npx tsx scripts/db-export.ts [--com-auditoria]
  *
- * Por padrão, não leva o histórico de auditoria nem as permissões delegadas
- * (nomes e logins de usuários): o novo servidor começa com histórico limpo e os
+ * Por padrão, não leva o histórico de auditoria, as permissões delegadas nem os
+ * campos com login/nome de usuário (validatedBy, createdBy...): o novo servidor começa com histórico limpo e os
  * administradores definidos em IPLS_ADMINS.
  */
 import fs from 'fs';
@@ -29,6 +29,14 @@ try {
   if (!keepAudit) {
     db.auditLogs = [];
     db.userPermissions = [];
+    // Logins e nomes de quem lançou ou validou registros também ficam de fora
+    const USER_FIELDS = ['validatedBy', 'createdBy', 'updatedBy', 'userId', 'userName'];
+    for (const value of Object.values(db)) {
+      if (!Array.isArray(value)) continue;
+      for (const rec of value as Record<string, unknown>[]) {
+        if (rec && typeof rec === 'object') for (const f of USER_FIELDS) delete rec[f];
+      }
+    }
   }
   db.lastSavedAt = new Date().toISOString();
   fs.writeFileSync(OUT, JSON.stringify(db, null, 2), 'utf-8');

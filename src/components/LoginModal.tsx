@@ -78,7 +78,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogge
             autoComplete="username"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            placeholder={`usuario@${config?.defaultDomain || 'rr.trf1.gov.br'}`}
+            placeholder={`usuario@${config?.defaultDomain || 'secao.trf1.gov.br'}`}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <span className="block mt-1 font-normal text-[11px] text-slate-500">

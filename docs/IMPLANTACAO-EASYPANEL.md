@@ -61,9 +61,9 @@ Autenticação no AD:
 
 ```env
 AUTH_MODE=ldap
-AUTH_DEFAULT_DOMAIN=rr.trf1.gov.br
+AUTH_DEFAULT_DOMAIN=<secao>.trf1.gov.br
 LDAP_URL=ldaps://<controlador-de-dominio>:3269
-IPLS_ADMINS=<login@rr.trf1.gov.br dos administradores, separados por vírgula>
+IPLS_ADMINS=<usuario>@<secao>.trf1.gov.br  (administradores, separados por vírgula)
 ```
 
 Opcionais:
@@ -81,7 +81,7 @@ O compose já traz estes padrões:
 
 ## 4. Domínio (aba Domains)
 
-Aponte o domínio (ex.: `ipls.rr.trf1.gov.br`) para o serviço **`ipls-app`**, porta **3000**, com HTTPS.
+Aponte o domínio (ex.: `ipls.<secao>.trf1.gov.br`) para o serviço **`ipls-app`**, porta **3000**, com HTTPS.
 O compose não publica portas no host; o acesso é só pelo domínio.
 
 ## 5. Primeiro deploy e dados

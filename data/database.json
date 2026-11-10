@@ -434498,7 +434498,6 @@
       "sourceType": "imported",
       "indicatorId": "indicator-1-1",
       "validatedAt": "2026-11-09T18:17:07.863Z",
-      "validatedBy": "<usuario>@<secao>.trf1.gov.br",
       "organizationId": "org-trf1-2g",
       "confidenceScore": 100,
       "sourceReference": "Painel Unificado de Sustentabilidade JF1 (planilha corrigida)",
@@ -440212,7 +440211,6 @@
       "sourceType": "manual",
       "indicatorId": "indicator-1-1",
       "validatedAt": "2026-11-09T13:56:21.645Z",
-      "validatedBy": "<usuario>@<secao>.trf1.gov.br",
       "processNumber": "",
       "organizationId": "org-sjrr",
       "confidenceScore": 100,
@@ -440231,7 +440229,6 @@
       "sourceType": "manual",
       "indicatorId": "indicator-1-2",
       "validatedAt": "2026-11-09T13:56:49.892Z",
-      "validatedBy": "<usuario>@<secao>.trf1.gov.br",
       "processNumber": "",
       "organizationId": "org-sjrr",
       "confidenceScore": 100,
@@ -440250,7 +440247,6 @@
       "sourceType": "imported",
       "indicatorId": "indicator-2-1",
       "validatedAt": "2026-11-09T18:10:17.154Z",
-      "validatedBy": "<usuario>@<secao>.trf1.gov.br",
       "processNumber": "",
       "organizationId": "org-sjrr",
       "confidenceScore": 100,
@@ -445095,5 +445091,5 @@
       "expectedDocumentType": "RELATORIO"
     }
   ],
-  "lastSavedAt": "2026-11-10T19:41:15.004Z"
+  "lastSavedAt": "2026-11-10T19:50:59.968Z"
 }

@@ -28,7 +28,7 @@ services:
       - LOCAL_AI_CONTEXT_TOKENS=${LOCAL_AI_CONTEXT_TOKENS:-}
       # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
       # vazio, a base é importada de data/database.json.
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:-<senha-do-banco>}@postgres:5432/${POSTGRES_DB:-ipls_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-ipls_db}
       # Autenticação no AD (ver .env.example)
       - AUTH_MODE=${AUTH_MODE:-}
       - SESSION_SECRET=${SESSION_SECRET:-}
@@ -80,7 +80,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ipls_db}
       POSTGRES_USER: ${POSTGRES_USER:-ipls_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-<senha-do-banco>}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env}
     volumes:
       - ipls_pgdata:/var/lib/postgresql/data
     healthcheck:
