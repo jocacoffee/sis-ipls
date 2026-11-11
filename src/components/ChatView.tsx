@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { reportOrgLabels } from '../services/annualReportSections';
+import type { Organization } from '../types';
 import {
   MessageSquare,
   Send,
@@ -43,6 +45,8 @@ import {
 interface ChatViewProps {
   organizationName: string;
   organizationId: string;
+  /** Órgão selecionado (seção, TRF1 2º grau ou consolidado), para a saudação. */
+  organization?: Organization;
   selectedYear: number;
   indicators: Indicator[];
   measurements: IndicatorMeasurement[];
@@ -64,6 +68,7 @@ const DEFAULT_LOCAL_CONFIG: LocalAIConfig = {
 export const ChatView: React.FC<ChatViewProps> = ({
   organizationName,
   organizationId,
+  organization,
   selectedYear,
   indicators,
   measurements,
@@ -105,22 +110,69 @@ export const ChatView: React.FC<ChatViewProps> = ({
     models?: string[];
   } | null>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
+  // Saudação conforme o órgão selecionado: seção judiciária, TRF1 2º grau ou consolidado da 1ª Região
+  const buildWelcome = (): ChatMessage => {
+    const labels = reportOrgLabels(organization, organizationName);
+    const scopeName = organization?.isConsolidated
+      ? '**Justiça Federal da 1ª Região — dados consolidados**'
+      : organization?.id === 'org-trf1-2g'
+      ? 'do **Tribunal Regional Federal da 1ª Região (2º grau)**'
+      : `da **${organization?.name || organizationName}**`;
+    // "da SJRR", "do TRF1-2G", "da 1ª Região" (com o artigo certo)
+    const ofOrg = organization?.isConsolidated
+      ? 'da 1ª Região'
+      : organization?.id === 'org-trf1-2g'
+      ? `do ${labels.acronym}`
+      : `da ${labels.acronym}`;
+    const intro = organization?.isConsolidated
+      ? `Olá! Sou o assistente de análise do PLS da ${scopeName}.\n\nOs números são a soma das 13 seções judiciárias e do TRF1 2º grau nos indicadores somáveis; percentuais e índices não são somados.`
+      : `Olá! Sou o assistente de análise do PLS ${scopeName}.`;
+    return {
       id: 'welcome',
       sender: 'assistant',
       timestamp: new Date().toISOString(),
-      text: `Olá! Sou o assistente de análise do PLS da **${organizationName}**.\n\nRespondo com base nas medições registradas no iPLS e nas Resoluções CNJ nº 400/2021 e nº 594/2024. Quando um dado não estiver no sistema, eu aviso.\n\nComo posso ajudar?`,
+      text: `${intro}\n\nRespondo com base nas medições ${ofOrg} registradas no iPLS e nas Resoluções CNJ nº 400/2021 e nº 594/2024. Quando um dado não estiver no sistema, eu aviso.\n\nComo posso ajudar?`,
       suggestedQuestions: [
-        'Como evoluiu o consumo de energia elétrica de 2021 a 2025?',
+        `Como evoluiu o consumo de energia elétrica ${ofOrg} de 2021 a 2025?`,
         'Quais indicadores têm alertas de qualidade de dados?',
         'Como está o consumo de papel no exercício atual?',
-        'Quais dados existem sobre a Resolução CNJ 594/2024 (Justiça Carbono Zero)?'
+        organization?.isConsolidated
+          ? 'Quais unidades mais contribuem para o consumo de energia da 1ª Região?'
+          : 'Quais dados existem sobre a Resolução CNJ 594/2024 (Justiça Carbono Zero)?'
       ],
       providerUsed: 'local',
       modelUsed: 'Assistente iPLS'
+    };
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [buildWelcome()]);
+
+  // Ao trocar de órgão: refaz a saudação se a conversa ainda não começou; senão, registra a troca
+  const lastOrgRef = useRef(organizationId);
+  useEffect(() => {
+    const welcome = buildWelcome();
+    if (lastOrgRef.current === organizationId) {
+      // Nomes do órgão podem chegar depois do carregamento inicial
+      setMessages(prev => (prev.length === 1 && prev[0].id === 'welcome' ? [welcome] : prev));
+      return;
     }
-  ]);
+    lastOrgRef.current = organizationId;
+    setMessages(prev =>
+      prev.length === 1 && prev[0].id === 'welcome'
+        ? [welcome]
+        : [
+            ...prev,
+            {
+              ...welcome,
+              id: `org-change-${Date.now()}`,
+              text: organization?.isConsolidated
+                ? 'Órgão alterado. A partir de agora, as respostas usam os **dados consolidados da 1ª Região**.'
+                : `Órgão alterado. A partir de agora, as respostas usam os dados de **${reportOrgLabels(organization, organizationName).acronym}**.`
+            }
+          ]
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId, organization?.name]);
 
   const [inputQuery, setInputQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);

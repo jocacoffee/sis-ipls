@@ -1219,6 +1219,7 @@ export function App() {
           <ChatView
             organizationName={currentOrg.name}
             organizationId={selectedOrgId}
+            organization={currentOrg}
             selectedYear={selectedYear}
             indicators={indicators}
             measurements={measurements}
