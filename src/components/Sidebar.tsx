@@ -51,6 +51,8 @@ interface SidebarProps {
   showUsersTab?: boolean;
   /** Mostra os módulos em construção (perfil dev). */
   showDevTabs?: boolean;
+  /** Módulos só para usuários logados (Relatório Anual, Auditoria & Qualidade). */
+  showMemberTabs?: boolean;
   activeAlertsCount: number;
   pendingValidationCount: number;
   selectedYear?: number;
@@ -69,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setSelectedOrgId,
   showUsersTab = false,
   showDevTabs = false,
+  showMemberTabs = false,
   activeAlertsCount,
   pendingValidationCount,
   selectedYear = 2026,
@@ -127,16 +130,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'action-plans', label: 'Plano de Ação', icon: ListTodo },
     { id: 'year-comparison', label: 'Comparar Anos', icon: TrendingUp },
     { id: 'chat', label: 'Chat IA & Apoio', icon: MessageSquare, isAi: true, beta: true },
-    { id: 'reports', label: 'Relatório Anual', icon: BookOpen, beta: true },
+    ...(showMemberTabs ? [{ id: 'reports', label: 'Relatório Anual', icon: BookOpen, beta: true }] : []),
     { id: 'ghg', label: 'Inventário GEE', icon: Leaf, highlight: 'Carbono Zero' },
     ...(showDevTabs ? [{ id: 'integrations', label: 'Integrações (SEI / CNJ)', icon: Network, dev: true }] : []),
-    {
-      id: 'audit',
-      label: 'Auditoria & Qualidade',
-      icon: ShieldCheck,
-      badge: activeAlertsCount > 0 ? `${activeAlertsCount}` : undefined,
-      badgeColor: 'bg-amber-600'
-    },
+    ...(showMemberTabs
+      ? [{
+          id: 'audit',
+          label: 'Auditoria & Qualidade',
+          icon: ShieldCheck,
+          badge: activeAlertsCount > 0 ? `${activeAlertsCount}` : undefined,
+          badgeColor: 'bg-amber-600'
+        }]
+      : []),
     ...(showUsersTab ? [{ id: 'users', label: 'Usuários e Permissões', icon: Users }] : [])
   ];
 

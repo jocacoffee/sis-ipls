@@ -112,7 +112,9 @@ export function App() {
   };
   useEffect(() => {
     if (!isDev && (activeTab === 'documents' || activeTab === 'integrations')) setActiveTab('dashboard');
-  }, [isDev, activeTab]);
+    // Relatório Anual e Auditoria: só usuários logados
+    if (!authUser && (activeTab === 'reports' || activeTab === 'audit')) setActiveTab('dashboard');
+  }, [isDev, authUser, activeTab]);
 
   // Relational data store with dual-layer localStorage caching
   const [themes] = useState<PLSTheme[]>(INITIAL_THEMES);
@@ -936,6 +938,7 @@ export function App() {
         setSelectedOrgId={setSelectedOrgId}
         showUsersTab={canManageUsers(authUser)}
         showDevTabs={isDev}
+        showMemberTabs={!!authUser}
         activeAlertsCount={activeAlertsCount}
         pendingValidationCount={pendingValidationCount}
         selectedYear={selectedYear}
@@ -1226,7 +1229,7 @@ export function App() {
           />
         )}
 
-        {activeTab === 'reports' && (
+        {activeTab === 'reports' && authUser && (
           <AnnualReportView
             organizationName={currentOrg.name}
             organizationId={selectedOrgId}
@@ -1272,7 +1275,7 @@ export function App() {
           <PermissionsView authUser={authUser} organizations={organizations} />
         )}
 
-        {activeTab === 'audit' && (
+        {activeTab === 'audit' && authUser && (
           <AuditLogView
             auditLogs={auditLogs}
             alerts={alerts}
