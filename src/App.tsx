@@ -928,7 +928,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-clip bg-slate-100 font-sans text-slate-900">
+    <div className="relative flex h-screen overflow-clip bg-slate-100 font-sans text-slate-900">
       {/* Collapsible Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -950,7 +950,8 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8 transition-all duration-300">
+      {/* relative: elementos absolutos (ex.: sr-only) ficam presos à área que rola, não à página */}
+      <main className="relative flex-1 min-w-0 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8 transition-all duration-300">
         {/* Sticky Top Control Bar (Allows hiding/showing sidebar to optimize data viewing area) */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200 shadow-xs sticky top-0 z-20">
           <div className="flex items-center gap-3">
