@@ -77,7 +77,9 @@ import { LoginModal } from './components/LoginModal';
 // Cache local separado por órgão (evita misturar séries de unidades diferentes)
 const measurementsCacheKey = (orgId: string) => `${STORAGE_KEYS.MEASUREMENTS}__${orgId}`;
 const targetsCacheKey = (orgId: string) => `${STORAGE_KEYS.TARGETS}__${orgId}`;
-const DEFAULT_ORG_ID = 'org-sjrr';
+// Tela inicial: visitante vê o consolidado da 1ª Região; usuário logado, o próprio órgão
+const DEFAULT_ORG_ID = 'org-trf1';
+const homeOrgFor = (u: AuthUser | null): string => u?.organizationId || DEFAULT_ORG_ID;
 const CONSOLIDATED_WRITE_MESSAGE =
   'O consolidado da 1ª Região é calculado a partir dos órgãos e não aceita lançamentos. Selecione um órgão para lançar ou editar dados.';
 
@@ -90,8 +92,11 @@ export function App() {
   useEffect(() => {
     fetchCurrentUser().then(u => {
       setAuthUser(u);
-      // Gestor entra direto no próprio órgão
-      if (u?.organizationId && (u.role === 'MASTER' || u.role === 'PREENCHEDOR')) setSelectedOrgId(u.organizationId);
+      // Sessão ativa: abre o painel executivo do órgão do usuário (seccional ou TRF1 2º grau)
+      if (u) {
+        setSelectedOrgId(homeOrgFor(u));
+        setActiveTab('dashboard');
+      }
     });
   }, []);
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -981,6 +986,9 @@ export function App() {
         onLogout={async () => {
           await logout();
           setAuthUser(null);
+          // Visitante volta ao painel do consolidado da 1ª Região
+          setSelectedOrgId(DEFAULT_ORG_ID);
+          setActiveTab('dashboard');
           if (activeTab === 'users') setActiveTab('dashboard');
         }}
         activeAlertsCount={activeAlertsCount}
@@ -1382,7 +1390,9 @@ export function App() {
         onLoggedIn={u => {
           setAuthUser(u);
           setIsLoginOpen(false);
-          if (u.organizationId && (u.role === 'MASTER' || u.role === 'PREENCHEDOR')) setSelectedOrgId(u.organizationId);
+          // Após o login, painel executivo do órgão do usuário
+          setSelectedOrgId(homeOrgFor(u));
+          setActiveTab('dashboard');
         }}
       />
 
