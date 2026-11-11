@@ -50,7 +50,6 @@ import { AuditLogView } from './components/AuditLogView';
 import { IndicatorDetailModal } from './components/IndicatorDetailModal';
 import { EditIndicatorModal } from './components/EditIndicatorModal';
 import { DataIngestionModal } from './components/DataIngestionModal';
-import { SpreadsheetImportModal } from './components/SpreadsheetImportModal';
 import { ReplicateGeneralVariablesModal } from './components/ReplicateGeneralVariablesModal';
 import { GENERAL_VARIABLE_INDICATOR_IDS } from './utils/generalVariablesUtils';
 import { PanelLeftOpen, PanelLeftClose, Building2, FileSpreadsheet, Maximize2 } from 'lucide-react';
@@ -147,7 +146,6 @@ export function App() {
   const [isDataIngestionOpen, setIsDataIngestionOpen] = useState<boolean>(false);
   const [preselectedIndicatorId, setPreselectedIndicatorId] = useState<string | undefined>(undefined);
   const [preselectedMonth, setPreselectedMonth] = useState<number | undefined>(undefined);
-  const [isSpreadsheetImportOpen, setIsSpreadsheetImportOpen] = useState<boolean>(false);
   const [isReplicateModalOpen, setIsReplicateModalOpen] = useState<boolean>(false);
 
   // Chat pre-filled query
@@ -590,62 +588,6 @@ export function App() {
     }
   };
 
-  // Import batch of measurements from spreadsheet
-  const handleImportBatch = (newMeasurements: Partial<IndicatorMeasurement>[]) => {
-    if (!ensureCanEdit()) return;
-    const formatted: IndicatorMeasurement[] = newMeasurements.map((item, idx) => ({
-      id: item.id || `m-imp-${item.year || selectedYear}-${item.month || 1}-${item.indicatorId}-${Date.now()}-${idx}`,
-      indicatorId: item.indicatorId!,
-      organizationId: item.organizationId || selectedOrgId,
-      year: item.year || selectedYear,
-      month: item.month !== undefined ? item.month : 1,
-      value: Number(item.value) || 0,
-      unit: item.unit || 'unidades',
-      sourceType: 'spreadsheet',
-      sourceReference: item.sourceReference || 'Importação de Planilha',
-      processNumber: item.processNumber || undefined,
-      validationStatus: 'VALIDADO',
-      confidenceScore: 100,
-      notes: item.notes || `Importado de planilha (${item.year})`,
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }));
-
-    if (isConsolidatedView && formatted.some(m => m.organizationId === selectedOrgId)) {
-      window.alert(CONSOLIDATED_WRITE_MESSAGE);
-      return;
-    }
-
-    // O estado local guarda apenas o órgão selecionado; os demais seguem só para o servidor
-    setMeasurements(prev => {
-      const merged = mergeMeasurements(prev, formatted.filter(m => m.organizationId === selectedOrgId));
-      saveLocalData(measurementsCacheKey(selectedOrgId), merged);
-      return merged;
-    });
-
-    // Synchronize directly with backend server for disk database persistence
-    syncMeasurementsToServer(formatted, 'Carga em lote via planilha de série histórica');
-
-    const auditEntry: AuditLog = {
-      id: `audit-${Date.now()}`,
-      organizationId: selectedOrgId,
-      userId: 'usr-1',
-      userName: 'Dr. Roberto Magalhães',
-      action: 'IMPORTACAO',
-      timestamp: new Date().toISOString(),
-      entityType: 'MEASUREMENT',
-      entityId: `batch-${Date.now()}`,
-      newValue: `${formatted.length} medições da série histórica importadas e persistidas com sucesso`,
-      reason: 'Carga em lote via arquivo de planilha de almoxarifado/faturamento.',
-      source: 'Módulo de Importação de Planilhas'
-    };
-    setAuditLogs(prev => {
-      const updated = [auditEntry, ...prev];
-      saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
-      return updated;
-    });
-  };
-
   // Upload and OCR document
   const handleUploadDocument = async (fileData: { fileName: string; fileType: any; textSnippet?: string }) => {
     if (!ensureCanEdit()) return;
@@ -1012,29 +954,19 @@ export function App() {
             <button
               type="button"
               onClick={handleToggleSidebar}
-              title={isSidebarCollapsed ? "Expandir barra lateral (Ctrl+B)" : "Ocultar barra lateral para maximizar área de dados (Ctrl+B)"}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs shadow-xs transition-all hover:scale-[1.02] ${
+              title={isSidebarCollapsed ? 'Mostrar menu lateral (Ctrl+B)' : 'Ocultar menu lateral (Ctrl+B)'}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-colors ${
                 isSidebarCollapsed
                   ? 'bg-slate-900 hover:bg-slate-800 text-white'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
               }`}
             >
               {isSidebarCollapsed ? (
-                <>
-                  <PanelLeftOpen className="w-4 h-4 text-emerald-400" />
-                  <span>Mostrar Menu Lateral</span>
-                </>
+                <PanelLeftOpen className="w-3.5 h-3.5 text-emerald-400" />
               ) : (
-                <>
-                  <PanelLeftClose className="w-4 h-4 text-emerald-600" />
-                  <span>Ocultar Menu (Ampliar Visão)</span>
-                </>
+                <PanelLeftClose className="w-3.5 h-3.5 text-emerald-600" />
               )}
-              <kbd className={`hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono rounded border ${
-                isSidebarCollapsed ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-white text-slate-500 border-slate-200'
-              }`}>
-                Ctrl+B
-              </kbd>
+              <span>{isSidebarCollapsed ? 'Mostrar Menu' : 'Ocultar Menu'}</span>
             </button>
 
             <div className="h-4 w-px bg-slate-200" />
@@ -1065,15 +997,6 @@ export function App() {
 
           {/* Quick Context, Import Spreadsheet Button & Year Switcher */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full 2xl:w-auto 2xl:order-none">
-            <button
-              type="button"
-              onClick={() => ensureCanEdit() && setIsSpreadsheetImportOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-200 transition-colors shadow-2xs"
-              title="Importar planilha de dados da série histórica com persistência permanente"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Importar Planilha</span>
-            </button>
 
             <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
               <Building2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1150,7 +1073,6 @@ export function App() {
             selectedYear={selectedYear}
             setSelectedYear={handleSelectYear}
             onOpenDataIngestion={handleOpenDataIngestion}
-            onOpenSpreadsheetImport={() => { if (ensureCanEdit()) setIsSpreadsheetImportOpen(true); }}
             onOpenDocumentUpload={isDev ? () => setActiveTab('documents') : undefined}
             onOpenChatWithQuery={handleOpenChatWithQuery}
             onSelectIndicator={setSelectedIndicatorForDetail}
@@ -1206,12 +1128,6 @@ export function App() {
                   className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
                 >
                   + Lançamento Manual
-                </button>
-                <button
-                  onClick={() => ensureCanEdit() && setIsSpreadsheetImportOpen(true)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200"
-                >
-                  Importar Planilha CSV
                 </button>
               </div>
             </div>
@@ -1323,7 +1239,6 @@ export function App() {
             themes={themes}
             actionPlans={actionPlans}
             performances={indicatorPerformances}
-            onOpenSpreadsheetImport={() => { if (ensureCanEdit()) setIsSpreadsheetImportOpen(true); }}
           />
         )}
 
@@ -1422,16 +1337,6 @@ export function App() {
           setActiveTab('dashboard');
         }}
       />
-
-      {isSpreadsheetImportOpen && (
-        <SpreadsheetImportModal
-          indicators={indicators}
-          selectedYear={selectedYear}
-          selectedOrgId={selectedOrgId}
-          onClose={() => setIsSpreadsheetImportOpen(false)}
-          onImportBatch={handleImportBatch}
-        />
-      )}
 
       {isReplicateModalOpen && (
         <ReplicateGeneralVariablesModal

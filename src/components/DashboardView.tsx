@@ -93,7 +93,6 @@ interface DashboardViewProps {
   selectedYear: number;
   setSelectedYear: (y: number) => void;
   onOpenDataIngestion: (indicatorId?: string) => void;
-  onOpenSpreadsheetImport: () => void;
   /** Só no perfil dev (módulo Documentos & OCR). */
   onOpenDocumentUpload?: () => void;
   onOpenChatWithQuery: (q: string) => void;
@@ -256,7 +255,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   selectedYear,
   setSelectedYear,
   onOpenDataIngestion,
-  onOpenSpreadsheetImport,
   onOpenDocumentUpload,
   onOpenChatWithQuery,
   onSelectIndicator,
@@ -1326,16 +1324,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setShowActionsDropdown(false)}
                 />
                 <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-xl border border-slate-200 shadow-lg p-1.5 z-40 text-xs space-y-0.5">
-                  <button
-                    onClick={() => {
-                      onOpenSpreadsheetImport();
-                      setShowActionsDropdown(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>Importar Planilha</span>
-                  </button>
                   {onOpenDocumentUpload && (
                   <button
                     onClick={() => {
