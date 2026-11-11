@@ -926,7 +926,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 font-sans text-slate-900">
+    <div className="flex h-screen overflow-clip bg-slate-100 font-sans text-slate-900">
       {/* Collapsible Sidebar */}
       <Sidebar
         activeTab={activeTab}

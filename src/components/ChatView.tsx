@@ -127,9 +127,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // Rola só a área de mensagens. scrollIntoView rolaria também os contêineres de fora
+  // (inclusive o layout principal, que é fixo), deixando a tela deslocada.
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const box = messagesContainerRef.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -356,7 +360,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       </div>
 
       {/* Message Thread */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         {messages.map(msg => {
           const isUser = msg.sender === 'user';
 
