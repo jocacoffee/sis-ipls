@@ -96,6 +96,8 @@ interface DashboardViewProps {
   /** Só no perfil dev (módulo Documentos & OCR). */
   onOpenDocumentUpload?: () => void;
   onOpenChatWithQuery: (q: string) => void;
+  /** Abre a lista completa de alertas (só para usuários logados). */
+  onOpenAlerts?: () => void;
   onSelectIndicator: (indicator: Indicator) => void;
   onOpenReplicateModal?: () => void;
   organizationLabel?: string;
@@ -257,6 +259,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenDataIngestion,
   onOpenDocumentUpload,
   onOpenChatWithQuery,
+  onOpenAlerts,
   onSelectIndicator,
   onOpenReplicateModal,
   organizationLabel = 'SJRR / TRF1',
@@ -539,7 +542,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const inAttention = performances.filter(p => p.result.status === 'ATENCAO').length;
   const inRisk = performances.filter(p => p.result.status === 'RISCO').length;
 
-  const activeAlerts = alerts.filter(a => !a.resolved && a.year === selectedYear);
+  // Alertas do ano: na faixa, o mais grave e mais recente primeiro
+  const SEVERITY_RANK: Record<string, number> = { CRITICA: 0, ATENCAO: 1, INFO: 2 };
+  const activeAlerts = alerts
+    .filter(a => !a.resolved && a.year === selectedYear)
+    .sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||
+        (b.month ?? 0) - (a.month ?? 0)
+    );
   const [isAlertDismissed, setIsAlertDismissed] = useState<boolean>(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState<boolean>(false);
 
@@ -1373,8 +1384,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
+            {activeAlerts.length > 1 && (
+              onOpenAlerts ? (
+                <button
+                  onClick={onOpenAlerts}
+                  className="font-semibold underline hover:text-amber-950 cursor-pointer"
+                  title="Ver todos os alertas em Auditoria & Qualidade"
+                >
+                  Ver todos ({activeAlerts.length})
+                </button>
+              ) : (
+                <span className="text-amber-700" title="Entre no sistema para ver todos os alertas">
+                  +{activeAlerts.length - 1} alertas
+                </span>
+              )
+            )}
             <button
-              onClick={() => onOpenChatWithQuery(`Explique a anomalia de consumo em ${selectedYear}.`)}
+              onClick={() => onOpenChatWithQuery(`Explique este alerta e as possíveis causas: ${activeAlerts[0].message}`)}
               className="font-semibold underline hover:text-amber-950 cursor-pointer"
             >
               Ver Detalhes

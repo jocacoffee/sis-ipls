@@ -1078,6 +1078,7 @@ export function App() {
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenDocumentUpload={isDev ? () => setActiveTab('documents') : undefined}
             onOpenChatWithQuery={handleOpenChatWithQuery}
+            onOpenAlerts={authUser ? () => setActiveTab('audit') : undefined}
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenReplicateModal={() => { if (ensureCanEdit()) setIsReplicateModalOpen(true); }}
           />

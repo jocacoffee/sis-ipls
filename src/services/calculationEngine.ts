@@ -385,7 +385,10 @@ export function calculateIndicatorPerformance(
 
 /**
  * Scans measurements for consistency anomalies:
- * - Sudden spikes (> 30% increase over 4-month rolling average)
+ * - Sudden spikes: > 30% acima da média dos até 4 meses anteriores do ano E, quando houver
+ *   dado, > 30% acima do mesmo mês do ano anterior (evita falso alarme na retomada após
+ *   recesso/férias, quando os primeiros meses do ano são baixos). Indicadores em que
+ *   "mais é melhor" (targetDirection MAIOR_MELHOR, ex.: reciclagem) não geram pico.
  * - Negative values
  * - Discrepancies
  */
@@ -400,6 +403,12 @@ export function detectMeasurementInconsistencies(
     const indMeasurements = measurements
       .filter(m => m.indicatorId === indicator.id && m.year === year)
       .sort((a, b) => a.month - b.month);
+    // Mesmo mês do ano anterior (sazonalidade)
+    const prevYearByMonth = new Map(
+      measurements
+        .filter(m => m.indicatorId === indicator.id && m.year === year - 1)
+        .map(m => [m.month, m.value] as const)
+    );
 
     for (let i = 0; i < indMeasurements.length; i++) {
       const current = indMeasurements[i];
@@ -427,8 +436,21 @@ export function detectMeasurementInconsistencies(
         const priorValues = indMeasurements.slice(Math.max(0, i - 4), i).map(m => m.value);
         const priorAvg = priorValues.reduce((a, b) => a + b, 0) / priorValues.length;
 
-        if (priorAvg > 0 && current.value > priorAvg * 1.30) {
-          const increasePercent = Math.round(((current.value - priorAvg) / priorAvg) * 100);
+        const lastYear = prevYearByMonth.get(current.month);
+        const hasLastYear = lastYear !== undefined && lastYear > 0;
+        const aboveRecent = priorAvg > 0 && current.value > priorAvg * 1.30;
+        // Só é pico se também estiver acima do mesmo mês do ano anterior (quando houver)
+        const aboveLastYear = !hasLastYear || current.value > (lastYear as number) * 1.30;
+
+        // Aumento em indicador onde "mais é melhor" (ex.: reciclagem) não é anomalia de consumo
+        const higherIsBetter = indicator.targetDirection === 'MAIOR_MELHOR';
+
+        if (aboveRecent && aboveLastYear && !higherIsBetter) {
+          const recentPercent = Math.round(((current.value - priorAvg) / priorAvg) * 100);
+          const yoyPercent = hasLastYear ? Math.round(((current.value - (lastYear as number)) / (lastYear as number)) * 100) : null;
+          // Gravidade pelo menor dos dois aumentos (o mais conservador)
+          const increasePercent = yoyPercent !== null ? Math.min(recentPercent, yoyPercent) : recentPercent;
+          const fmt = (v: number) => Math.round(v).toLocaleString('pt-BR');
           alerts.push({
             id: `alert-spike-${current.id}`,
             indicatorId: indicator.id,
@@ -437,7 +459,12 @@ export function detectMeasurementInconsistencies(
             year: current.year,
             type: 'SPIKE',
             severity: increasePercent > 45 ? 'CRITICA' : 'ATENCAO',
-            message: `${indicator.name} em ${MONTH_NAMES[current.month - 1]} (${current.value.toLocaleString('pt-BR')} ${indicator.unit}) aumentou ${increasePercent}% em relação à média dos meses anteriores (${Math.round(priorAvg).toLocaleString('pt-BR')} ${indicator.unit}).`,
+            message:
+              `${indicator.name} em ${MONTH_NAMES[current.month - 1]} (${current.value.toLocaleString('pt-BR')} ${indicator.unit}) ` +
+              `ficou ${recentPercent}% acima da média dos meses anteriores (${fmt(priorAvg)} ${indicator.unit})` +
+              (yoyPercent !== null
+                ? ` e ${yoyPercent}% acima de ${MONTH_NAMES[current.month - 1].toLowerCase()} de ${year - 1} (${fmt(lastYear as number)} ${indicator.unit}).`
+                : '.'),
             detectedValue: current.value,
             referenceValue: Math.round(priorAvg),
             suggestedAction: `Auditar a fatura/comprovante ${current.sourceReference || ''} e apurar se houve evento extraordinário ou erro de digitação.`,
