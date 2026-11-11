@@ -36,8 +36,6 @@ export const IplsSymbol: React.FC<{ size?: number; gapColor?: string; className?
     <circle cx="114" cy="70" r="58" fill="url(#iplsDot)" />
     {/* haste do i */}
     <rect x="58" y="145" width="102" height="312" rx="24" fill="url(#iplsStem)" />
-    {/* base da haste, à direita da folha */}
-    <path d="M150,318 L212,318 Q222,318 222,328 L222,432 Q222,460 194,460 L110,460 Z" fill="url(#iplsStem)" />
     {/* folha sobre a haste, com contorno da cor do fundo */}
     <path
       d="M228,190 C140,205 32,262 10,350 C-2,400 20,440 48,460 C132,450 206,395 222,300 C228,262 229,226 228,190 Z"
