@@ -42,6 +42,7 @@ import { DocumentsView } from './components/DocumentsView';
 import { ActionPlanView } from './components/ActionPlanView';
 import { ChatView } from './components/ChatView';
 import { AnnualReportView } from './components/AnnualReportView';
+import { UserMenu } from './components/UserMenu';
 import { GHGInventoryView } from './components/GHGInventoryView';
 import { IntegrationsView } from './components/IntegrationsView';
 import { YearComparisonView } from './components/YearComparisonView';
@@ -103,6 +104,13 @@ export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   // Módulos em construção: só o perfil de desenvolvimento (IPLS_DEVS) vê
   const isDev = isDevUser(authUser);
+  const handleLogout = async () => {
+    await logout();
+    setAuthUser(null);
+    // Visitante volta ao painel do consolidado da 1ª Região
+    setSelectedOrgId(DEFAULT_ORG_ID);
+    setActiveTab('dashboard');
+  };
   useEffect(() => {
     if (!isDev && (activeTab === 'documents' || activeTab === 'integrations')) setActiveTab('dashboard');
   }, [isDev, activeTab]);
@@ -984,19 +992,8 @@ export function App() {
         organizations={organizations}
         selectedOrgId={selectedOrgId}
         setSelectedOrgId={setSelectedOrgId}
-        authUser={authUser}
-        canEdit={canEdit}
-        onLogin={() => setIsLoginOpen(true)}
         showUsersTab={canManageUsers(authUser)}
         showDevTabs={isDev}
-        onLogout={async () => {
-          await logout();
-          setAuthUser(null);
-          // Visitante volta ao painel do consolidado da 1ª Região
-          setSelectedOrgId(DEFAULT_ORG_ID);
-          setActiveTab('dashboard');
-          if (activeTab === 'users') setActiveTab('dashboard');
-        }}
         activeAlertsCount={activeAlertsCount}
         pendingValidationCount={pendingValidationCount}
         selectedYear={selectedYear}
@@ -1055,8 +1052,19 @@ export function App() {
             </div>
           </div>
 
+          {/* Acesso do usuário: em telas menores fica na primeira linha, à direita */}
+          <div className="2xl:hidden">
+            <UserMenu
+              authUser={authUser}
+              canEdit={canEdit}
+              organizationAcronym={currentOrg?.acronym}
+              onLogin={() => setIsLoginOpen(true)}
+              onLogout={handleLogout}
+            />
+          </div>
+
           {/* Quick Context, Import Spreadsheet Button & Year Switcher */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full 2xl:w-auto 2xl:order-none">
             <button
               type="button"
               onClick={() => ensureCanEdit() && setIsSpreadsheetImportOpen(true)}
@@ -1111,6 +1119,19 @@ export function App() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="h-6 w-px bg-slate-200 hidden 2xl:block" />
+
+            {/* Acesso do usuário (telas largas: tudo numa linha só) */}
+            <div className="hidden 2xl:block">
+            <UserMenu
+              authUser={authUser}
+              canEdit={canEdit}
+              organizationAcronym={currentOrg?.acronym}
+              onLogin={() => setIsLoginOpen(true)}
+              onLogout={handleLogout}
+            />
             </div>
           </div>
         </div>

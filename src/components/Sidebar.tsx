@@ -14,13 +14,11 @@ import {
   Users,
   ShieldCheck,
   Building2,
-  UserCheck,
   Calendar,
   Layers,
   PanelLeftClose
 } from 'lucide-react';
 import { Organization } from '../types';
-import { AuthUser, ROLE_LABEL } from '../services/authClient';
 import {
   getAllAvailableCycles,
   getYearsForCycle,
@@ -49,10 +47,6 @@ interface SidebarProps {
   organizations: Organization[];
   selectedOrgId: string;
   setSelectedOrgId: (id: string) => void;
-  authUser: AuthUser | null;
-  canEdit: boolean;
-  onLogin: () => void;
-  onLogout: () => void;
   showUsersTab?: boolean;
   /** Mostra os módulos em construção (perfil dev). */
   showDevTabs?: boolean;
@@ -72,10 +66,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   organizations,
   selectedOrgId,
   setSelectedOrgId,
-  authUser,
-  canEdit,
-  onLogin,
-  onLogout,
   showUsersTab = false,
   showDevTabs = false,
   activeAlertsCount,
@@ -299,7 +289,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span
                     title="Módulo em fase de testes"
                     className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border ${
-                      isActive ? 'bg-white/20 text-white border-white/40' : 'bg-amber-900/50 text-amber-300 border-amber-700/60'
+                      isActive ? 'bg-white/20 text-white border-white/40' : 'bg-blue-900/60 text-blue-300 border-blue-600/60'
                     }`}
                   >
                     Beta
@@ -335,49 +325,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Sessão do usuário (login no AD da 1ª Região) */}
+      {/* Rodapé: ocultar a barra lateral (o acesso do usuário fica no canto superior direito) */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/60">
-        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
-          <UserCheck className="w-3.5 h-3.5 text-teal-400" />
-          Acesso
-        </label>
-        {authUser ? (
-          <div className="space-y-1.5">
-            <div className="text-xs text-slate-100 font-semibold truncate" title={authUser.username}>
-              {authUser.displayName}
-            </div>
-            <div className="text-[10px] text-slate-400 truncate">
-              {ROLE_LABEL[authUser.role]}{authUser.dev ? ' · Dev' : ''} · {authUser.username}
-            </div>
-            <div className={`text-[10px] font-semibold ${canEdit ? 'text-emerald-400' : 'text-amber-300'}`}>
-              {canEdit ? 'Pode lançar dados neste órgão' : 'Somente consulta neste órgão'}
-            </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="w-full text-[11px] font-semibold rounded-md border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 py-1"
-            >
-              Sair
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="text-[11px] text-slate-300">Visitante: consulta aos painéis sem login.</div>
-            <button
-              type="button"
-              onClick={onLogin}
-              className="w-full text-[11px] font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white py-1.5"
-            >
-              Entrar para lançar dados
-            </button>
-          </div>
-        )}
-
         {onToggleCollapse && (
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="mt-2.5 w-full flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-[11px] font-semibold border border-slate-700/60 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-[11px] font-semibold border border-slate-700/60 transition-colors"
             title="Ocultar barra lateral para ampliar área de visualização dos dados (Ctrl+B)"
           >
             <PanelLeftClose className="w-3.5 h-3.5 text-emerald-400" />
