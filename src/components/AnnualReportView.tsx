@@ -43,7 +43,9 @@ import {
   AnnualReportSection,
   AnnualReportAIData,
   FiveYearIndicatorSeries,
-  PLSTheme
+  PLSTheme,
+  Organization,
+  IDSComplement
 } from '../types';
 import { OFFICIAL_THEMES } from '../data/officialThemes';
 import { buildFiveYearHistoricalSeries } from '../services/historicalAnalytics';
@@ -51,11 +53,14 @@ import { HistoricalCharts } from './HistoricalCharts';
 import { generateVisualPdf, generateProgrammaticPdf } from '../services/pdfGenerator';
 import { BrasaoDaRepublica } from './BrasaoDaRepublica';
 import { generateIndicatorNarrativeAnalysis } from '../services/indicatorAnalysisText';
+import { buildAnnualReportSections, reportOrgLabels } from '../services/annualReportSections';
 import { getPlsCycleForYear } from '../utils/yearUtils';
 
 interface AnnualReportViewProps {
   organizationName: string;
   organizationId?: string;
+  organization?: Organization;
+  idsComplements?: IDSComplement[];
   selectedYear: number;
   indicators: Indicator[];
   measurements: IndicatorMeasurement[];
@@ -69,6 +74,8 @@ interface AnnualReportViewProps {
 export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
   organizationName,
   organizationId = 'org-sjrr',
+  organization,
+  idsComplements = [],
   selectedYear,
   indicators,
   measurements,
@@ -106,60 +113,42 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     setHistoricalSeries(buildFiveYearHistoricalSeries(indicators, measurements, targets, selectedYear));
   }, [indicators, measurements, targets, selectedYear]);
 
-  // Initial standard report sections (conforming to CNJ Res. 400/2021 & 594/2024)
-  const [sections, setSections] = useState<AnnualReportSection[]>([
-    {
-      id: 1,
-      title: '1. Apresentação e Compromisso Institucional',
-      category: 'INSTITUCIONAL',
-      statusBadge: 'Auditado',
-      content: `O presente Relatório Anual de Acompanhamento do Plano de Logística Sustentável (PLS) consolida o desempenho socioambiental da ${organizationName} no exercício de ${selectedYear}, em estrita observância ao Art. 22 da Resolução CNJ nº 400/2021 e às diretrizes do Programa Justiça Carbono Zero instituído pela Resolução CNJ nº 594/2024.\n\nEste documento atesta o compromisso permanente da Direção do Foro, da Comissão Gestora do PLS e de todo o corpo funcional com a sustentabilidade, a eficiência do gasto público, o combate ao desperdício e a transição ecológica no âmbito da Justiça Federal de Roraima.`
-    },
-    {
-      id: 2,
-      title: '2. Metodologia de Coleta, Auditoria e Integridade dos Dados',
-      category: 'METODOLOGIA',
-      statusBadge: 'Conformidade 100%',
-      content: `A apuração dos indicadores adota integração direta com os sistemas corporativos do TRF1 e da SJRR, integrando dados extraídos mensalmente do Sistema Eletrônico de Informações (SEI), faturas das concessionárias de serviços públicos (Roraima Energia S.A. e CAER), relatórios telemétricos de outsourcing de impressão, registros de almoxarifado e manifestos de destinação de resíduos sólidos emitidos pela associação parceira Terra Viva.\n\nTodos os lançamentos são auditados e validados por fiscais técnicos de contrato e pela Comissão Gestora do PLS, assegurando higidez, rastreabilidade e integridade comprobatória antes da consolidação.`
-    },
-    {
-      id: 3,
-      title: `3. Avaliação de Desempenho e Metas do Ano Corrente (${selectedYear})`,
-      category: 'DESEMPENHO',
-      statusBadge: 'Metas Auditadas',
-      content: `No exercício de ${selectedYear}, as metas de redução de consumo de papel A4 e copos descartáveis atingiram índices históricos de conformidade, destacando-se a erradicação absoluta (100%) no uso de copos plásticos descartáveis no edifício-sede.\n\nO consumo de energia elétrica apresentou desempenho favorável na maior parte do exercício, registrando um pico pontual na competência de agosto de 2026 (21.450 kWh) em decorrência de severas intempéries térmicas na capital Boa Vista e avaria temporária no chiller principal de climatização, prontamente solucionada mediante manutenção corretiva da Seção de Infraestrutura.`
-    },
-    {
-      id: 4,
-      title: '4. Avaliação Comparativa da Série Histórica dos Últimos 5 Anos (2022 a 2026)',
-      category: 'HISTORICO',
-      statusBadge: 'Série Quinquenal',
-      content: `A avaliação comparativa da série histórica dos últimos 5 anos (2022–2026), detalhada nos gráficos deste capítulo, evidencia uma evolução estrutural altamente positiva na governança socioambiental da Seção Judiciária de Roraima.\n\nObserva-se queda sustentada na intensidade energética e hídrica, redução drástica no consumo de papel A4 com a expansão de processos 100% eletrônicos, eliminação permanente de itens plásticos de uso único e significativo incremento no volume de resíduos reciclados encaminhados para cooperativas locais de catadores.`
-    },
-    {
-      id: 5,
-      title: '5. Execução do Plano de Ação Socioambiental e Desafios Estruturais',
-      category: 'PLANO_ACAO',
-      statusBadge: '14 Ações em Gestão',
-      content: `O Plano de Ação Socioambiental da SJRR abrange 14 iniciativas estruturantes alinhadas aos eixos temáticos do PLS. Destacam-se o retrofit de luminárias para tecnologia LED (100% concluído), a consolidação do Programa Edifício Resíduo Zero Plástico e as diretrizes do Guia de Contratações Sustentáveis nas novas licitações regidas pela Lei nº 14.133/2021.\n\nPermanecem em curso as ações prioritárias de modernização dos chillers centrais e a transição definitiva para telefonia VoIP em nuvem, garantindo a redução definitiva de linhas analógicas legadas.`
-    },
-    {
-      id: 6,
-      title: '6. Balanço do Programa Justiça Carbono Zero (Resolução CNJ nº 594/2024)',
-      category: 'DESCARBONIZACAO',
-      statusBadge: 'CNJ 594/2024',
-      content: `Em estrito atendimento à Resolução CNJ nº 594/2024, a SJRR mantém inventário anual de emissões de Gases de Efeito Estufa (GEE) abrangendo os Escopos 1, 2 e 3. Em 2026, as emissões totais projetam 102,0 tCO2e (0,31 tCO2e per capita), representando uma expressiva descarbonização acumulada de 35,6% frente a 2022.\n\nForam implementadas também medidas de compensação florestal com espécies amazônicas nativas, pavimentando a meta do Poder Judiciário de atingir emissões líquidas zero até 2030.`
-    },
-    {
-      id: 7,
-      title: '7. Conclusão, Recomendações e Diretrizes para o Próximo Exercício',
-      category: 'CONCLUSAO',
-      statusBadge: 'Diretrizes 2027',
-      content: `Os resultados consolidados no exercício de ${selectedYear} e ao longo do quinquênio 2022–2026 demonstram solidez gerencial e alto grau de conformidade normativa da Seção Judiciária de Roraima.\n\nPara o próximo ciclo de planejamento, recomenda-se a expansão de usinas fotovoltaicas em áreas de estacionamento, o monitoramento predial automatizado por sensores IoT e a elevação progressiva de critérios ambientais nas aquisições públicas da Justiça Federal.`
+  // Seções do relatório geradas a partir dos dados do órgão selecionado
+  const orgLabels = useMemo(() => reportOrgLabels(organization, organizationName), [organization, organizationName]);
+  const generatedSections = useMemo(
+    () =>
+      buildAnnualReportSections({
+        organization,
+        organizationName,
+        year: selectedYear,
+        indicators,
+        measurements,
+        performances,
+        actionPlans,
+        idsComplements
+      }),
+    [organization, organizationName, selectedYear, indicators, measurements, performances, actionPlans, idsComplements]
+  );
+  const [sections, setSections] = useState<AnnualReportSection[]>(generatedSections);
+  // Texto editado pelo usuário ou gerado pela IA não é sobrescrito por atualizações de dados;
+  // ao trocar de órgão ou de ano, o relatório é refeito.
+  const [sectionsCustomized, setSectionsCustomized] = useState<boolean>(false);
+  const reportKey = `${organizationId}|${selectedYear}`;
+  const lastReportKey = useRef(reportKey);
+  useEffect(() => {
+    if (lastReportKey.current !== reportKey) {
+      lastReportKey.current = reportKey;
+      setAiReportData(null);
+      setSectionsCustomized(false);
+      setIsEditingSection(null);
+      setSections(generatedSections);
+      return;
     }
-  ]);
+    if (!sectionsCustomized) setSections(generatedSections);
+  }, [reportKey, generatedSections, sectionsCustomized]);
 
   const handleUpdateContent = (id: number, newText: string) => {
+    setSectionsCustomized(true);
     setSections(prev => prev.map(s => s.id === id ? { ...s, content: newText } : s));
   };
 
@@ -169,6 +158,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     try {
       generateProgrammaticPdf({
         organizationName,
+        orgLabels,
         year: selectedYear,
         sections,
         aiData: aiReportData,
@@ -195,7 +185,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     try {
       await generateVisualPdf(
         reportContainerRef.current,
-        `Relatorio_Anual_PLS_${selectedYear}_SJRR.pdf`,
+        `Relatorio_Anual_PLS_${selectedYear}_${orgLabels.fileTag}.pdf`,
         (status) => setPdfStatusMessage(status)
       );
       setPdfSuccess(true);
@@ -204,6 +194,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
       console.warn('[PDF] Falha na captura visual, gerando PDF estruturado completo:', err);
       generateProgrammaticPdf({
         organizationName,
+        orgLabels,
         year: selectedYear,
         sections,
         aiData: aiReportData,
@@ -248,7 +239,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     }
 
     if (aiReportData?.keyAchievements && aiReportData.keyAchievements.length > 0) {
-      md += `### Principais Conquistas Quinquenais (2022-2026)\n\n`;
+      md += `### Principais Conquistas Quinquenais (${selectedYear - 4}-${selectedYear})\n\n`;
       aiReportData.keyAchievements.forEach(a => {
         md += `- ${a}\n`;
       });
@@ -263,7 +254,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Relatorio_Anual_PLS_${selectedYear}_SJRR.md`;
+    a.download = `Relatorio_Anual_PLS_${selectedYear}_${orgLabels.fileTag}.md`;
     a.click();
     setExportSuccess(true);
     setTimeout(() => setExportSuccess(false), 3000);
@@ -304,6 +295,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
       setAiReportData(data);
 
       if (data.sections && data.sections.length > 0) {
+        setSectionsCustomized(true);
         setSections(data.sections);
       }
 
@@ -330,7 +322,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
             <span>Prestação de Contas Normativa — Art. 22 Res. CNJ 400/2021 & Res. CNJ 594/2024</span>
           </div>
           <h2 className="text-xl font-bold text-slate-900 mt-1">
-            Relatório Anual de Cumprimento do PLS-SJRR
+            Relatório Anual de Cumprimento do PLS — {orgLabels.acronym}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Consolidação analítica de sustentabilidade, série histórica de 5 anos e geração assistida por IA
@@ -455,7 +447,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-emerald-800 mt-0.5">
-                Redação técnica alinhada aos dados auditados do exercício de {selectedYear} e à série histórica dos últimos 5 anos (2022–2026).
+                Redação técnica alinhada aos dados auditados do exercício de {selectedYear} e à série histórica dos últimos 5 anos ({selectedYear - 4}–{selectedYear}).
               </p>
             </div>
           </div>
@@ -552,7 +544,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
             PODER JUDICIÁRIO FEDERAL
           </div>
           <div className="text-xs sm:text-sm font-semibold text-slate-600 uppercase tracking-wider mt-0.5">
-            JUSTIÇA FEDERAL — SEÇÃO JUDICIÁRIA DE RORAIMA
+            {orgLabels.letterhead}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">
             COMISSÃO PERMANENTE DE GESTÃO SOCIOAMBIENTAL DO PLS
@@ -829,7 +821,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
                     {/* Left: Dedicated Vector / Bar Chart */}
                     <div className="lg:col-span-5 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
                       <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold border-b border-slate-200/60 pb-1.5">
-                        <span>Série Quinquenal (2022–2026)</span>
+                        <span>Série Quinquenal ({selectedYear - 4}–{selectedYear})</span>
                         {targetVal > 0 && (
                           <span className="text-amber-700 font-mono text-[10px]">
                             Linha da Meta: {targetVal.toLocaleString('pt-BR')}
@@ -899,7 +891,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
                       <div className="p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100/80 space-y-1">
                         <span className="font-bold text-indigo-950 flex items-center gap-1.5">
                           <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Comparação com Anos Anteriores (2022–2026)</span>
+                          <span>Comparação com Anos Anteriores ({selectedYear - 4}–{selectedYear})</span>
                         </span>
                         <p className="text-slate-700 text-[11px] leading-relaxed">
                           {narrative.historicalComparison}
@@ -983,14 +975,14 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
         <div className="pt-10 border-t border-slate-200 mt-10 grid grid-cols-2 gap-8 text-center text-xs">
           <div>
             <div className="w-48 border-t border-slate-400 mx-auto mb-1"></div>
-            <div className="font-bold text-slate-800">Dr. Roberto Magalhães</div>
-            <div className="text-slate-500 text-[11px]">Coordenador da Comissão Gestora do PLS</div>
+            <div className="font-bold text-slate-800">&nbsp;</div>
+            <div className="text-slate-500 text-[11px]">Coordenação da Comissão Gestora do PLS — {orgLabels.acronym}</div>
           </div>
 
           <div>
             <div className="w-48 border-t border-slate-400 mx-auto mb-1"></div>
-            <div className="font-bold text-slate-800">Dra. Beatriz Albuquerque</div>
-            <div className="text-slate-500 text-[11px]">Juíza Federal Diretora do Foro — SJRR</div>
+            <div className="font-bold text-slate-800">&nbsp;</div>
+            <div className="text-slate-500 text-[11px]">{orgLabels.directionRole}</div>
           </div>
         </div>
       </div>
@@ -1099,7 +1091,7 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 flex items-start gap-2">
                 <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>
-                  O modelo <strong>Gemini 3.8 Flash</strong> processará a série histórica completa de 5 anos (2022–2026), os números auditados do ano de {selectedYear}, as 14 ações socioambientais e os alertas técnicos cadastrados.
+                  A IA configurada processará os dados de <strong>{orgLabels.acronym}</strong>: a série histórica de 5 anos ({selectedYear - 4}–{selectedYear}), os números do ano de {selectedYear}, as ações do plano de ação e os alertas cadastrados.
                 </span>
               </div>
             </div>

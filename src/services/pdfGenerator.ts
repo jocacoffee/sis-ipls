@@ -15,6 +15,8 @@ import { generateIndicatorNarrativeAnalysis } from './indicatorAnalysisText';
 
 export interface GeneratePdfOptions {
   organizationName: string;
+  /** Rótulos do órgão (cabeçalho, assinatura e nome do arquivo). */
+  orgLabels?: { acronym: string; fileTag: string; letterhead: string; directionRole: string };
   year: number;
   sections: AnnualReportSection[];
   aiData?: AnnualReportAIData | null;
@@ -44,7 +46,7 @@ function compareIndicatorCodes(codeA: string, codeB: string): number {
  */
 export async function generateVisualPdf(
   element: HTMLElement,
-  filename: string = 'Relatorio_Anual_PLS_SJRR.pdf',
+  filename: string = 'Relatorio_Anual_PLS.pdf',
   onProgress?: (status: string) => void
 ): Promise<void> {
   onProgress?.('Renderizando páginas do relatório oficial...');
@@ -96,6 +98,7 @@ export async function generateVisualPdf(
 export function generateProgrammaticPdf(options: GeneratePdfOptions): void {
   const {
     organizationName,
+    orgLabels,
     year,
     sections,
     aiData,
@@ -161,7 +164,7 @@ export function generateProgrammaticPdf(options: GeneratePdfOptions): void {
 
   pdf.setFontSize(9.5);
   pdf.setTextColor(51, 65, 85);
-  pdf.text(`JUSTIÇA FEDERAL — SEÇÃO JUDICIÁRIA DE RORAIMA (${organizationName})`, pageWidth / 2, y, { align: 'center' });
+  pdf.text(orgLabels?.letterhead || `JUSTIÇA FEDERAL — ${organizationName.toUpperCase()}`, pageWidth / 2, y, { align: 'center' });
   y += 4.2;
 
   pdf.setFont('helvetica', 'normal');
@@ -779,15 +782,13 @@ export function generateProgrammaticPdf(options: GeneratePdfOptions): void {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8);
   pdf.setTextColor(30, 41, 59);
-  pdf.text('Dr. Roberto Magalhães', col1X, y, { align: 'center' });
-  pdf.text('Dra. Beatriz Albuquerque', col2X, y, { align: 'center' });
   y += 3.8;
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(7);
   pdf.setTextColor(100, 116, 139);
-  pdf.text('Coordenador da Comissão Gestora do PLS', col1X, y, { align: 'center' });
-  pdf.text('Juíza Federal Diretora do Foro — SJRR', col2X, y, { align: 'center' });
+  pdf.text(`Coordenação da Comissão Gestora do PLS — ${orgLabels?.acronym || organizationName}`, col1X, y, { align: 'center' });
+  pdf.text(orgLabels?.directionRole || 'Direção do Foro', col2X, y, { align: 'center' });
 
   // =========================================================================
   // NUMERAÇÃO DE PÁGINAS EM TODAS AS PÁGINAS
@@ -799,12 +800,12 @@ export function generateProgrammaticPdf(options: GeneratePdfOptions): void {
     pdf.setFontSize(6.8);
     pdf.setTextColor(148, 163, 184);
     pdf.text(
-      `Página ${i} de ${totalPages} · iPLS (SJRR) · Resolução CNJ nº 400/2021 & Resolução CNJ nº 594/2024`,
+      `Página ${i} de ${totalPages} · iPLS (${orgLabels?.acronym || organizationName}) · Resolução CNJ nº 400/2021 & Resolução CNJ nº 594/2024`,
       pageWidth / 2,
       pageHeight - 8,
       { align: 'center' }
     );
   }
 
-  pdf.save(`Relatorio_Anual_PLS_${year}_SJRR_Completo.pdf`);
+  pdf.save(`Relatorio_Anual_PLS_${year}_${orgLabels?.fileTag || 'iPLS'}_Completo.pdf`);
 }

@@ -1279,6 +1279,8 @@ export function App() {
           <AnnualReportView
             organizationName={currentOrg.name}
             organizationId={selectedOrgId}
+            organization={currentOrg}
+            idsComplements={idsComplements}
             selectedYear={selectedYear}
             indicators={indicators}
             measurements={measurements}
