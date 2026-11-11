@@ -70,7 +70,7 @@ import {
   getCycleInfo
 } from './utils/yearUtils';
 import { isConsolidatedOrg, orgDenominators, orgIdOf } from './services/orgScope';
-import { AuthUser, canEnterData, canManageTargets, canManageUsers, fetchCurrentUser, logout } from './services/authClient';
+import { AuthUser, canEnterData, canManageTargets, canManageUsers, fetchCurrentUser, isDevUser, logout } from './services/authClient';
 import { PermissionsView } from './components/PermissionsView';
 import { LoginModal } from './components/LoginModal';
 
@@ -101,6 +101,11 @@ export function App() {
   }, []);
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  // Módulos em construção: só o perfil de desenvolvimento (IPLS_DEVS) vê
+  const isDev = isDevUser(authUser);
+  useEffect(() => {
+    if (!isDev && (activeTab === 'documents' || activeTab === 'integrations')) setActiveTab('dashboard');
+  }, [isDev, activeTab]);
 
   // Relational data store with dual-layer localStorage caching
   const [themes] = useState<PLSTheme[]>(INITIAL_THEMES);
@@ -983,6 +988,7 @@ export function App() {
         canEdit={canEdit}
         onLogin={() => setIsLoginOpen(true)}
         showUsersTab={canManageUsers(authUser)}
+        showDevTabs={isDev}
         onLogout={async () => {
           await logout();
           setAuthUser(null);
@@ -1124,7 +1130,7 @@ export function App() {
             setSelectedYear={handleSelectYear}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenSpreadsheetImport={() => { if (ensureCanEdit()) setIsSpreadsheetImportOpen(true); }}
-            onOpenDocumentUpload={() => setActiveTab('documents')}
+            onOpenDocumentUpload={isDev ? () => setActiveTab('documents') : undefined}
             onOpenChatWithQuery={handleOpenChatWithQuery}
             onSelectIndicator={setSelectedIndicatorForDetail}
             onOpenReplicateModal={() => { if (ensureCanEdit()) setIsReplicateModalOpen(true); }}
@@ -1239,7 +1245,7 @@ export function App() {
           </div>
         )}
 
-        {activeTab === 'documents' && (
+        {activeTab === 'documents' && isDev && (
           <DocumentsView
             documents={documents}
             indicators={indicators}
@@ -1308,7 +1314,7 @@ export function App() {
           />
         )}
 
-        {activeTab === 'integrations' && (
+        {activeTab === 'integrations' && isDev && (
           <IntegrationsView
             seiConnectors={seiConnectors}
             plsJudMappings={plsJudMappings}
@@ -1337,7 +1343,7 @@ export function App() {
             indicators={indicators}
             measurements={measurements}
             onOpenDataIngestion={handleOpenDataIngestion}
-            onOpenDocuments={() => setActiveTab('documents')}
+            onOpenDocuments={() => (isDev ? setActiveTab('documents') : handleOpenDataIngestion())}
           />
         )}
       </main>

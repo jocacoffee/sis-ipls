@@ -94,7 +94,8 @@ interface DashboardViewProps {
   setSelectedYear: (y: number) => void;
   onOpenDataIngestion: (indicatorId?: string) => void;
   onOpenSpreadsheetImport: () => void;
-  onOpenDocumentUpload: () => void;
+  /** Só no perfil dev (módulo Documentos & OCR). */
+  onOpenDocumentUpload?: () => void;
   onOpenChatWithQuery: (q: string) => void;
   onSelectIndicator: (indicator: Indicator) => void;
   onOpenReplicateModal?: () => void;
@@ -1335,9 +1336,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Importar Planilha</span>
                   </button>
+                  {onOpenDocumentUpload && (
                   <button
                     onClick={() => {
-                      onOpenDocumentUpload();
+                      onOpenDocumentUpload?.();
                       setShowActionsDropdown(false);
                     }}
                     className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
@@ -1345,6 +1347,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <UploadCloud className="w-4 h-4 text-blue-600" />
                     <span>Fatura / OCR</span>
                   </button>
+                  )}
                   <button
                     onClick={() => {
                       setIsReorderModalOpen(true);

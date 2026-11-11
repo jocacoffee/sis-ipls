@@ -64,6 +64,7 @@ AUTH_MODE=ldap
 AUTH_DEFAULT_DOMAIN=<secao>.trf1.gov.br
 LDAP_URL=ldaps://<controlador-de-dominio>:3269
 IPLS_ADMINS=<usuario>@<secao>.trf1.gov.br  (administradores, separados por vírgula)
+IPLS_DEVS=<usuario>@<secao>.trf1.gov.br    (perfil dev: vê Documentos & OCR e Integrações; opcional)
 ```
 
 Opcionais:

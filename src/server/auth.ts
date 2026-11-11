@@ -38,6 +38,8 @@ export interface AuthUser extends Identity {
   organizationId: string | null;
   /** Permissão vinda de IPLS_ADMINS (não pode ser revogada pela tela). */
   bootstrapAdmin?: boolean;
+  /** Perfil de desenvolvimento (IPLS_DEVS): vê os módulos em construção (Documentos & OCR, Integrações). */
+  dev?: boolean;
   expiresAt?: string;
 }
 
@@ -207,7 +209,17 @@ const today = () => new Date().toISOString().slice(0, 10);
 export const isPermissionActive = (p: UserPermission) => !p.expiresAt || p.expiresAt >= today();
 
 /** Papel e órgão atuais do usuário (lidos a cada requisição). */
+/** Logins com perfil de desenvolvimento (IPLS_DEVS), independente do papel. */
+const devUsers = new Set(
+  (env.IPLS_DEVS || '').split(/[,;\s]+/).map(s => normalizeLogin(s)).filter((s): s is string => !!s)
+);
+
 export function resolveUser(identity: Identity): AuthUser {
+  const user = resolveRole(identity);
+  return devUsers.has(identity.username) ? { ...user, dev: true } : user;
+}
+
+function resolveRole(identity: Identity): AuthUser {
   const domainOrg = organizationForDomain(identity.domain);
   if (bootstrapAdmins.has(identity.username)) {
     return { ...identity, role: 'ADMIN', organizationId: domainOrg, bootstrapAdmin: true };

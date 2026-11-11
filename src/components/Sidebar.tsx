@@ -54,6 +54,8 @@ interface SidebarProps {
   onLogin: () => void;
   onLogout: () => void;
   showUsersTab?: boolean;
+  /** Mostra os módulos em construção (perfil dev). */
+  showDevTabs?: boolean;
   activeAlertsCount: number;
   pendingValidationCount: number;
   selectedYear?: number;
@@ -75,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogin,
   onLogout,
   showUsersTab = false,
+  showDevTabs = false,
   activeAlertsCount,
   pendingValidationCount,
   selectedYear = 2026,
@@ -105,24 +108,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const navItems = [
+  const navItems: {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    isAi?: boolean;
+    highlight?: string;
+    badge?: string;
+    badgeColor?: string;
+    beta?: boolean;
+    dev?: boolean;
+  }[] = [
     { id: 'dashboard', label: 'Painel Executivo', icon: LayoutDashboard },
     { id: 'indicators', label: 'Indicadores PLS', icon: BarChart3 },
     { id: 'targets', label: 'Metas & Projeções', icon: Target },
     { id: 'data-ingestion', label: 'Coleta de Dados', icon: FileSpreadsheet },
-    {
-      id: 'documents',
-      label: 'Documentos & OCR',
-      icon: FileText,
-      badge: pendingValidationCount > 0 ? `${pendingValidationCount}` : undefined,
-      badgeColor: 'bg-blue-600'
-    },
+    ...(showDevTabs
+      ? [{
+          id: 'documents',
+          label: 'Documentos & OCR',
+          icon: FileText,
+          badge: pendingValidationCount > 0 ? `${pendingValidationCount}` : undefined,
+          badgeColor: 'bg-blue-600',
+          dev: true
+        }]
+      : []),
     { id: 'action-plans', label: 'Plano de Ação', icon: ListTodo },
     { id: 'year-comparison', label: 'Comparar Anos', icon: TrendingUp },
-    { id: 'chat', label: 'Chat IA & Apoio', icon: MessageSquare, isAi: true },
-    { id: 'reports', label: 'Relatório Anual', icon: BookOpen, highlight: 'IA / 5 Anos' },
+    { id: 'chat', label: 'Chat IA & Apoio', icon: MessageSquare, isAi: true, beta: true },
+    { id: 'reports', label: 'Relatório Anual', icon: BookOpen, beta: true },
     { id: 'ghg', label: 'Inventário GEE', icon: Leaf, highlight: 'Carbono Zero' },
-    { id: 'integrations', label: 'Integrações (SEI / CNJ)', icon: Network },
+    ...(showDevTabs ? [{ id: 'integrations', label: 'Integrações (SEI / CNJ)', icon: Network, dev: true }] : []),
     {
       id: 'audit',
       label: 'Auditoria & Qualidade',
@@ -279,6 +295,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5">
+                {item.beta && (
+                  <span
+                    title="Módulo em fase de testes"
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border ${
+                      isActive ? 'bg-white/20 text-white border-white/40' : 'bg-amber-900/50 text-amber-300 border-amber-700/60'
+                    }`}
+                  >
+                    Beta
+                  </span>
+                )}
+                {item.dev && (
+                  <span
+                    title="Visível só para o perfil de desenvolvimento"
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border ${
+                      isActive ? 'bg-white/20 text-white border-white/40' : 'bg-violet-900/50 text-violet-300 border-violet-700/60'
+                    }`}
+                  >
+                    Dev
+                  </span>
+                )}
                 {item.highlight && !isActive && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-semibold border border-emerald-700/50">
                     {item.highlight}
@@ -311,7 +347,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {authUser.displayName}
             </div>
             <div className="text-[10px] text-slate-400 truncate">
-              {ROLE_LABEL[authUser.role]} · {authUser.username}
+              {ROLE_LABEL[authUser.role]}{authUser.dev ? ' · Dev' : ''} · {authUser.username}
             </div>
             <div className={`text-[10px] font-semibold ${canEdit ? 'text-emerald-400' : 'text-amber-300'}`}>
               {canEdit ? 'Pode lançar dados neste órgão' : 'Somente consulta neste órgão'}
