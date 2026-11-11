@@ -59,7 +59,8 @@ export const IplsSymbol: React.FC<{ size?: number; gapColor?: string; className?
 export const IplsBrandDark: React.FC = () => (
   <div className="flex items-center gap-2.5 min-w-0">
     <div className="flex items-end gap-1">
-      <IplsSymbol size={38} gapColor="#0f172a" />
+      {/* haste do i alinhada à altura das letras: topo na linha das maiúsculas, base na linha de base */}
+      <IplsSymbol size={35} gapColor="#0f172a" className="translate-y-[3px]" />
       <span className="text-[30px] leading-[0.8] font-extrabold tracking-tight text-white">PLS</span>
     </div>
     <div className="min-w-0 border-l border-slate-700 pl-2.5">
