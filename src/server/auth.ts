@@ -91,11 +91,24 @@ if (AUTH_MODE === 'dev') {
 const SAM_RE = /^[A-Za-z0-9._-]{1,64}$/;
 const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)*$/;
 
-/** Aceita usuario@dominio, NETBIOS\usuario ou usuario (domínio padrão). */
+/**
+ * Domínio deduzido da matrícula quando o usuário digita só o login (ex.: tr12345 → trf1.gov.br,
+ * ba12345 → ba.trf1.gov.br, rr12345 → rr.trf1.gov.br). Fora desse padrão, vale o domínio padrão.
+ */
+function domainFromLogin(sam: string): string {
+  const m = /^([a-z]{2})\d+$/i.exec(sam);
+  if (!m) return DEFAULT_DOMAIN;
+  const prefix = m[1].toLowerCase();
+  if (prefix === DOMAIN_SUFFIX.slice(0, 2)) return DOMAIN_SUFFIX; // tr → TRF1 (2º grau)
+  if (SECTION_ORGS[prefix]) return `${prefix}.${DOMAIN_SUFFIX}`;
+  return DEFAULT_DOMAIN;
+}
+
+/** Aceita usuario@dominio, NETBIOS\usuario ou usuario (domínio deduzido da matrícula ou o padrão). */
 export function parseLogin(input: string): { sam: string; domain: string } | null {
   const raw = (input || '').trim();
   let sam = raw;
-  let domain = DEFAULT_DOMAIN;
+  let domain = domainFromLogin(raw);
   if (raw.includes('@')) {
     [sam, domain] = raw.split('@', 2);
   } else if (raw.includes('\\')) {
