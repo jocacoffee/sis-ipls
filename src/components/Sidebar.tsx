@@ -1,4 +1,5 @@
 import React from 'react';
+import { LabInovarrFooterBadge } from './LabInovarrLogo';
 import {
   LayoutDashboard,
   BarChart3,
@@ -325,22 +326,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Rodapé: ocultar a barra lateral (o acesso do usuário fica no canto superior direito) */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/60">
-        {onToggleCollapse && (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="w-full flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-[11px] font-semibold border border-slate-700/60 transition-colors"
-            title="Ocultar barra lateral para ampliar área de visualização dos dados (Ctrl+B)"
-          >
-            <PanelLeftClose className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Ocultar Barra Lateral</span>
-            <kbd className="px-1 py-0.2 text-[9px] font-mono bg-slate-900 text-slate-400 rounded border border-slate-700">
-              Ctrl+B
-            </kbd>
-          </button>
-        )}
+      {/* Rodapé discreto: autoria do Lab InovaRR */}
+      <div className="px-3 py-2.5 border-t border-slate-800 flex justify-center opacity-70 hover:opacity-100 transition-opacity">
+        <LabInovarrFooterBadge className="!bg-transparent !border-transparent !shadow-none hover:!bg-slate-800/60 scale-90" />
       </div>
     </aside>
   );
