@@ -1,5 +1,6 @@
 import React from 'react';
 import { LabInovarrFooterBadge } from './LabInovarrLogo';
+import { IplsBrandDark } from './IplsLogo';
 import {
   LayoutDashboard,
   BarChart3,
@@ -154,20 +155,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md font-bold text-lg">
-              ⚖️
-            </div>
-            <div>
-              <div className="text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
-                Poder Judiciário Federal
-              </div>
-              <h1 className="text-base font-bold text-white tracking-tight flex items-baseline gap-1">
-                <span className="text-emerald-400 font-extrabold text-lg">iPLS</span>
-                <span className="text-slate-300 font-semibold text-xs tracking-wide">Inteligente</span>
-              </h1>
-            </div>
-          </div>
+          <h1 className="min-w-0" title="iPLS — Sistema Inteligente de Gestão do Plano de Logística Sustentável">
+            <IplsBrandDark />
+          </h1>
 
           {onToggleCollapse && (
             <button
