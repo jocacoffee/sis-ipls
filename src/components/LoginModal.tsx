@@ -14,7 +14,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogge
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [config, setConfig] = useState<{ mode: string; defaultDomain: string } | null>(null);
+  const [config, setConfig] = useState<{ mode: string; defaultDomain: string; domainSuffix?: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -53,6 +53,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogge
     }
   };
 
+  // Exemplos conforme o domínio padrão do servidor (rr.trf1.gov.br → rr20000 e JFRR)
+  const defaultDomain = config?.defaultDomain || 'rr.trf1.gov.br';
+  const domainSuffix = config?.domainSuffix || 'trf1.gov.br';
+  const sectionLabel = defaultDomain === domainSuffix ? 'trf' : defaultDomain.split('.')[0];
+  const loginExample = `${sectionLabel}20000`;
+  const netbiosExample = defaultDomain === domainSuffix ? 'TRF1' : `JF${sectionLabel.toUpperCase()}`;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-labelledby="login-title">
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 space-y-4">
@@ -78,11 +85,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogge
             autoComplete="username"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            placeholder={`usuario@${config?.defaultDomain || 'secao.trf1.gov.br'}`}
+            placeholder={`ex.: ${loginExample}`}
             className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <span className="block mt-1 font-normal text-[11px] text-slate-500">
-            Formatos aceitos: usuario@ba.trf1.gov.br, JFBA\usuario ou só usuario ({config?.defaultDomain || 'domínio padrão'}).
+            Formatos aceitos: {loginExample}, {netbiosExample}\usuario ou só o usuário de rede.
           </span>
         </label>
 
