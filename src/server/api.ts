@@ -8,7 +8,15 @@ import {
 } from './geminiService';
 import { calculateIndicatorPerformance, detectMeasurementInconsistencies } from '../services/calculationEngine';
 import { buildFiveYearHistoricalSeries, getFiveYearSummaryStats } from '../services/historicalAnalytics';
-import { extractDataFromDocument } from '../services/documentExtractor';
+import {
+  ENERGY_COST_ACRONYM,
+  ENERGY_KWH_ACRONYM,
+  energyMeasurementsFor,
+  extractEnergyInvoice,
+  pdfToText,
+  reviewReasons,
+  sha256
+} from './energyInvoice';
 import { IndicatorMeasurement, AuditLog, PLSDocument, InconsistencyAlert } from '../types';
 import {
   LEGACY_DEFAULT_ORG_ID,
@@ -123,7 +131,8 @@ export function createApiRouter() {
       measurements: scoped.measurements,
       selectedOrgId: orgId,
       idsComplements: (db.idsComplements || []).filter(c => c.organizationId === orgId),
-      documents: db.documents,
+      // Documentos do órgão (no consolidado, de todos)
+      documents: isConsolidatedOrg(orgId, db.organizations) ? db.documents : db.documents.filter(d => d.organizationId === orgId),
       actionPlans: db.actionPlans,
       emissionSources: db.emissionSources,
       ghgCalculations: db.ghgCalculations,
@@ -529,99 +538,179 @@ export function createApiRouter() {
     });
   });
 
-  // POST /api/documents/upload - Upload and simulate OCR
-  router.post('/documents/upload', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), (req: Request, res: Response) => {
-    const { fileName, fileType, title, indicatorId, processNumber, textSnippet } = req.body;
+  // ---------------------------------------------------------------- faturas de energia (PDF)
+  // POST /api/documents/upload — lê a fatura (texto do PDF + IA local + conferência) e, se tudo
+  // conferir, lança CEE (kWh) e GEE (R$) do mês; senão o documento fica pendente de validação.
+  router.post('/documents/upload', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), async (req: Request, res: Response) => {
+    const { organizationId, fileName, contentBase64, processNumber } = req.body || {};
+    const user = currentUser();
+    if (typeof organizationId !== 'string' || !db.organizations.some(o => o.id === organizationId)) {
+      return res.status(400).json({ error: 'Órgão inválido.' });
+    }
+    const consolidatedError = consolidatedWriteError(organizationId);
+    if (consolidatedError) return res.status(400).json({ error: consolidatedError });
+    if (!canWriteOrg(user, organizationId)) return res.status(403).json({ error: 'Sem permissão para lançar dados neste órgão.' });
+    if (typeof contentBase64 !== 'string' || !contentBase64) return res.status(400).json({ error: 'Envie o PDF da fatura.' });
 
-    const extracted = extractDataFromDocument(fileName || 'documento.pdf', textSnippet);
+    const data = Buffer.from(contentBase64, 'base64');
+    if (data.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'PDF maior que 8 MB.' });
+    if (data.subarray(0, 5).toString('latin1') !== '%PDF-') return res.status(400).json({ error: 'O arquivo não é um PDF.' });
 
-    const newDoc: PLSDocument = {
-      id: `doc-${Date.now()}`,
-      organizationId: 'org-sjrr',
-      title: title || extracted.supplier,
-      fileName: fileName || 'fatura.pdf',
-      fileType: fileType || 'FATURA',
-      competence: extracted.competence,
-      indicatorId: indicatorId || extracted.detectedIndicatorId,
-      processNumber: processNumber || extracted.detectedProcessNumber,
-      supplier: extracted.supplier,
-      amount: extracted.totalAmount,
-      consumption: extracted.consumptionValue,
-      unit: extracted.consumptionUnit,
-      status: extracted.requiresHumanReview ? 'PENDENTE_VALIDACAO' : 'PROCESSADO',
-      extractionConfidence: extracted.confidenceScore,
-      fileSize: '1.2 MB',
-      uploadedAt: new Date().toISOString(),
-      ocrConfidence: extracted.confidenceScore,
-      rawTextSnippet: extracted.rawText
+    const hash = sha256(data);
+    const same = db.documents.find(d => d.contentHash === hash && d.organizationId === organizationId && d.status !== 'ERRO');
+    if (same) return res.status(409).json({ error: `Este PDF já foi enviado (${same.fileName}).`, document: same });
+
+    const cee = db.indicators.find(i => i.acronym === ENERGY_KWH_ACRONYM);
+    const now = new Date().toISOString();
+    const doc: PLSDocument = {
+      id: `doc-${Date.now()}-${hash.slice(0, 6)}`,
+      organizationId,
+      title: 'Fatura de energia elétrica',
+      fileName: String(fileName || 'fatura.pdf').slice(0, 200),
+      fileType: 'FATURA',
+      indicatorId: cee?.id,
+      processNumber: typeof processNumber === 'string' && processNumber.trim() ? processNumber.trim().slice(0, 40) : undefined,
+      status: 'PENDENTE_VALIDACAO',
+      extractionConfidence: 0,
+      fileSize: `${(data.length / 1024).toFixed(0)} KB`,
+      uploadedAt: now,
+      uploadedBy: user?.username,
+      contentHash: hash,
+      sourceSystem: 'UPLOAD'
     };
 
-    db.documents.unshift(newDoc);
-
-    logAudit(
-      'usr-3',
-      'Eng. Carlos Mendonça',
-      'EXTRAÇÃO_OCR',
-      'DOCUMENT',
-      newDoc.id,
-      undefined,
-      `${newDoc.title} (${newDoc.consumption} ${newDoc.unit})`,
-      `Upload e leitura automática via OCR. Índice de confiança: ${extracted.confidenceScore}%.`,
-      'Pipeline de Ingestão de Documentos'
-    );
-
-    storage.scheduleSave();
-    res.json({ success: true, document: newDoc, extracted });
-  });
-
-  // POST /api/documents/:id/validate - Validate extracted document
-  router.post('/documents/:id/validate', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { userId = 'usr-1', userName = 'Dr. Roberto Magalhães', approvedValue } = req.body;
-
-    const docIndex = db.documents.findIndex(d => d.id === id);
-    if (docIndex < 0) {
-      return res.status(404).json({ error: 'Documento não encontrado.' });
+    let text = '';
+    try {
+      text = (await pdfToText(data)).text;
+    } catch (err: any) {
+      doc.status = 'ERRO';
+      doc.reviewReasons = [`Não foi possível ler o PDF: ${err?.message || err}`];
+    }
+    if (doc.status !== 'ERRO' && text.replace(/\s/g, '').length < 80) {
+      doc.reviewReasons = ['PDF sem texto (provavelmente escaneado): informe os valores manualmente.'];
     }
 
-    const doc = db.documents[docIndex];
-    doc.status = 'PROCESSADO';
-    doc.validatedAt = new Date().toISOString();
-    doc.validatedBy = userId;
-    if (approvedValue !== undefined) {
-      doc.consumption = Number(approvedValue);
-    }
-
-    // Also update any pending measurement associated with this document
-    if (doc.indicatorId && doc.competence) {
-      const [y, m] = doc.competence.split('-').map(Number);
-      const mIdx = db.measurements.findIndex(
-        item => item.indicatorId === doc.indicatorId && item.year === y && item.month === m
-      );
-      if (mIdx >= 0) {
-        db.measurements[mIdx].validationStatus = 'VALIDADO';
-        db.measurements[mIdx].validatedBy = userId;
-        db.measurements[mIdx].validatedAt = new Date().toISOString();
-        if (approvedValue !== undefined) {
-          db.measurements[mIdx].value = Number(approvedValue);
-        }
+    let measurements: IndicatorMeasurement[] = [];
+    if (doc.status !== 'ERRO' && !doc.reviewReasons) {
+      const ex = await extractEnergyInvoice(text);
+      const f = ex.fields;
+      Object.assign(doc, {
+        title: f.supplier ? `Fatura de energia — ${f.supplier}` : doc.title,
+        supplier: f.supplier ?? undefined,
+        consumerUnit: f.consumerUnit ?? undefined,
+        invoiceNumber: f.invoiceNumber ?? undefined,
+        dueDate: f.dueDate ?? undefined,
+        competence: f.competence ?? undefined,
+        consumption: f.kwh ?? undefined,
+        unit: 'kWh',
+        amount: f.totalAmount ?? undefined,
+        extractionConfidence: ex.confidence,
+        ocrConfidence: ex.confidence,
+        extractionMethod: ex.method,
+        extractionNotes: ex.notes
+      });
+      const ctx = {
+        organizationId,
+        indicators: db.indicators,
+        measurements: db.measurements.filter(m => m.organizationId === organizationId),
+        documents: db.documents
+      };
+      doc.reviewReasons = reviewReasons(f, ex.confidence, ctx, doc.id);
+      if (doc.reviewReasons.length === 0 && f.competence) {
+        doc.status = 'PROCESSADO';
+        doc.validatedAt = now;
+        doc.validatedBy = 'Lançamento automático';
+        measurements = energyMeasurementsFor({ ...ctx, documents: [doc, ...db.documents] }, f.competence, user?.username || '');
       }
     }
+    doc.rawTextSnippet = text.slice(0, 4000);
 
+    db.documents.unshift(doc);
+    for (const m of measurements) {
+      const i = db.measurements.findIndex(x => x.id === m.id);
+      if (i >= 0) db.measurements[i] = m; else db.measurements.push(m);
+    }
     logAudit(
-      userId,
-      userName,
+      user?.username || '',
+      user?.displayName || '',
+      'EXTRAÇÃO_OCR',
+      'DOCUMENT',
+      doc.id,
+      undefined,
+      doc.status === 'PROCESSADO'
+        ? `Lançado: ${doc.consumption?.toLocaleString('pt-BR')} kWh e R$ ${doc.amount?.toLocaleString('pt-BR')} (${doc.competence})`
+        : `Pendente: ${(doc.reviewReasons || []).join(' ')}`,
+      `Leitura da fatura ${doc.fileName}. Confiança ${doc.extractionConfidence}%.`,
+      'Leitura de faturas de energia'
+    );
+    await storage.saveNow();
+    res.json({ success: true, document: doc, measurements });
+  });
+
+  // POST /api/documents/:id/validate — confirma (e corrige, se preciso) a leitura e lança CEE/GEE.
+  router.post('/documents/:id/validate', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), async (req: Request, res: Response) => {
+    const doc = db.documents.find(d => d.id === req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
+    const user = currentUser();
+    if (!canWriteOrg(user, doc.organizationId)) return res.status(403).json({ error: 'Sem permissão para este órgão.' });
+
+    const { kwh, amount, competence } = req.body || {};
+    const k = kwh !== undefined ? Number(kwh) : Number(doc.consumption);
+    const a = amount !== undefined ? Number(amount) : Number(doc.amount);
+    const comp = typeof competence === 'string' && /^\d{4}-\d{2}$/.test(competence) ? competence : doc.competence;
+    if (!comp) return res.status(400).json({ error: 'Informe o mês de referência (AAAA-MM).' });
+    if (!(k > 0) || !(a > 0)) return res.status(400).json({ error: 'Informe consumo (kWh) e valor (R$) maiores que zero.' });
+    const [y, m] = comp.split('-').map(Number);
+    const cee = db.indicators.find(i => i.acronym === ENERGY_KWH_ACRONYM);
+    const gee = db.indicators.find(i => i.acronym === ENERGY_COST_ACRONYM);
+    // Lançamento manual/importado do mês não é sobrescrito
+    const manual = db.measurements.find(
+      x => x.organizationId === doc.organizationId && x.year === y && x.month === m &&
+        (x.indicatorId === cee?.id || x.indicatorId === gee?.id) && x.sourceType !== 'document_extraction'
+    );
+    if (manual) {
+      return res.status(409).json({ error: `Já existe lançamento ${manual.sourceType === 'manual' ? 'manual' : 'importado'} de energia para ${String(m).padStart(2, '0')}/${y}. Corrija pelo lançamento mensal.` });
+    }
+
+    const before = `${doc.consumption ?? '-'} kWh / R$ ${doc.amount ?? '-'} (${doc.competence ?? '-'})`;
+    Object.assign(doc, {
+      consumption: k,
+      amount: a,
+      unit: 'kWh',
+      competence: comp,
+      indicatorId: cee?.id,
+      status: 'PROCESSADO' as const,
+      validatedAt: new Date().toISOString(),
+      validatedBy: user?.username,
+      reviewReasons: []
+    });
+    const measurements = energyMeasurementsFor(
+      {
+        organizationId: doc.organizationId,
+        indicators: db.indicators,
+        measurements: db.measurements.filter(x => x.organizationId === doc.organizationId),
+        documents: db.documents
+      },
+      comp,
+      user?.username || ''
+    );
+    for (const meas of measurements) {
+      const i = db.measurements.findIndex(x => x.id === meas.id);
+      if (i >= 0) db.measurements[i] = meas; else db.measurements.push(meas);
+    }
+    logAudit(
+      user?.username || '',
+      user?.displayName || '',
       'VALIDACAO',
       'DOCUMENT',
       doc.id,
-      'Status: PENDENTE_VALIDACAO',
-      'Status: PROCESSADO',
-      'Validação manual do atesto e faturamento aprovada pelo fiscal/gestor.',
-      'Módulo de Gestão Documental'
+      before,
+      `${k} kWh / R$ ${a} (${comp})`,
+      'Leitura da fatura confirmada pelo usuário.',
+      'Leitura de faturas de energia'
     );
-
-    storage.scheduleSave();
-    res.json({ success: true, document: doc });
+    await storage.saveNow();
+    res.json({ success: true, document: doc, measurements });
   });
 
   // POST /api/chat and /api/ai/chat - Query AI assistant with Gemini API, RAG, and On-Premise Local AI

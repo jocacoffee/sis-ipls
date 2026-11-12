@@ -23,8 +23,10 @@ import { PLSDocument, DocumentType, Indicator } from '../types';
 interface DocumentsViewProps {
   documents: PLSDocument[];
   indicators: Indicator[];
-  onUploadDocument: (fileData: { fileName: string; fileType: DocumentType; textSnippet?: string }) => void;
-  onValidateDocument: (documentId: string, approvedValue?: number) => void;
+  /** Envia o PDF da fatura de energia; o servidor lê, confere e lança (ou deixa pendente). */
+  onUploadDocument: (file: { fileName: string; contentBase64: string; processNumber?: string }) => Promise<{ document?: PLSDocument; error?: string }>;
+  /** Confirma a leitura (com valores corrigidos, se preciso) e lança CEE/GEE. */
+  onValidateDocument: (documentId: string, values?: { kwh?: number; amount?: number; competence?: string }) => Promise<{ document?: PLSDocument; error?: string }>;
 }
 
 export const DocumentsView: React.FC<DocumentsViewProps> = ({
@@ -37,9 +39,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [simulatedFileName, setSimulatedFileName] = useState<string>('');
-  const [simulatedDocType, setSimulatedDocType] = useState<DocumentType>('FATURA');
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadProcess, setUploadProcess] = useState<string>('');
+  const [uploadBusy, setUploadBusy] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string>('');
+  // Valores editáveis na validação
+  const [editKwh, setEditKwh] = useState<string>('');
+  const [editAmount, setEditAmount] = useState<string>('');
+  const [editCompetence, setEditCompetence] = useState<string>('');
+  const [validateBusy, setValidateBusy] = useState<boolean>(false);
+  const [validateError, setValidateError] = useState<string>('');
 
   const filteredDocs = documents.filter(doc => {
     if (filterType !== 'ALL' && doc.fileType !== filterType) return false;
@@ -56,17 +66,62 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     return true;
   });
 
-  const handleSimulatedUpload = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simulatedFileName) return;
-
-    onUploadDocument({
-      fileName: simulatedFileName.endsWith('.pdf') ? simulatedFileName : `${simulatedFileName}.pdf`,
-      fileType: simulatedDocType
+  const readBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
     });
 
-    setSimulatedFileName('');
-    setIsUploading(false);
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploadBusy(true);
+    setUploadError('');
+    try {
+      const contentBase64 = await readBase64(uploadFile);
+      const r = await onUploadDocument({ fileName: uploadFile.name, contentBase64, processNumber: uploadProcess || undefined });
+      if (r.error) {
+        setUploadError(r.error);
+        return;
+      }
+      setIsUploading(false);
+      setUploadFile(null);
+      setUploadProcess('');
+      if (r.document) openDoc(r.document);
+    } catch {
+      setUploadError('Não foi possível ler o arquivo.');
+    } finally {
+      setUploadBusy(false);
+    }
+  };
+
+  const openDoc = (doc: PLSDocument) => {
+    setSelectedDoc(doc);
+    setEditKwh(doc.consumption !== undefined ? String(doc.consumption).replace('.', ',') : '');
+    setEditAmount(doc.amount !== undefined ? String(doc.amount).replace('.', ',') : '');
+    setEditCompetence(doc.competence || '');
+    setValidateError('');
+  };
+
+  const toNumber = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'));
+
+  const handleValidate = async () => {
+    if (!selectedDoc) return;
+    setValidateBusy(true);
+    setValidateError('');
+    const r = await onValidateDocument(selectedDoc.id, {
+      kwh: toNumber(editKwh),
+      amount: toNumber(editAmount),
+      competence: editCompetence
+    });
+    setValidateBusy(false);
+    if (r.error) {
+      setValidateError(r.error);
+      return;
+    }
+    setSelectedDoc(null);
   };
 
   return (
@@ -82,7 +137,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             Documentos e Faturas
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Faturas de concessionárias, notas fiscais, atestos do fiscal e extração automática via OCR
+            Faturas de energia elétrica em PDF: leitura automática e lançamento em CEE (kWh) e GEE (R$)
           </p>
         </div>
 
@@ -91,7 +146,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs shadow-emerald-600/20 transition-colors"
         >
           <Upload className="w-4 h-4" />
-          <span>Subir Documento</span>
+          <span>Enviar fatura (PDF)</span>
         </button>
       </div>
 
@@ -290,7 +345,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="text-slate-400">OCR:</span>
+                  <span className="text-slate-400">Confiança:</span>
                   <span
                     className={`font-mono font-bold ${
                       isLowConfidence ? 'text-amber-600' : 'text-emerald-700'
@@ -302,7 +357,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setSelectedDoc(doc)}
+                    onClick={() => openDoc(doc)}
                     className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-[11px] shadow-2xs"
                   >
                     <Eye className="w-3.5 h-3.5" />
@@ -311,11 +366,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
                   {isPending && (
                     <button
-                      onClick={() => onValidateDocument(doc.id)}
+                      onClick={() => openDoc(doc)}
                       className="flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] shadow-xs"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      <span>Homologar</span>
+                      <span>Conferir</span>
                     </button>
                   )}
                 </div>
@@ -325,91 +380,58 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         })}
       </div>
 
-      {/* Upload Modal */}
+      {/* Envio da fatura de energia (PDF) */}
       {isUploading && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md p-6 animate-in fade-in duration-150">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              Ingestão Documental & OCR
-            </h3>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Fatura de energia elétrica</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Faça a submissão de faturas ou atestos para extração de dados
+              Envie o PDF da fatura (baixado do SEI ou da concessionária). O sistema lê o mês, o consumo
+              (kWh) e o valor (R$); se tudo conferir, lança em CEE e GEE. Se houver dúvida, a fatura fica
+              pendente para você conferir.
             </p>
 
-            <form onSubmit={handleSimulatedUpload} className="space-y-3.5 text-xs">
+            <form onSubmit={handleUpload} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Tipo de Documento *
-                </label>
-                <select
-                  value={simulatedDocType}
-                  onChange={e => setSimulatedDocType(e.target.value as DocumentType)}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900"
-                >
-                  <option value="FATURA">Fatura de Concessionária (Energia, Água, Telefonia)</option>
-                  <option value="ATESTO">Atesto do Fiscal de Contrato</option>
-                  <option value="NOTA_FISCAL">Nota Fiscal de Compra / Fornecimento</option>
-                  <option value="RELATORIO">Relatório / Manifesto de Resíduos</option>
-                </select>
+                <label className="block font-semibold text-slate-700 mb-1">Arquivo PDF *</label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  required
+                  onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                  className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2 text-xs text-slate-900"
+                />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Nome do Arquivo / Modelo de Fatura *
-                </label>
+                <label className="block font-semibold text-slate-700 mb-1">Processo SEI (opcional)</label>
                 <input
                   type="text"
-                  required
-                  value={simulatedFileName}
-                  onChange={e => setSimulatedFileName(e.target.value)}
-                  placeholder="Ex: Fatura_Roraima_Energia_08_2026.pdf"
+                  value={uploadProcess}
+                  onChange={e => setUploadProcess(e.target.value)}
+                  placeholder="Ex.: 0001234-56.2026.4.01.8012"
                   className="w-full rounded-xl bg-slate-50 border border-slate-300 p-2.5 text-xs text-slate-900 font-mono"
                 />
               </div>
 
-              <div className="bg-emerald-50/70 p-3 rounded-2xl border border-emerald-200/80 text-emerald-900 text-[11px] space-y-1">
-                <div className="font-bold flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  Modelos de Teste Rápido:
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setSimulatedFileName('Fatura_Roraima_Energia_Set_2026.pdf')}
-                    className="px-2 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-[10px] font-medium"
-                  >
-                    Energia Elétrica
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSimulatedFileName('Fatura_CAER_Agua_Set_2026.pdf')}
-                    className="px-2 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-[10px] font-medium"
-                  >
-                    Água CAER
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSimulatedFileName('Fatura_Telefonia_Oi_Set_2026.pdf')}
-                    className="px-2 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-[10px] font-medium"
-                  >
-                    Telefonia
-                  </button>
-                </div>
-              </div>
+              {uploadError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{uploadError}</div>
+              )}
 
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsUploading(false)}
+                  onClick={() => { setIsUploading(false); setUploadError(''); }}
                   className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                  disabled={!uploadFile || uploadBusy}
+                  className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold shadow-xs"
                 >
-                  Processar com OCR
+                  {uploadBusy ? 'Lendo a fatura…' : 'Enviar e ler'}
                 </button>
               </div>
             </form>
@@ -417,7 +439,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
       )}
 
-      {/* Document Inspector Modal */}
+            {/* Document Inspector Modal */}
       {selectedDoc && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 animate-in fade-in duration-150">
@@ -463,8 +485,51 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
               </div>
 
+              {selectedDoc.reviewReasons && selectedDoc.reviewReasons.length > 0 && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+                  <div className="font-bold">Por que não foi lançado automaticamente:</div>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    {selectedDoc.reviewReasons.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {selectedDoc.extractionNotes && selectedDoc.extractionNotes.length > 0 && (
+                <div className="text-[11px] text-slate-500">
+                  <strong>Leitura:</strong> {selectedDoc.extractionMethod} · {selectedDoc.extractionNotes.join(' ')}
+                </div>
+              )}
+
+              {selectedDoc.status === 'PENDENTE_VALIDACAO' && (
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+                  <label className="block">
+                    <span className="font-semibold text-slate-700">Mês (AAAA-MM)</span>
+                    <input value={editCompetence} onChange={e => setEditCompetence(e.target.value)} placeholder="2026-10"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 font-mono" />
+                  </label>
+                  <label className="block">
+                    <span className="font-semibold text-slate-700">Consumo (kWh)</span>
+                    <input value={editKwh} onChange={e => setEditKwh(e.target.value)} inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 font-mono" />
+                  </label>
+                  <label className="block">
+                    <span className="font-semibold text-slate-700">Valor total (R$)</span>
+                    <input value={editAmount} onChange={e => setEditAmount(e.target.value)} inputMode="decimal"
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 font-mono" />
+                  </label>
+                  <p className="col-span-3 text-[11px] text-emerald-900">
+                    Confira com o PDF e corrija se preciso. Ao confirmar, o consumo entra em CEE e o valor em GEE
+                    (somados às demais faturas do mesmo mês).
+                  </p>
+                </div>
+              )}
+
+              {validateError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{validateError}</div>
+              )}
+
               <div>
-                <h4 className="font-bold text-slate-800 mb-1">Texto Extraído via OCR / Parser:</h4>
+                <h4 className="font-bold text-slate-800 mb-1">Texto extraído do PDF:</h4>
                 <div className="bg-slate-50 text-slate-800 border border-slate-200 p-4 rounded-2xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
                   {selectedDoc.rawTextSnippet || 'Nenhum texto bruto disponível.'}
                 </div>
@@ -472,7 +537,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-200">
                 <div className="text-slate-500 text-[11px]">
-                  Índice de Confiança OCR: <strong className="text-emerald-700">{selectedDoc.extractionConfidence}%</strong>
+                  Confiança da leitura: <strong className="text-emerald-700">{selectedDoc.extractionConfidence}%</strong>
+                  {selectedDoc.uploadedBy && <> · enviado por {selectedDoc.uploadedBy}</>}
                 </div>
 
                 <div className="flex gap-2">
@@ -485,14 +551,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
                   {selectedDoc.status === 'PENDENTE_VALIDACAO' && (
                     <button
-                      onClick={() => {
-                        onValidateDocument(selectedDoc.id);
-                        setSelectedDoc(null);
-                      }}
-                      className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shadow-xs"
+                      onClick={handleValidate}
+                      disabled={validateBusy}
+                      className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold flex items-center gap-1.5 shadow-xs"
                     >
                       <Check className="w-4 h-4" />
-                      <span>Homologar Atesto</span>
+                      <span>{validateBusy ? 'Lançando…' : 'Confirmar e lançar'}</span>
                     </button>
                   )}
                 </div>

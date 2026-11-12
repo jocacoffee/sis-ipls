@@ -33,7 +33,6 @@ import {
   INITIAL_ALERTS
 } from './data/seedData';
 import { calculateIndicatorPerformance, detectMeasurementInconsistencies } from './services/calculationEngine';
-import { extractDataFromDocument } from './services/documentExtractor';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { IndicatorsView } from './components/IndicatorsView';
@@ -590,136 +589,43 @@ export function App() {
     }
   };
 
-  // Upload and OCR document
-  const handleUploadDocument = async (fileData: { fileName: string; fileType: any; textSnippet?: string }) => {
-    if (!ensureCanEdit()) return;
-    const extracted = extractDataFromDocument(fileData.fileName, fileData.textSnippet);
-
-    const newDoc: PLSDocument = {
-      id: `doc-${Date.now()}`,
-      organizationId: selectedOrgId,
-      title: extracted.supplier,
-      fileName: fileData.fileName,
-      fileType: fileData.fileType,
-      competence: extracted.competence,
-      indicatorId: extracted.detectedIndicatorId,
-      processNumber: extracted.detectedProcessNumber,
-      supplier: extracted.supplier,
-      amount: extracted.totalAmount,
-      consumption: extracted.consumptionValue,
-      unit: extracted.consumptionUnit,
-      status: extracted.requiresHumanReview ? 'PENDENTE_VALIDACAO' : 'PROCESSADO',
-      extractionConfidence: extracted.confidenceScore,
-      fileSize: '1.2 MB',
-      uploadedAt: new Date().toISOString(),
-      ocrConfidence: extracted.confidenceScore,
-      rawTextSnippet: extracted.rawText
-    };
-
-    setDocuments(prev => [newDoc, ...prev]);
-
-    // Also register an entry in measurements if valid
-    const [y, m] = extracted.competence.split('-').map(Number);
-    const newMeasurement: IndicatorMeasurement = {
-      id: `m-${extracted.detectedIndicatorId}-${y}-${m}-${Date.now()}`,
-      indicatorId: extracted.detectedIndicatorId,
-      organizationId: selectedOrgId,
-      year: y,
-      month: m,
-      value: extracted.consumptionValue,
-      unit: extracted.consumptionUnit,
-      sourceType: 'document_extraction',
-      sourceReference: extracted.invoiceNumber,
-      processNumber: extracted.detectedProcessNumber,
-      sourceDocumentId: newDoc.id,
-      validationStatus: extracted.requiresHumanReview ? 'PENDENTE' : 'VALIDADO',
-      confidenceScore: extracted.confidenceScore,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    setMeasurements(prev => {
-      const idx = prev.findIndex(
-        item => item.indicatorId === newMeasurement.indicatorId && item.year === y && item.month === m
-      );
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = newMeasurement;
-        return copy;
-      }
-      return [...prev, newMeasurement];
-    });
-
-    // Audit log
-    const auditEntry: AuditLog = {
-      id: `audit-${Date.now()}`,
-      organizationId: selectedOrgId,
-      userId: 'usr-3',
-      userName: 'Eng. Carlos Mendonça',
-      action: 'EXTRAÇÃO_OCR',
-      timestamp: new Date().toISOString(),
-      entityType: 'DOCUMENT',
-      entityId: newDoc.id,
-      newValue: `${newDoc.title} (${newDoc.consumption} ${newDoc.unit})`,
-      reason: `Extração automática OCR do documento. Confiança: ${extracted.confidenceScore}%.`,
-      source: 'Módulo de Gestão Documental'
-    };
-    setAuditLogs(prev => [auditEntry, ...prev]);
+  // Faturas de energia: o servidor lê o PDF, confere e (se confiável) lança CEE/GEE do mês
+  const applyDocumentResult = (data: { document: PLSDocument; measurements?: IndicatorMeasurement[] }) => {
+    setDocuments(prev => [data.document, ...prev.filter(d => d.id !== data.document.id)]);
+    const ms = (data.measurements || []).filter(m => m.organizationId === selectedOrgId);
+    if (ms.length) {
+      setMeasurements(prev => {
+        const merged = mergeMeasurements(prev, ms);
+        saveLocalData(measurementsCacheKey(selectedOrgId), merged);
+        return merged;
+      });
+    }
   };
 
-  // Validate document
-  const handleValidateDocument = async (documentId: string, approvedValue?: number) => {
-    if (!ensureCanEdit()) return;
-    setDocuments(prev =>
-      prev.map(d => {
-        if (d.id === documentId) {
-          return {
-            ...d,
-            status: 'PROCESSADO',
-            validatedAt: new Date().toISOString(),
-            validatedBy: 'usr-1',
-            consumption: approvedValue !== undefined ? approvedValue : d.consumption
-          };
-        }
-        return d;
-      })
-    );
+  const handleUploadDocument = async (file: { fileName: string; contentBase64: string; processNumber?: string }) => {
+    if (!ensureCanEdit()) return { error: 'Sem permissão para lançar dados neste órgão.' };
+    const res = await fetch('/api/documents/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: selectedOrgId, ...file })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: data.error || `Falha no envio (HTTP ${res.status}).` };
+    applyDocumentResult(data);
+    return { document: data.document as PLSDocument };
+  };
 
-    // Update associated measurement
-    const doc = documents.find(d => d.id === documentId);
-    if (doc && doc.indicatorId && doc.competence) {
-      const [y, m] = doc.competence.split('-').map(Number);
-      setMeasurements(prev =>
-        prev.map(item => {
-          if (item.indicatorId === doc.indicatorId && item.year === y && item.month === m) {
-            return {
-              ...item,
-              validationStatus: 'VALIDADO',
-              validatedBy: 'usr-1',
-              validatedAt: new Date().toISOString(),
-              value: approvedValue !== undefined ? approvedValue : item.value
-            };
-          }
-          return item;
-        })
-      );
-    }
-
-    const auditEntry: AuditLog = {
-      id: `audit-${Date.now()}`,
-      organizationId: selectedOrgId,
-      userId: 'usr-1',
-      userName: 'Dr. Roberto Magalhães',
-      action: 'VALIDACAO',
-      timestamp: new Date().toISOString(),
-      entityType: 'DOCUMENT',
-      entityId: documentId,
-      previousValue: 'Status: PENDENTE_VALIDACAO',
-      newValue: 'Status: PROCESSADO (Atesto Homologado)',
-      reason: 'Validação manual do atesto de conformidade aprovada pelo gestor.',
-      source: 'Módulo de Gestão Documental'
-    };
-    setAuditLogs(prev => [auditEntry, ...prev]);
+  const handleValidateDocument = async (documentId: string, values?: { kwh?: number; amount?: number; competence?: string }) => {
+    if (!ensureCanEdit()) return { error: 'Sem permissão para lançar dados neste órgão.' };
+    const res = await fetch(`/api/documents/${encodeURIComponent(documentId)}/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(values || {})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: data.error || `Falha na validação (HTTP ${res.status}).` };
+    applyDocumentResult(data);
+    return { document: data.document as PLSDocument };
   };
 
   // Save action plan item with API persistence and audit log

@@ -271,6 +271,18 @@ export interface PLSDocument {
   validatedBy?: string;
   rawTextSnippet?: string;
   ocrConfidence?: number;
+  /** Leitura real de fatura (energia): unidade consumidora, nº da fatura, origem e checagens. */
+  consumerUnit?: string;
+  invoiceNumber?: string;
+  dueDate?: string;
+  extractionMethod?: string;
+  /** Motivos que impediram o lançamento automático (vazio = lançado). */
+  reviewReasons?: string[];
+  extractionNotes?: string[];
+  contentHash?: string;
+  sourceSystem?: 'UPLOAD' | 'SEI';
+  seiDocumentId?: string;
+  uploadedBy?: string;
 }
 
 export type ActionStatus = 'NAO_INICIADA' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA' | 'SUSPENSA';
