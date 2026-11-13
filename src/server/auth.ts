@@ -345,9 +345,30 @@ export const requireRole = (...roles: AuthRole[]) =>
   };
 
 // ------------------------------------------------------------------ rotas
+/**
+ * Limite de tentativas de login (senha errada), em duas contagens:
+ * - por usuário (login normalizado: "x", "JFRR\x" e "x@rr…" contam juntos), abaixo do limite de
+ *   bloqueio do AD, para que ninguém consiga bloquear a conta de rede de outra pessoa pelo iPLS;
+ * - por IP, contra tentativas de uma senha comum em muitos usuários.
+ */
 const failures = new Map<string, { count: number; until: number }>();
-const MAX_FAILURES = 8;
+const MAX_FAILURES_PER_LOGIN = Math.max(1, Number(env.AUTH_MAX_FAILURES) || 5);
+const MAX_FAILURES_PER_IP = Math.max(1, Number(env.AUTH_MAX_FAILURES_IP) || 30);
 const LOCK_MS = 15 * 60_000;
+
+const isLocked = (key: string, max: number) => {
+  const f = failures.get(key);
+  return !!f && f.until > Date.now() && f.count >= max;
+};
+
+function addFailure(key: string) {
+  const now = Date.now();
+  if (failures.size > 50_000) {
+    for (const [k, v] of failures) if (v.until <= now) failures.delete(k);
+  }
+  const cur = failures.get(key);
+  failures.set(key, { count: (cur && cur.until > now ? cur.count : 0) + 1, until: now + LOCK_MS });
+}
 
 function audit(user: AuthUser, entityId: string, previousValue: string | undefined, newValue: string | undefined, reason: string, action: AuditLog['action']) {
   const db = storage.getDatabase();
@@ -408,14 +429,14 @@ export function createAuthRouter() {
     if (typeof username !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ error: 'Informe usuário e senha.' });
     }
-    const key = `${req.ip}|${username.trim().toLowerCase()}`;
-    const f = failures.get(key);
-    if (f && f.count >= MAX_FAILURES && f.until > Date.now()) {
+    const loginKey = `login:${normalizeLogin(username) ?? username.trim().toLowerCase().slice(0, 120)}`;
+    const ipKey = `ip:${req.ip}`;
+    if (isLocked(loginKey, MAX_FAILURES_PER_LOGIN) || isLocked(ipKey, MAX_FAILURES_PER_IP)) {
       return res.status(429).json({ error: 'Muitas tentativas. Tente novamente em alguns minutos.' });
     }
     try {
       const identity = await authenticate(username, password);
-      failures.delete(key);
+      failures.delete(loginKey);
       // Atualiza nome e último acesso na permissão, se houver
       const perm = storage.getDatabase().userPermissions.find(p => p.username === identity.username);
       if (perm) {
@@ -428,9 +449,12 @@ export function createAuthRouter() {
       console.log(`[Auth] Login: ${user.username} (${user.role}, ${user.organizationId ?? 'sem órgão'})`);
       return res.json({ user });
     } catch (err) {
-      const cur = failures.get(key);
-      failures.set(key, { count: (cur && cur.until > Date.now() ? cur.count : 0) + 1, until: Date.now() + LOCK_MS });
-      if (err instanceof AuthError) return res.status(401).json({ error: err.message });
+      if (err instanceof AuthError) {
+        // Só senha/usuário errados contam (AD fora do ar não bloqueia ninguém)
+        addFailure(loginKey);
+        addFailure(ipKey);
+        return res.status(401).json({ error: err.message });
+      }
       console.error('[Auth] Falha ao consultar o AD:', err);
       return res.status(503).json({ error: 'Não foi possível validar o login no AD. Tente novamente mais tarde.' });
     }

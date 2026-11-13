@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import express, { Request, Response } from 'express';
 import { storage } from './storage';
 import {
@@ -51,6 +52,21 @@ export function createApiRouter() {
       ? 'O consolidado regional é calculado a partir dos órgãos e não aceita lançamentos diretos. Selecione um órgão.'
       : null;
 
+  // ---- Validação de entrada: nada inválido entra na memória (senão a gravação no banco falharia
+  // e travaria as gravações seguintes de todos os órgãos).
+  const isValidYear = (y: unknown) => Number.isInteger(Number(y)) && Number(y) >= 2000 && Number(y) <= 2100;
+  const isValidMonth = (m: unknown) => Number.isInteger(Number(m)) && Number(m) >= 1 && Number(m) <= 12;
+  /** Número finito de verdade (rejeita '', null, booleanos, NaN e Infinity). */
+  const isFiniteNumber = (v: unknown) =>
+    (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(Number(v));
+  /** Texto opcional, limitado. */
+  const optText = (v: unknown, max: number) =>
+    v === undefined || v === null || v === '' ? undefined : String(v).slice(0, max);
+  /** Id gerado no servidor (nunca vindo do navegador), com sufixo aleatório para não colidir. */
+  const newId = (prefix: string) => `${prefix}-${Date.now()}-${randomBytes(3).toString('hex')}`;
+  const orgExists = (orgId: unknown) => typeof orgId === 'string' && db.organizations.some(o => o.id === orgId);
+  const indicatorExists = (id: unknown) => typeof id === 'string' && db.indicators.some(i => i.id === id);
+
   // Helper for audit logging
   const logAudit = (
     userId: string,
@@ -101,6 +117,8 @@ export function createApiRouter() {
     const year = Number(req.query.year) || 2026;
     const orgId = (req.query.orgId as string) || LEGACY_DEFAULT_ORG_ID;
     const scoped = scopeFor(orgId);
+    // Visitantes (sem login) não recebem auditoria nem documentos (logins, nomes e texto das faturas)
+    const viewer = currentUser();
 
     // Recalculate indicator metrics (somente dados do órgão selecionado)
     const indicatorPerformances = db.indicators.map(ind => {
@@ -132,13 +150,15 @@ export function createApiRouter() {
       selectedOrgId: orgId,
       idsComplements: (db.idsComplements || []).filter(c => c.organizationId === orgId),
       // Documentos do órgão (no consolidado, de todos)
-      documents: isConsolidatedOrg(orgId, db.organizations) ? db.documents : db.documents.filter(d => d.organizationId === orgId),
+      documents: !viewer
+        ? []
+        : isConsolidatedOrg(orgId, db.organizations) ? db.documents : db.documents.filter(d => d.organizationId === orgId),
       actionPlans: db.actionPlans,
       emissionSources: db.emissionSources,
       ghgCalculations: db.ghgCalculations,
       plsJudMappings: db.plsJudMappings,
       seiConnectors: db.seiConnectors,
-      auditLogs: db.auditLogs,
+      auditLogs: viewer ? db.auditLogs : [],
       alerts: allAlerts,
       indicatorPerformances,
       hasGeminiApiKey: !!process.env.GEMINI_API_KEY,
@@ -308,6 +328,15 @@ export function createApiRouter() {
     if (!indicatorId || !year || !month || value === undefined) {
       return res.status(400).json({ error: 'Campos obrigatórios ausentes (indicatorId, year, month, value).' });
     }
+    if (!isValidYear(year)) {
+      return res.status(400).json({ error: 'Ano inválido (2000 a 2100).' });
+    }
+    if (!isFiniteNumber(value)) {
+      return res.status(400).json({ error: 'Valor numérico inválido.' });
+    }
+    if (typeof organizationId !== 'string') {
+      return res.status(400).json({ error: 'Órgão inválido.' });
+    }
 
     const writeError = consolidatedWriteError(organizationId);
     if (writeError) {
@@ -365,11 +394,11 @@ export function createApiRouter() {
       measurement = {
         ...oldVal,
         value: Number(value),
-        unit: unit || ind.unit,
-        sourceType: sourceType || 'manual',
-        sourceReference: sourceReference || oldVal.sourceReference,
-        processNumber: processNumber || oldVal.processNumber,
-        notes: notes || oldVal.notes,
+        unit: optText(unit, 40) || ind.unit,
+        sourceType: (optText(sourceType, 40) as IndicatorMeasurement['sourceType']) || 'manual',
+        sourceReference: optText(sourceReference, 500) || oldVal.sourceReference,
+        processNumber: optText(processNumber, 60) || oldVal.processNumber,
+        notes: optText(notes, 2000) || oldVal.notes,
         validationStatus: 'VALIDADO',
         validatedBy: userId,
         validatedAt: new Date().toISOString(),
@@ -390,22 +419,22 @@ export function createApiRouter() {
       );
     } else {
       measurement = {
-        id: `m-${indicatorId}-${year}-${month}-${Date.now()}`,
+        id: newId(`m-${indicatorId}-${Number(year)}-${effMonth}`),
         indicatorId,
         organizationId,
         year: Number(year),
         month: effMonth,
         ...(isMonthlyEntry ? { isMonthlyEntry: true } : {}),
         value: Number(value),
-        unit: unit || ind.unit,
-        sourceType: sourceType || 'manual',
-        sourceReference,
-        processNumber,
+        unit: optText(unit, 40) || ind.unit,
+        sourceType: (optText(sourceType, 40) as IndicatorMeasurement['sourceType']) || 'manual',
+        sourceReference: optText(sourceReference, 500),
+        processNumber: optText(processNumber, 60),
         validationStatus: 'VALIDADO',
         validatedBy: userId,
         validatedAt: new Date().toISOString(),
         confidenceScore: 100,
-        notes,
+        notes: optText(notes, 2000),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -445,39 +474,51 @@ export function createApiRouter() {
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Nenhuma medição fornecida no lote.' });
     }
+    if (items.length > 20000) {
+      return res.status(400).json({ error: 'Lote grande demais (máximo de 20.000 medições).' });
+    }
 
     let insertedCount = 0;
     let updatedCount = 0;
     let rejectedCount = 0;
     const now = new Date().toISOString();
 
-    items.forEach((item, idx) => {
-      if (!item.indicatorId || item.value === undefined) return;
-      const batchOrgId = item.organizationId || LEGACY_DEFAULT_ORG_ID;
-      if (consolidatedWriteError(batchOrgId) || !canWriteOrg(currentUser(), batchOrgId)) {
+    items.forEach(item => {
+      if (!item || typeof item !== 'object') {
         rejectedCount++;
         return;
       }
-      const year = Number(item.year) || 2026;
+      const itemOrgId: string = item.organizationId || LEGACY_DEFAULT_ORG_ID;
+      const year = item.year !== undefined ? Number(item.year) : 2026;
       const month = item.month !== undefined ? Number(item.month) : 1;
+      // Tudo validado antes de tocar na memória; o id é sempre gerado aqui
+      if (
+        !indicatorExists(item.indicatorId) ||
+        !orgExists(itemOrgId) ||
+        consolidatedWriteError(itemOrgId) ||
+        !canWriteOrg(currentUser(), itemOrgId) ||
+        !isValidYear(year) ||
+        !isValidMonth(month) ||
+        !isFiniteNumber(item.value)
+      ) {
+        rejectedCount++;
+        return;
+      }
       const val = Number(item.value);
+      const sourceType = (optText(item.sourceType, 40) as IndicatorMeasurement['sourceType']) || 'spreadsheet';
 
-      const itemOrgId = item.organizationId || 'org-sjrr';
       const existingIndex = db.measurements.findIndex(
-        m => m.indicatorId === item.indicatorId &&
-             m.year === year &&
-             m.month === month &&
-             (m.organizationId === itemOrgId || (!m.organizationId && itemOrgId === 'org-sjrr'))
+        m => m.indicatorId === item.indicatorId && m.year === year && m.month === month && orgIdOf(m) === itemOrgId
       );
 
       if (existingIndex >= 0) {
         db.measurements[existingIndex] = {
           ...db.measurements[existingIndex],
           value: val,
-          unit: item.unit || db.measurements[existingIndex].unit,
-          sourceType: (item.sourceType as any) || 'spreadsheet',
-          sourceReference: item.sourceReference || sourceDescription,
-          processNumber: item.processNumber || db.measurements[existingIndex].processNumber || undefined,
+          unit: optText(item.unit, 40) || db.measurements[existingIndex].unit,
+          sourceType,
+          sourceReference: optText(item.sourceReference, 500) || String(sourceDescription).slice(0, 500),
+          processNumber: optText(item.processNumber, 60) || db.measurements[existingIndex].processNumber || undefined,
           validationStatus: 'VALIDADO',
           validatedBy: userId,
           validatedAt: now,
@@ -486,21 +527,21 @@ export function createApiRouter() {
         updatedCount++;
       } else {
         const newRecord: IndicatorMeasurement = {
-          id: item.id || `m-batch-${year}-${month}-${item.indicatorId}-${Date.now()}-${idx}`,
+          id: newId(`m-batch-${year}-${month}-${item.indicatorId}`),
           indicatorId: item.indicatorId,
-          organizationId: item.organizationId || 'org-sjrr',
+          organizationId: itemOrgId,
           year,
           month,
           value: val,
-          unit: item.unit || 'unidades',
-          sourceType: (item.sourceType as any) || 'spreadsheet',
-          sourceReference: item.sourceReference || sourceDescription,
-          processNumber: item.processNumber || undefined,
+          unit: optText(item.unit, 40) || 'unidades',
+          sourceType,
+          sourceReference: optText(item.sourceReference, 500) || String(sourceDescription).slice(0, 500),
+          processNumber: optText(item.processNumber, 60),
           validationStatus: 'VALIDADO',
           validatedBy: userId,
           validatedAt: now,
           confidenceScore: 99,
-          notes: item.notes || `Importado via Planilha PLS SJRR (${year})`,
+          notes: optText(item.notes, 2000) || `Importado via planilha (${year})`,
           createdAt: now,
           updatedAt: now
         };
@@ -659,7 +700,11 @@ export function createApiRouter() {
     const a = amount !== undefined ? Number(amount) : Number(doc.amount);
     const comp = typeof competence === 'string' && /^\d{4}-\d{2}$/.test(competence) ? competence : doc.competence;
     if (!comp) return res.status(400).json({ error: 'Informe o mês de referência (AAAA-MM).' });
-    if (!(k > 0) || !(a > 0)) return res.status(400).json({ error: 'Informe consumo (kWh) e valor (R$) maiores que zero.' });
+    const [cy, cm] = comp.split('-').map(Number);
+    if (!isValidYear(cy) || !isValidMonth(cm)) return res.status(400).json({ error: 'Mês de referência inválido (AAAA-MM).' });
+    if (!(Number.isFinite(k) && k > 0) || !(Number.isFinite(a) && a > 0)) {
+      return res.status(400).json({ error: 'Informe consumo (kWh) e valor (R$) maiores que zero.' });
+    }
     const [y, m] = comp.split('-').map(Number);
     const cee = db.indicators.find(i => i.acronym === ENERGY_KWH_ACRONYM);
     const gee = db.indicators.find(i => i.acronym === ENERGY_COST_ACRONYM);
@@ -750,7 +795,7 @@ export function createApiRouter() {
           measurements: scoped.measurements,
           targets: scoped.targets,
           actionPlans: db.actionPlans.filter(a => (a.organizationId || LEGACY_DEFAULT_ORG_ID) === org.id),
-          documents: db.documents,
+          documents: isConsolidatedOrg(org.id, db.organizations) ? db.documents : db.documents.filter(d => d.organizationId === org.id),
           alerts: db.alerts.filter(a => !a.organizationId || a.organizationId === org.id)
         }
       });
@@ -921,6 +966,12 @@ export function createApiRouter() {
 
     const year = Number(target.year) || 2026;
     const targetOrgId: string = target.organizationId || LEGACY_DEFAULT_ORG_ID;
+    if (!isValidYear(year)) {
+      return res.status(400).json({ error: 'Ano da meta inválido (2000 a 2100).' });
+    }
+    if (!orgExists(targetOrgId)) {
+      return res.status(404).json({ error: 'Órgão não encontrado.' });
+    }
     const writeError = consolidatedWriteError(targetOrgId);
     if (writeError) {
       return res.status(400).json({ error: writeError });
@@ -984,6 +1035,8 @@ export function createApiRouter() {
       updatedTarget = {
         ...oldTarget,
         ...target,
+        id: oldTarget.id,
+        organizationId: targetOrgId,
         year,
         targetValue: Number(target.targetValue),
         baselineValue: target.baselineValue !== undefined ? Number(target.baselineValue) : oldTarget.baselineValue
@@ -1010,7 +1063,7 @@ export function createApiRouter() {
       const ind = db.indicators.find(i => i.id === target.indicatorId);
       updatedTarget = {
         ...target,
-        id: target.id || `target-${targetOrgId}-${target.indicatorId}-${year}-${Date.now()}`,
+        id: newId(`target-${targetOrgId}-${target.indicatorId}-${year}`),
         organizationId: targetOrgId,
         year,
         targetValue: Number(target.targetValue),

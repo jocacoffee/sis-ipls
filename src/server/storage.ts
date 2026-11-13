@@ -190,7 +190,18 @@ class StorageEngine {
       const db = this.getDatabase();
       db.lastSavedAt = new Date().toISOString();
       if (this.pg) {
-        const r = await this.pg.persist(db);
+        let r: { upserted: number; deleted: number };
+        try {
+          r = await this.pg.persist(db);
+        } catch (err) {
+          // Dado inválido na memória (chave duplicada, restrição do banco): sem desfazer, toda gravação
+          // seguinte falharia. Volta ao último estado confirmado no banco. Falha de conexão não descarta nada.
+          if (isDataError(err)) {
+            console.error('[StorageEngine] Gravação recusada pelo banco; restaurando o último estado confirmado:', err);
+            await this.reloadConfirmed().catch(e => console.error('[StorageEngine] Falha ao restaurar o estado:', e));
+          }
+          throw err;
+        }
         if (r.upserted || r.deleted) {
           console.log(`[StorageEngine] PostgreSQL: ${r.upserted} gravado(s), ${r.deleted} excluído(s).`);
         }
@@ -202,6 +213,22 @@ class StorageEngine {
     this.saveChain = next.catch(() => undefined);
     return next;
   }
+
+  /** Recarrega do PostgreSQL o último estado confirmado, no mesmo objeto (as rotas guardam a referência). */
+  private async reloadConfirmed(): Promise<void> {
+    if (!this.pg || !this.db) return;
+    const { db: fresh } = normalizeDatabase(await this.pg.load());
+    const target = this.db as unknown as Record<string, unknown>;
+    for (const key of Object.keys(target)) if (!(key in fresh)) delete target[key];
+    Object.assign(target, fresh);
+  }
+}
+
+/** Erro causado pelos dados (e não pela conexão): chave duplicada ou violação de restrição/tipo no PostgreSQL. */
+function isDataError(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown };
+  if (typeof e?.message === 'string' && e.message.startsWith('Chave duplicada')) return true;
+  return typeof e?.code === 'string' && (e.code.startsWith('22') || e.code.startsWith('23'));
 }
 
 export const storage = new StorageEngine();

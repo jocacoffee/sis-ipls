@@ -308,7 +308,8 @@ export function App() {
       .catch(err => {
         console.log('[iPLS] Servidor inicializando ou modo autônomo ativo:', err);
       });
-  }, [selectedYear, selectedOrgId]);
+    // Recarrega ao entrar/sair: auditoria e documentos só vêm para usuários logados
+  }, [selectedYear, selectedOrgId, authUser?.username]);
 
   // Dynamic calculations for all indicators in selected year (dados do órgão selecionado)
   const orgDenoms = orgDenominators(selectedOrgId, organizations);

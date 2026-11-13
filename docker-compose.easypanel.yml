@@ -38,6 +38,8 @@ services:
       - LDAP_TLS_REJECT_UNAUTHORIZED=${LDAP_TLS_REJECT_UNAUTHORIZED:-}
       - IPLS_ADMINS=${IPLS_ADMINS:-}
       - IPLS_DEVS=${IPLS_DEVS:-}
+      - AUTH_MAX_FAILURES=${AUTH_MAX_FAILURES:-}
+      - AUTH_MAX_FAILURES_IP=${AUTH_MAX_FAILURES_IP:-}
       # IA local compatível com a API da OpenAI (LM Studio, Ollama, vLLM) — opcional
       - AI_PROVIDER=${AI_PROVIDER:-}
       - LOCAL_AI_ENDPOINT=${LOCAL_AI_ENDPOINT:-}
