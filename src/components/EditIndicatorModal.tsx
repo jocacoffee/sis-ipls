@@ -15,6 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Indicator, IndicatorPeriodicity, PLSTheme } from '../types';
+import { isAutoIndicator } from '../services/autoCalc';
 
 interface EditIndicatorModalProps {
   indicator: Indicator;
@@ -37,11 +38,14 @@ export const EditIndicatorModal: React.FC<EditIndicatorModalProps> = ({
   const [normativeReference, setNormativeReference] = useState<string>(indicator.normativeReference || '');
   const [responsibleUnit, setResponsibleUnit] = useState<string>(indicator.responsibleUnit || '');
   const [formulaDescription, setFormulaDescription] = useState<string>(indicator.formulaDescription || '');
+  const [allowMonthlyEntry, setAllowMonthlyEntry] = useState<boolean>(!!indicator.allowMonthlyEntry);
   const [reason, setReason] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState<boolean>(false);
 
   const isGeneralVariable = indicator.themeId === 'theme-1';
+  // Anual que pode ser lançado mês a mês (cada órgão escolhe por exercício)
+  const canBeFlexible = periodicity === 'ANUAL' && !isGeneralVariable && !isAutoIndicator(indicator);
 
   const handleResetToDefault = () => {
     setName(indicator.name);
@@ -53,6 +57,7 @@ export const EditIndicatorModal: React.FC<EditIndicatorModalProps> = ({
     setNormativeReference(indicator.normativeReference || '');
     setResponsibleUnit(indicator.responsibleUnit || '');
     setFormulaDescription(indicator.formulaDescription || '');
+    setAllowMonthlyEntry(!!indicator.allowMonthlyEntry);
     setReason('');
     setErrorMessage(null);
   };
@@ -77,7 +82,8 @@ export const EditIndicatorModal: React.FC<EditIndicatorModalProps> = ({
       unit: unit.trim(),
       normativeReference: normativeReference.trim() || undefined,
       responsibleUnit: responsibleUnit.trim() || undefined,
-      formulaDescription: formulaDescription.trim() || undefined
+      formulaDescription: formulaDescription.trim() || undefined,
+      allowMonthlyEntry: canBeFlexible && allowMonthlyEntry ? true : undefined
     };
 
     setIsSaved(true);
@@ -261,6 +267,23 @@ export const EditIndicatorModal: React.FC<EditIndicatorModalProps> = ({
                 </p>
               </label>
             </div>
+
+            {canBeFlexible && (
+              <label className="mt-3 flex items-start gap-2.5 rounded-2xl border border-sky-200 bg-sky-50/60 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowMonthlyEntry}
+                  onChange={e => setAllowMonthlyEntry(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-sky-700"
+                />
+                <span className="text-[11px] leading-relaxed text-sky-950">
+                  <strong>Permitir preenchimento mensal.</strong> O indicador continua anual, mas cada órgão pode,
+                  em cada exercício, lançar o total do ano <em>ou</em> mês a mês (o total do ano passa a ser a soma dos meses).
+                  Use para valores que se somam ao longo do ano (consumos, gastos, quilometragem), não para quantidades
+                  como frota ou área.
+                </span>
+              </label>
+            )}
           </div>
 
           {/* Unidade de Medida e Unidade Administrativa Responsável */}

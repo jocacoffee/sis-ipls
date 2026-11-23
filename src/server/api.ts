@@ -33,19 +33,23 @@ import { calculateCNJIDS } from '../services/idsCalculator';
 import { indicatorConsolidates, CONSOLIDATED_ORG_ID } from '../services/orgScope';
 import { EntryMode, yearEntryMode } from '../services/periodicity';
 import { legacyTargetType, resolveTarget } from '../services/targets';
+import { isAutoIndicator } from '../services/autoCalc';
 
 export function createApiRouter() {
   const router = express.Router();
   const db = storage.getDatabase();
 
   /** Dados do órgão selecionado: medições próprias (ou consolidadas) e metas. */
-  const scopeFor = (orgId: string) => ({
-    measurements: scopeMeasurements(orgId, db.measurements, db.indicators, db.organizations),
-    targets: scopeTargets(orgId, db.targets).map(t =>
-      resolveTarget(t, db.indicators.find(i => i.id === t.indicatorId), db.measurements.filter(m => orgIdOf(m) === orgId))
-    ),
-    ...orgDenominators(orgId, db.organizations)
-  });
+  const scopeFor = (orgId: string) => {
+    const measurements = scopeMeasurements(orgId, db.measurements, db.indicators, db.organizations);
+    return {
+      measurements,
+      targets: scopeTargets(orgId, db.targets).map(t =>
+        resolveTarget(t, db.indicators.find(i => i.id === t.indicatorId), measurements)
+      ),
+      ...orgDenominators(orgId, db.organizations)
+    };
+  };
 
   const consolidatedWriteError = (orgId: string) =>
     isConsolidatedOrg(orgId, db.organizations)
@@ -181,7 +185,10 @@ export function createApiRouter() {
 
     // Totais por indicador e órgão no exercício
     const totals: Record<string, Record<string, { total: number; months: number }>> = {};
-    for (const m of db.measurements) {
+    const orgMeasurements = parts.flatMap(o =>
+      scopeMeasurements(o.id, db.measurements, db.indicators, db.organizations).filter(m => m.year === year)
+    );
+    for (const m of orgMeasurements) {
       if (m.year !== year || !summableIds.has(m.indicatorId)) continue;
       const org = m.organizationId || LEGACY_DEFAULT_ORG_ID;
       if (org === CONSOLIDATED_ORG_ID) continue;
@@ -236,6 +243,7 @@ export function createApiRouter() {
       normativeReference,
       responsibleUnit,
       formulaDescription,
+      allowMonthlyEntry,
       reason,
       userId = 'usr-1',
       userName = 'Dr. Roberto Magalhães'
@@ -247,12 +255,22 @@ export function createApiRouter() {
     }
 
     const old = db.indicators[indIndex];
+    const newPeriodicity = periodicity === 'ANUAL' || periodicity === 'MENSAL' ? periodicity : old.periodicity;
+    // Lançamento mês a mês opcional: só para indicador anual lançado pelo órgão (não Tema 1 nem cálculo automático)
+    const canBeFlexible = newPeriodicity === 'ANUAL' && old.themeId !== 'theme-1' && !isAutoIndicator(old);
+    const newFlexible = canBeFlexible && (typeof allowMonthlyEntry === 'boolean' ? allowMonthlyEntry : !!old.allowMonthlyEntry);
+    if (old.allowMonthlyEntry && !newFlexible && db.measurements.some(m => m.indicatorId === old.id && m.isMonthlyEntry)) {
+      return res.status(409).json({
+        error: 'Há órgãos com lançamentos mês a mês neste indicador. Para desativar o preenchimento mensal, esses lançamentos precisam ser substituídos pelo total anual antes.'
+      });
+    }
     const updated = {
       ...old,
       name: name !== undefined ? String(name).trim() : old.name,
       acronym: acronym !== undefined ? (String(acronym).trim() || undefined) : old.acronym,
       description: description !== undefined ? String(description).trim() : old.description,
-      periodicity: periodicity === 'ANUAL' || periodicity === 'MENSAL' ? periodicity : old.periodicity,
+      periodicity: newPeriodicity,
+      allowMonthlyEntry: newFlexible || undefined,
       unit: unit !== undefined ? String(unit).trim() : old.unit,
       normativeReference: normativeReference !== undefined ? (String(normativeReference).trim() || undefined) : old.normativeReference,
       responsibleUnit: responsibleUnit !== undefined ? (String(responsibleUnit).trim() || undefined) : old.responsibleUnit,
@@ -276,6 +294,9 @@ export function createApiRouter() {
     }
     if (old.unit !== updated.unit) {
       changes.push(`Unidade: ${old.unit} → ${updated.unit}`);
+    }
+    if (!!old.allowMonthlyEntry !== !!updated.allowMonthlyEntry) {
+      changes.push(`Preenchimento mês a mês: ${updated.allowMonthlyEntry ? 'permitido' : 'desativado'}`);
     }
 
     const auditDesc = changes.length > 0 ? changes.join('; ') : 'Parâmetros metodológicos do indicador atualizados';
@@ -352,6 +373,9 @@ export function createApiRouter() {
     const ind = db.indicators.find(i => i.id === indicatorId);
     if (!ind) {
       return res.status(404).json({ error: 'Indicador não encontrado.' });
+    }
+    if (isAutoIndicator(ind)) {
+      return res.status(400).json({ error: `${ind.acronym || ind.code} é de cálculo automático (${ind.formula}) e não aceita lançamento: informe as variáveis da fórmula.` });
     }
 
     // Periodicidade: anual = total no mês 12; anual com lançamento mensal = um modo por exercício
@@ -494,6 +518,7 @@ export function createApiRouter() {
       // Tudo validado antes de tocar na memória; o id é sempre gerado aqui
       if (
         !indicatorExists(item.indicatorId) ||
+        isAutoIndicator(db.indicators.find(i => i.id === item.indicatorId)) ||
         !orgExists(itemOrgId) ||
         consolidatedWriteError(itemOrgId) ||
         !canWriteOrg(currentUser(), itemOrgId) ||
@@ -1002,7 +1027,7 @@ export function createApiRouter() {
       const resolved = resolveTarget(
         { ...target, percentChange: pct, baselineYear: baseYear, year, organizationId: targetOrgId } as any,
         targetInd,
-        db.measurements.filter(m => orgIdOf(m) === targetOrgId)
+        scopeMeasurements(targetOrgId, db.measurements, db.indicators, db.organizations)
       );
       if (resolved.baselineMissing) {
         return res.status(400).json({ error: `Não há dado de ${targetInd.acronym || targetInd.name} em ${baseYear} para este órgão: escolha outro ano-base ou use meta numérica.` });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Users,
@@ -12,11 +12,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { Indicator, IndicatorMeasurement } from '../types';
-import {
-  GENERAL_VARIABLE_INDICATOR_IDS,
-  getGeneralVariablesSummary,
-  cloneGeneralVariables
-} from '../utils/generalVariablesUtils';
+import { applyAutoCalculations, isAutoIndicator } from '../services/autoCalc';
 
 interface ReplicateGeneralVariablesModalProps {
   isOpen: boolean;
@@ -25,6 +21,7 @@ interface ReplicateGeneralVariablesModalProps {
   availableYears: number[];
   measurements: IndicatorMeasurement[];
   indicators: Indicator[];
+  organizationId: string;
   onConfirmReplication: (newMeasurements: IndicatorMeasurement[], fromYear: number, toYear: number) => void;
 }
 
@@ -35,6 +32,7 @@ export const ReplicateGeneralVariablesModal: React.FC<ReplicateGeneralVariablesM
   availableYears,
   measurements,
   indicators,
+  organizationId,
   onConfirmReplication
 }) => {
   // Encontrar o ano base mais adequado (ex: ano anterior mais próximo com dados)
@@ -45,8 +43,15 @@ export const ReplicateGeneralVariablesModal: React.FC<ReplicateGeneralVariablesM
 
   const [sourceYear, setSourceYear] = useState<number>(defaultSourceYear);
 
-  // Estado editável dos valores das 10 variáveis antes de salvar
-  const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+  // Variáveis do Tema 1 lançadas pelo órgão (as de cálculo automático são só exibidas)
+  const theme1 = indicators
+    .filter(i => i.themeId === 'theme-1' && i.active !== false)
+    .sort((a, b) => Number(a.code.split('.')[1]) - Number(b.code.split('.')[1]));
+  const inputVars = theme1.filter(i => !isAutoIndicator(i));
+  const autoVars = theme1.filter(i => isAutoIndicator(i));
+
+  // Valores editáveis ('' = não informado, não será gravado)
+  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -56,70 +61,61 @@ export const ReplicateGeneralVariablesModal: React.FC<ReplicateGeneralVariablesM
 
   // Recarregar os valores quando sourceYear mudar
   useEffect(() => {
-    const summary = getGeneralVariablesSummary(measurements, sourceYear);
-    setEditedValues({
-      'indicator-1-1': summary.magistrados,
-      'indicator-1-2': summary.servidoresEfetivos,
-      'indicator-1-3': summary.servidoresComissionados,
-      'indicator-1-5': summary.estagiarios,
-      'indicator-1-6': summary.teletrabalho,
-      'indicator-1-7': summary.terceirizados,
-      'indicator-1-8': summary.outros,
-      'indicator-1-15': summary.usuariosPredio,
-      'indicator-1-16': summary.fttTotal,
-      'indicator-1-17': summary.areaTotalM2
-    });
-  }, [sourceYear, measurements]);
+    const values: Record<string, string> = {};
+    for (const ind of inputVars) {
+      const m = measurements.find(x => x.indicatorId === ind.id && x.year === sourceYear && x.month === 12)
+        || measurements.find(x => x.indicatorId === ind.id && x.year === sourceYear);
+      values[ind.id] = m ? String(m.value) : '';
+    }
+    setEditedValues(values);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceYear, measurements, indicators]);
+
+  // Prévia dos totais calculados (Serv, TFAux, FTT) com os valores do formulário
+  const preview = useMemo(() => {
+    const draft: IndicatorMeasurement[] = Object.entries(editedValues)
+      .filter(([, v]) => v !== '' && Number.isFinite(Number(v)))
+      .map(([indicatorId, v]) => ({
+        id: `draft-${indicatorId}`, indicatorId, year: targetYear, month: 12, value: Number(v), unit: '',
+        sourceType: 'manual', validationStatus: 'VALIDADO', confidenceScore: 100, createdAt: '', updatedAt: ''
+      } as IndicatorMeasurement));
+    const out = applyAutoCalculations(draft, indicators);
+    return Object.fromEntries(autoVars.map(a => [a.id, out.find(m => m.indicatorId === a.id)?.value ?? null]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editedValues, indicators, targetYear]);
 
   if (!isOpen) return null;
 
-  const handleValueChange = (indicatorId: string, val: number) => {
-    setEditedValues(prev => {
-      const next = { ...prev, [indicatorId]: val };
-      // Se alterou servidores ou terceirizados, recalcular FTT automaticamente
-      if (['indicator-1-1', 'indicator-1-2', 'indicator-1-3', 'indicator-1-5', 'indicator-1-7', 'indicator-1-8'].includes(indicatorId)) {
-        const mag = next['indicator-1-1'] || 0;
-        const servEfet = next['indicator-1-2'] || 0;
-        const servCom = next['indicator-1-3'] || 0;
-        const estag = next['indicator-1-5'] || 0;
-        const terc = next['indicator-1-7'] || 0;
-        const out = next['indicator-1-8'] || 0;
-        next['indicator-1-16'] = mag + servEfet + servCom + estag + terc + out;
-      }
-      return next;
-    });
+  const handleValueChange = (indicatorId: string, val: string) => {
+    setEditedValues(prev => ({ ...prev, [indicatorId]: val }));
   };
 
+  const filledCount = inputVars.filter(i => editedValues[i.id] !== '' && editedValues[i.id] !== undefined).length;
+
   const handleSave = () => {
-    const baseCloned = cloneGeneralVariables(measurements, sourceYear, targetYear);
-    // Aplicar valores editados
-    const finalized = baseCloned.map(m => {
-      if (editedValues[m.indicatorId] !== undefined) {
-        return {
-          ...m,
-          value: editedValues[m.indicatorId],
-          notes: `Replicado a partir de ${sourceYear} com ajustes manuais para o exercício de ${targetYear}.`
-        };
-      }
-      return m;
-    });
+    const now = new Date().toISOString();
+    const finalized: IndicatorMeasurement[] = inputVars
+      .filter(ind => editedValues[ind.id] !== '' && Number.isFinite(Number(editedValues[ind.id])))
+      .map(ind => ({
+        id: `m-${ind.id}-${targetYear}-annual-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        indicatorId: ind.id,
+        organizationId,
+        year: targetYear,
+        month: 12,
+        value: Number(editedValues[ind.id]),
+        unit: ind.unit,
+        sourceType: 'manual',
+        sourceReference: `Replicado a partir do exercício de ${sourceYear}`,
+        validationStatus: 'VALIDADO',
+        confidenceScore: 100,
+        notes: `Variável geral replicada de ${sourceYear} para ${targetYear}.`,
+        createdAt: now,
+        updatedAt: now
+      } as IndicatorMeasurement));
 
     onConfirmReplication(finalized, sourceYear, targetYear);
     onClose();
   };
-
-  const variableMetaList = [
-    { id: 'indicator-1-1', code: '1.1', label: 'Magistrados(as) Providos (MagP)', unit: 'cargos', icon: '⚖️' },
-    { id: 'indicator-1-2', code: '1.2', label: 'Servidores(as) Efetivos(as) (ServP)', unit: 'pessoas', icon: '👥' },
-    { id: 'indicator-1-3', code: '1.3', label: 'Cargos em Comissão sem Vínculo (ServCom)', unit: 'pessoas', icon: '👔' },
-    { id: 'indicator-1-5', code: '1.5', label: 'Estagiários(as) (Estag)', unit: 'pessoas', icon: '🎓' },
-    { id: 'indicator-1-6', code: '1.6', label: 'Pessoal em Teletrabalho (Teletrab)', unit: 'pessoas', icon: '💻' },
-    { id: 'indicator-1-7', code: '1.7', label: 'Trabalhadores(as) Terceirizados(as) (Terceiriz)', unit: 'pessoas', icon: '👷' },
-    { id: 'indicator-1-8', code: '1.8', label: 'Outros Colaboradores / Residentes (Outros)', unit: 'pessoas', icon: '🤝' },
-    { id: 'indicator-1-15', code: '1.15', label: 'Total de Usuários(as) do Prédio', unit: 'pessoas', icon: '🏛️' },
-    { id: 'indicator-1-16', code: '1.16', label: 'Força de Trabalho Total (FTT = MagP + ServP + Terceiriz + Estag + Outros)', unit: 'pessoas', icon: '🌐', isHighlight: true },
-    { id: 'indicator-1-17', code: '1.17', label: 'Área Total Construída da Seção Judiciária (m²)', unit: 'm²', icon: '📐', isHighlight: true }
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -192,46 +188,45 @@ export const ReplicateGeneralVariablesModal: React.FC<ReplicateGeneralVariablesM
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {variableMetaList.map((item) => {
-                const currentVal = editedValues[item.id] ?? 0;
-                return (
-                  <div
-                    key={item.id}
-                    className={`p-3 rounded-xl border transition-all ${
-                      item.isHighlight
-                        ? 'border-emerald-300 bg-emerald-50/40 shadow-xs'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm">{item.icon}</span>
-                        <span className="text-xs font-bold text-slate-800 truncate" title={item.label}>
-                          {item.code} {item.label}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-500 flex-shrink-0">
-                        {item.unit}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step={item.unit === 'm²' ? '1' : '1'}
-                        value={currentVal}
-                        onChange={(e) => handleValueChange(item.id, Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <span className="text-xs font-semibold text-slate-600 flex-shrink-0">
-                        {item.unit}
-                      </span>
-                    </div>
+              {inputVars.map((ind) => (
+                <div key={ind.id} className="p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-xs font-bold text-slate-800 truncate" title={ind.name}>
+                      {ind.code} {ind.name} {ind.acronym ? `(${ind.acronym})` : ''}
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editedValues[ind.id] ?? ''}
+                      placeholder="não informado"
+                      onChange={(e) => handleValueChange(ind.id, e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                    <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{ind.unit}</span>
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {autoVars.length > 0 && (
+              <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50/40 p-3">
+                <div className="text-xs font-bold text-emerald-900 mb-2">Calculados automaticamente (não editáveis)</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {autoVars.map(a => (
+                    <div key={a.id} className="rounded-lg bg-white border border-emerald-200 px-3 py-2">
+                      <div className="text-[11px] font-bold text-slate-700">{a.code} {a.acronym}</div>
+                      <div className="font-mono text-sm font-bold text-emerald-800">
+                        {preview[a.id] !== null && preview[a.id] !== undefined ? `${Number(preview[a.id]).toLocaleString('pt-BR')} ${a.unit}` : '—'}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-500 truncate" title={a.formula}>{a.formula}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -239,7 +234,7 @@ export const ReplicateGeneralVariablesModal: React.FC<ReplicateGeneralVariablesM
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>As 10 variáveis serão gravadas permanentemente para o exercício de {targetYear}.</span>
+            <span>{filledCount} variável(is) informada(s) serão gravadas no exercício de {targetYear}.</span>
           </div>
 
           <div className="flex items-center gap-2">

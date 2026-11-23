@@ -5,17 +5,22 @@ import { IndicatorMeasurement } from '../types';
  * Conforme Resoluções CNJ nº 400/2021 e 550/2024.
  */
 export const GENERAL_VARIABLE_INDICATOR_IDS = [
-  'indicator-1-1',  // MagP: Cargos de magistrados(as) providos
-  'indicator-1-2',  // ServP/ServEfet: Cargos e funções de servidores(as) providos
-  'indicator-1-3',  // ServCom: Cargos em comissão sem vínculo providos
-  'indicator-1-5',  // Estag: Estagiários(as)
-  'indicator-1-6',  // Teletrab: Pessoal em teletrabalho
-  'indicator-1-7',  // Terceiriz: Terceirizados contínuos
-  'indicator-1-8',  // Outros: Residentes, juízes leigos, voluntários
-  'indicator-1-15', // Usuários: Usuários do prédio
-  'indicator-1-16', // FTT: Força de Trabalho Total
-  'indicator-1-17'  // ÁreaTotal: Área total construída em m²
-];
+  'indicator-1-1',  // MagP: cargos de magistrados(as) providos
+  'indicator-1-2',  // TPEfet: pessoal do quadro efetivo
+  'indicator-1-3',  // TPI: cessão/requisição
+  'indicator-1-4',  // TPIExt: ingresso extraordinário (pleitos eleitorais)
+  'indicator-1-5',  // TPSV: comissionados sem vínculo
+  'indicator-1-7',  // TFAuxT: terceirizados
+  'indicator-1-8',  // TFAuxE: estagiários
+  'indicator-1-9',  // TFAuxJL: juízes(as) leigos(as)
+  'indicator-1-10', // TFAuxSP: serventias privatizadas
+  'indicator-1-11', // TFAuxC: conciliadores
+  'indicator-1-12', // TFAuxV: voluntários
+  'indicator-1-13', // TFAuxA: aprendizes
+  'indicator-1-14', // TFAuxRJ: residentes jurídicos
+  'indicator-1-17'  // m²Total: área total
+  // Serv (1.6), TFAux (1.15) e FTT (1.16) são de cálculo automático
+]
 
 export interface GeneralVariablesSummary {
   year: number;
@@ -72,7 +77,8 @@ export function getGeneralVariablesSummary(
 ): GeneralVariablesSummary {
   const list = measurements.filter(m => m.year === year && GENERAL_VARIABLE_INDICATOR_IDS.includes(m.indicatorId));
   const getVal = (id: string, fallback: number = 0) => {
-    const item = list.find(m => m.indicatorId === id);
+    // Inclui os totais calculados (Serv, TFAux, FTT), que não estão na lista de variáveis lançadas
+    const item = measurements.find(m => m.year === year && m.indicatorId === id);
     return item?.value !== undefined ? item.value : fallback;
   };
 
@@ -80,74 +86,17 @@ export function getGeneralVariablesSummary(
 
   return {
     year,
-    magistrados: getVal('indicator-1-1', 22),
-    servidoresEfetivos: getVal('indicator-1-2', 215),
-    servidoresComissionados: getVal('indicator-1-3', 14),
-    estagiarios: getVal('indicator-1-5', 18),
-    teletrabalho: getVal('indicator-1-6', 247),
-    terceirizados: getVal('indicator-1-7', 42),
-    outros: getVal('indicator-1-8', 20),
-    usuariosPredio: getVal('indicator-1-15', 62),
-    fttTotal: getVal('indicator-1-16', 331),
-    areaTotalM2: getVal('indicator-1-17', 14500),
+    magistrados: getVal('indicator-1-1'),
+    servidoresEfetivos: getVal('indicator-1-2'),
+    servidoresComissionados: getVal('indicator-1-3'),
+    estagiarios: getVal('indicator-1-5'),
+    teletrabalho: getVal('indicator-1-6'),
+    terceirizados: getVal('indicator-1-7'),
+    outros: getVal('indicator-1-8'),
+    usuariosPredio: getVal('indicator-1-15'),
+    fttTotal: getVal('indicator-1-16'),
+    areaTotalM2: getVal('indicator-1-17'),
     hasData: countReported > 0,
     countReported
   };
-}
-
-/**
- * Clona as medições das variáveis gerais de um exercício base para um exercício de destino
- */
-export function cloneGeneralVariables(
-  measurements: IndicatorMeasurement[],
-  fromYear: number,
-  toYear: number,
-  orgId: string = 'org-sjrr'
-): IndicatorMeasurement[] {
-  const sourceItems = measurements.filter(
-    m => m.year === fromYear && GENERAL_VARIABLE_INDICATOR_IDS.includes(m.indicatorId)
-  );
-
-  // Se não encontrar medições no ano base, usar os valores institucionais padrão da SJRR
-  const fallbackDefaults: Record<string, { value: number; unit: string }> = {
-    'indicator-1-1': { value: 22, unit: 'cargos' },
-    'indicator-1-2': { value: 215, unit: 'pessoas' },
-    'indicator-1-3': { value: 14, unit: 'pessoas' },
-    'indicator-1-5': { value: 18, unit: 'pessoas' },
-    'indicator-1-6': { value: 247, unit: 'pessoas' },
-    'indicator-1-7': { value: 42, unit: 'pessoas' },
-    'indicator-1-8': { value: 20, unit: 'pessoas' },
-    'indicator-1-15': { value: 62, unit: 'pessoas' },
-    'indicator-1-16': { value: 331, unit: 'pessoas' },
-    'indicator-1-17': { value: 14500, unit: 'm²' }
-  };
-
-  const cloned: IndicatorMeasurement[] = [];
-  const now = new Date().toISOString();
-
-  GENERAL_VARIABLE_INDICATOR_IDS.forEach(indId => {
-    const src = sourceItems.find(m => m.indicatorId === indId);
-    const fallback = fallbackDefaults[indId] || { value: 0, unit: 'unidades' };
-    const val = src?.value !== undefined ? src.value : fallback.value;
-    const unit = src?.unit || fallback.unit;
-
-    cloned.push({
-      id: `m-${indId}-${toYear}-annual-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      indicatorId: indId,
-      organizationId: orgId,
-      year: toYear,
-      month: 12,
-      value: val,
-      unit,
-      sourceType: 'manual',
-      sourceReference: `Replicado a partir do exercício de ${fromYear}`,
-      validationStatus: 'VALIDADO',
-      confidenceScore: 100,
-      notes: `Variável geral anual replicada automaticamente de ${fromYear} conforme permissão do gestor do PLS.`,
-      createdAt: now,
-      updatedAt: now
-    });
-  });
-
-  return cloned;
 }

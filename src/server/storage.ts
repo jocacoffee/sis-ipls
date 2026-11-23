@@ -65,13 +65,30 @@ export interface AppDatabase {
   lastSavedAt: string;
 }
 
+/** Fórmulas cadastradas com erro em versões anteriores, corrigidas conforme o Anexo da Res. CNJ 400/2021. */
+const FORMULA_FIXES: Record<string, { from: string; to: Partial<Indicator> }> = {
+  '13.7': {
+    from: 'UVS = Serv / QVS',
+    to: {
+      formula: 'UVS = (Serv + TFAux) / QVS',
+      formulaDescription: 'Servidores(as) mais força de trabalho auxiliar, divididos pela quantidade de veículos de serviço',
+      dependencies: ['1.6', '1.15', '13.6']
+    }
+  }
+};
+
 /** Normaliza uma base parcial (coleções ausentes recebem o seed; Tema 1 é sempre ANUAL). */
 function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; wasFixed: boolean } {
   let wasFixed = false;
   const indicators = (parsed.indicators || [...INITIAL_INDICATORS]).map(ind => {
     if (ind.themeId === 'theme-1' && ind.periodicity !== 'ANUAL') {
       wasFixed = true;
-      return { ...ind, periodicity: 'ANUAL' as const };
+      ind = { ...ind, periodicity: 'ANUAL' as const };
+    }
+    const fix = FORMULA_FIXES[ind.code];
+    if (fix && ind.formula === fix.from) {
+      wasFixed = true;
+      ind = { ...ind, ...fix.to };
     }
     return ind;
   });

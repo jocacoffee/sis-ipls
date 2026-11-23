@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { X, Save, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { Indicator, IndicatorMeasurement, SourceType } from '../types';
 import { MONTH_NAMES } from '../services/calculationEngine';
+import { isAutoIndicator } from '../services/autoCalc';
 import { getSelectableYears, getPlsCycleForYear } from '../utils/yearUtils';
 
 interface DataIngestionModalProps {
@@ -38,7 +39,7 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
   onClose,
   onSave
 }) => {
-  const [indicatorId, setIndicatorId] = useState<string>(preselectedIndicatorId || indicators[0]?.id || '');
+  const [indicatorId, setIndicatorId] = useState<string>(preselectedIndicatorId || indicators.find(i => !isAutoIndicator(i))?.id || '');
   const [year, setYear] = useState<number>(selectedYear);
   const [month, setMonth] = useState<number>(preselectedMonth || 8);
   const [value, setValue] = useState<string>('');
@@ -194,8 +195,8 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              {indicators.map(ind => (
-                <option key={ind.id} value={ind.id}>
+              {indicators.filter(ind => !isAutoIndicator(ind) || ind.id === indicatorId).map(ind => (
+                <option key={ind.id} value={ind.id} disabled={isAutoIndicator(ind)}>
                   {ind.code} — {ind.name} ({ind.unit})
                 </option>
               ))}

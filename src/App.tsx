@@ -50,7 +50,6 @@ import { IndicatorDetailModal } from './components/IndicatorDetailModal';
 import { EditIndicatorModal } from './components/EditIndicatorModal';
 import { DataIngestionModal } from './components/DataIngestionModal';
 import { ReplicateGeneralVariablesModal } from './components/ReplicateGeneralVariablesModal';
-import { GENERAL_VARIABLE_INDICATOR_IDS } from './utils/generalVariablesUtils';
 import { PanelLeftOpen, PanelLeftClose, Building2, FileSpreadsheet, Maximize2 } from 'lucide-react';
 import {
   STORAGE_KEYS,
@@ -69,6 +68,7 @@ import {
   getCycleInfo
 } from './utils/yearUtils';
 import { isConsolidatedOrg, orgDenominators, orgIdOf } from './services/orgScope';
+import { applyAutoCalculations, isAutoIndicator } from './services/autoCalc';
 import { AuthUser, canEnterData, canManageTargets, canManageUsers, fetchCurrentUser, isDevUser, logout } from './services/authClient';
 import { PermissionsView } from './components/PermissionsView';
 import { LoginModal } from './components/LoginModal';
@@ -126,6 +126,12 @@ export function App() {
   );
   const [measurements, setMeasurements] = useState<IndicatorMeasurement[]>(() =>
     loadLocalData<IndicatorMeasurement[]>(measurementsCacheKey(DEFAULT_ORG_ID), [])
+  );
+  // Medições com os indicadores de cálculo automático (refeitos a cada lançamento das variáveis)
+  // (o consolidado já chega calculado do servidor, sobre os órgãos com dados completos)
+  const calcMeasurements = useMemo(
+    () => (isConsolidatedOrg(selectedOrgId, organizations) ? measurements : applyAutoCalculations(measurements, indicators)),
+    [measurements, indicators, selectedOrgId, organizations]
   );
   const [documents, setDocuments] = useState<PLSDocument[]>(INITIAL_DOCUMENTS);
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>(() =>
@@ -208,10 +214,9 @@ export function App() {
   ) => {
     if (!ensureCanEdit()) return;
     setMeasurements(prev => {
-      // Filtrar eventuais variáveis gerais existentes em toYear e anexar as novas
-      const filtered = prev.filter(
-        m => !(m.year === toYear && GENERAL_VARIABLE_INDICATOR_IDS.includes(m.indicatorId))
-      );
+      // Substitui, no exercício de destino, apenas as variáveis informadas
+      const replaced = new Set(newMeasurements.map(m => m.indicatorId));
+      const filtered = prev.filter(m => !(m.year === toYear && replaced.has(m.indicatorId)));
       const updated = [...filtered, ...newMeasurements];
       saveLocalData(measurementsCacheKey(selectedOrgId), updated);
       syncMeasurementsToServer(newMeasurements);
@@ -362,13 +367,13 @@ export function App() {
     return {
       indicator: ind,
       target,
-      result: calculateIndicatorPerformance(ind, measurements, target, selectedYear, orgDenoms.areaM2, orgDenoms.ftt)
+      result: calculateIndicatorPerformance(ind, calcMeasurements, target, selectedYear, orgDenoms.areaM2, orgDenoms.ftt)
     };
   });
 
   // Re-evaluate inconsistencies whenever measurements change
   useEffect(() => {
-    const detected = detectMeasurementInconsistencies(indicators, measurements, selectedYear);
+    const detected = detectMeasurementInconsistencies(indicators, calcMeasurements, selectedYear);
     setAlerts(prev => {
       const merged = [...prev];
       detected.forEach(d => {
@@ -378,7 +383,7 @@ export function App() {
       });
       return merged;
     });
-  }, [measurements, selectedYear, indicators]);
+  }, [calcMeasurements, selectedYear, indicators]);
 
   // Current Org Name
   const currentOrg = organizations.find(o => o.id === selectedOrgId) || organizations[0];
@@ -392,6 +397,11 @@ export function App() {
   // Open Data Ingestion Modal
   const handleOpenDataIngestion = (indicatorId?: string, month?: number) => {
     if (!ensureCanEdit()) return;
+    const ind = indicatorId ? indicators.find(i => i.id === indicatorId) : undefined;
+    if (ind && isAutoIndicator(ind)) {
+      window.alert(`${ind.acronym || ind.code} é de cálculo automático (${ind.formula}). Lance as variáveis da fórmula.`);
+      return;
+    }
     setPreselectedIndicatorId(indicatorId);
     setPreselectedMonth(month);
     setIsDataIngestionOpen(true);
@@ -401,19 +411,23 @@ export function App() {
   const handleUpdateIndicator = async (updatedIndicator: Indicator, reason?: string) => {
     if (!ensureCanEdit('admin')) return;
     // 1. Post to API
+    // (a tela só é atualizada se o servidor confirmar a gravação)
     try {
-      await fetch(`/api/indicators/${updatedIndicator.id}`, {
+      const res = await fetch(`/api/indicators/${updatedIndicator.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...updatedIndicator,
-          reason,
-          userId: 'usr-1',
-          userName: 'Dr. Roberto Magalhães'
-        })
+        body: JSON.stringify({ ...updatedIndicator, reason })
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        window.alert(err.error || `Falha ao gravar (HTTP ${res.status}).`);
+        return;
+      }
+      const saved = await res.json().catch(() => null);
+      if (saved?.indicator) updatedIndicator = saved.indicator;
     } catch (e) {
-      console.warn('[iPLS] Servidor offline ou em transição, mantendo persistência local:', e);
+      window.alert('Falha de conexão com o servidor. A alteração não foi gravada.');
+      return;
     }
 
     // 2. Update local state
@@ -975,7 +989,7 @@ export function App() {
             idsComplements={idsComplements}
             organizationLabel={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : undefined}
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             targets={targets}
             themes={themes}
             actionPlans={actionPlans}
@@ -1010,7 +1024,7 @@ export function App() {
         {activeTab === 'targets' && (
           <TargetsView
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             targets={targets}
             themes={themes}
             performances={indicatorPerformances}
@@ -1117,7 +1131,7 @@ export function App() {
             organization={currentOrg}
             idsComplements={idsComplements}
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             themes={themes}
           />
         )}
@@ -1129,7 +1143,7 @@ export function App() {
             organization={currentOrg}
             selectedYear={selectedYear}
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             targets={targets}
             actionPlans={actionPlans}
             documents={documents}
@@ -1147,7 +1161,7 @@ export function App() {
             idsComplements={idsComplements}
             selectedYear={selectedYear}
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             targets={targets}
             themes={themes}
             actionPlans={actionPlans}
@@ -1190,7 +1204,7 @@ export function App() {
             auditLogs={auditLogs}
             alerts={alerts}
             indicators={indicators}
-            measurements={measurements}
+            measurements={calcMeasurements}
             onOpenDataIngestion={handleOpenDataIngestion}
             onOpenDocuments={() => (isDev ? setActiveTab('documents') : handleOpenDataIngestion())}
           />
@@ -1203,7 +1217,7 @@ export function App() {
           indicator={selectedIndicatorForDetail}
           target={targets.find(t => t.indicatorId === selectedIndicatorForDetail.id && t.year === selectedYear)}
           result={indicatorPerformances.find(p => p.indicator.id === selectedIndicatorForDetail.id)!.result}
-          measurements={measurements}
+          measurements={calcMeasurements}
           documents={documents}
           actionPlans={actionPlans}
           onClose={() => setSelectedIndicatorForDetail(null)}
@@ -1230,7 +1244,7 @@ export function App() {
       {isDataIngestionOpen && (
         <DataIngestionModal
           indicators={indicators}
-          measurements={measurements}
+          measurements={calcMeasurements}
           preselectedIndicatorId={preselectedIndicatorId}
           preselectedMonth={preselectedMonth}
           selectedYear={selectedYear}
@@ -1257,8 +1271,9 @@ export function App() {
           onClose={() => setIsReplicateModalOpen(false)}
           targetYear={selectedYear}
           availableYears={availableSystemYears}
-          measurements={measurements}
+          measurements={calcMeasurements}
           indicators={indicators}
+          organizationId={selectedOrgId}
           onConfirmReplication={handleConfirmReplication}
         />
       )}

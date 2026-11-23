@@ -1,4 +1,5 @@
 import { Indicator, IndicatorMeasurement, IndicatorTarget, Organization } from '../types';
+import { applyAutoCalculations, consolidateAutoCalculations, isAutoIndicator } from './autoCalc';
 
 /**
  * Escopo multi-órgão do iPLS.
@@ -72,17 +73,35 @@ export function buildConsolidatedMeasurements(
   }));
 }
 
-/** Medições visíveis para o órgão selecionado (próprias ou consolidadas). */
+/**
+ * Medições visíveis para o órgão selecionado (próprias ou consolidadas), já com os
+ * indicadores de cálculo automático obtidos das fórmulas. No consolidado, as fórmulas
+ * são aplicadas sobre as variáveis somadas (ex.: CRE regional = soma do CEE / soma da área).
+ */
 export function scopeMeasurements(
   orgId: string,
   measurements: IndicatorMeasurement[],
   indicators: Indicator[],
   organizations: Organization[]
 ): IndicatorMeasurement[] {
-  if (isConsolidatedOrg(orgId, organizations)) {
-    return buildConsolidatedMeasurements(measurements, indicators, orgId);
+  if (!isConsolidatedOrg(orgId, organizations)) {
+    return applyAutoCalculations(measurements.filter(m => orgIdOf(m) === orgId), indicators);
   }
-  return measurements.filter(m => orgIdOf(m) === orgId);
+  // Consolidado: somas dos órgãos + fórmulas sobre as variáveis dos órgãos com dados completos
+  const byOrg = new Map<string, IndicatorMeasurement[]>();
+  for (const m of measurements) {
+    const o = orgIdOf(m);
+    if (o === orgId) continue;
+    const list = byOrg.get(o);
+    if (list) list.push(m); else byOrg.set(o, [m]);
+  }
+  const autoValues = consolidateAutoCalculations([...byOrg.values()], indicators, orgId);
+  const calculated = new Set(autoValues.map(m => `${m.indicatorId}|${m.year}|${m.month}`));
+  const autoIds = new Set(indicators.filter(isAutoIndicator).map(i => i.id));
+  const summed = buildConsolidatedMeasurements(measurements, indicators, orgId).filter(
+    m => !(autoIds.has(m.indicatorId) && calculated.has(`${m.indicatorId}|${m.year}|${m.month}`))
+  );
+  return [...summed, ...autoValues];
 }
 
 export function scopeTargets(orgId: string, targets: IndicatorTarget[]): IndicatorTarget[] {

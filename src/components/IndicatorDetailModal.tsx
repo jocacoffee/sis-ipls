@@ -33,6 +33,7 @@ import {
 } from '../types';
 import { StatusPill, TrendLineChart } from './Charts';
 import { MONTH_NAMES } from '../services/calculationEngine';
+import { isAutoIndicator } from '../services/autoCalc';
 
 interface IndicatorDetailModalProps {
   indicator: Indicator;
@@ -62,6 +63,8 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
   onOpenEditTarget
 }) => {
   const [activeTab, setActiveTab] = useState<'evolucao' | 'medicoes' | 'evidencias' | 'metodologia'>('evolucao');
+  // Indicador de cálculo automático: valores vêm da fórmula, sem lançamento manual
+  const autoCalc = isAutoIndicator(indicator);
 
   // Monthly series
   const year2025Data = Array(12).fill(null);
@@ -280,6 +283,13 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
           {/* Tab 2: Medições / Histórico */}
           {activeTab === 'medicoes' && (
             <div className="space-y-4">
+              {autoCalc && (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-3.5 text-xs text-sky-950">
+                  <strong>Cálculo automático.</strong> Os valores deste indicador são obtidos pela fórmula{' '}
+                  <code className="font-mono font-semibold">{indicator.formula}</code> e não aceitam lançamento manual.
+                  Para alterá-los, lance ou corrija as variáveis da fórmula.
+                </div>
+              )}
               {indicator.periodicity === 'ANUAL' ? (
                 /* VISÃO DE VARIÁVEIS ANUAIS */
                 <div className="space-y-3">
@@ -298,12 +308,16 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                       </p>
                     </div>
 
+                    {!autoCalc ? (
                     <button
                       onClick={() => onOpenDataIngestion(indicator.id, 12)}
                       className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <span>+ Atualizar Valor Anual</span>
                     </button>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-400" title="Cálculo automático: não aceita lançamento">Automático</span>
+                    )}
                   </div>
 
                   {/* Tabela Histórica de 5 Anos para Variáveis Anuais */}
@@ -354,12 +368,16 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-sans">
+                                {!autoCalc ? (
                                 <button
                                   onClick={() => onOpenDataIngestion(indicator.id, 12)}
                                   className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                                 >
                                   {hasData ? 'Editar' : 'Lançar'}
                                 </button>
+                                ) : (
+                                  <span className="text-[11px] font-semibold text-slate-400" title="Cálculo automático: não aceita lançamento">Automático</span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -375,12 +393,16 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                     <span className="text-xs text-slate-500">
                       Valores mensais homologados na base estruturada para o exercício de 2026
                     </span>
+                    {!autoCalc ? (
                     <button
                       onClick={() => onOpenDataIngestion(indicator.id)}
                       className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                     >
                       + Lançar Medição
                     </button>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-400" title="Cálculo automático: não aceita lançamento">Automático</span>
+                    )}
                   </div>
 
                   <div className="rounded-2xl border border-slate-200/80 overflow-hidden bg-white">
@@ -409,7 +431,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                                 {m ? `${m.value.toLocaleString('pt-BR')} ${indicator.unit}` : '—'}
                               </td>
                               <td className="py-2 px-3 font-sans text-slate-500 capitalize text-[11px]">
-                                {m ? `${m.sourceType}` : '—'}
+                                {m ? (m.sourceType === 'calculated' ? 'Cálculo automático' : `${m.sourceType}`) : '—'}
                               </td>
                               <td className="py-2 px-3 text-[11px] text-slate-500 font-sans truncate max-w-[130px]">
                                 {m?.processNumber || '—'}
@@ -424,12 +446,16 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                                 )}
                               </td>
                               <td className="py-2 px-3 text-right font-sans">
+                                {!autoCalc ? (
                                 <button
                                   onClick={() => onOpenDataIngestion(indicator.id, monthNum)}
                                   className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                                 >
                                   {m ? 'Editar' : 'Lançar'}
                                 </button>
+                                ) : (
+                                  <span className="text-[11px] font-semibold text-slate-400" title="Cálculo automático: não aceita lançamento">Automático</span>
+                                )}
                               </td>
                             </tr>
                           );
