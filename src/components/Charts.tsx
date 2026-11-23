@@ -24,12 +24,26 @@ import {
 // 1. Gráfico de Consumo Mês a Mês com Sombra & Gradiente Degradê Sob a Linha
 // =========================================================================
 
+/** Consolidado regional: órgãos que já preencheram o mês. */
+export interface MonthCoverage {
+  reported: number;
+  total: number;
+  sectionsReported: number;
+  sectionsTotal: number;
+  /** 2º Grau preencheu? (null = não se aplica) */
+  secondDegree: boolean | null;
+  /** Siglas dos órgãos que ainda não preencheram */
+  missing: string[];
+}
+
 interface MonthlyConsumptionChartProps {
   title: string;
   code?: string;
   unit: string;
   data2025: (number | null)[];
   data2026: (number | null)[];
+  /** Cobertura de preenchimento por mês do exercício atual (só no consolidado) */
+  coverage2026?: (MonthCoverage | null)[];
   currentYear?: number;
   previousYear?: number;
   monthlyTarget?: number;
@@ -54,6 +68,7 @@ export const MonthlyConsumptionLineChart: React.FC<MonthlyConsumptionChartProps>
   unit,
   data2025,
   data2026,
+  coverage2026,
   currentYear = 2026,
   previousYear = 2025,
   monthlyTarget,
@@ -538,22 +553,51 @@ export const MonthlyConsumptionLineChart: React.FC<MonthlyConsumptionChartProps>
                     const isPast = idx <= currentMonthIdx;
                     const v26 = isPast ? data2026[idx] : projectedValues[idx];
                     const v25 = data2025[idx];
-                    const tooltipX = Math.min(Math.max(getX(idx), 85), width - 85);
                     const mDelta = isPast && v26 !== null && v25 !== null && v25 > 0 ? ((v26 - v25) / v25) * 100 : null;
+                    const cov = coverage2026?.[idx] || null;
+                    const missingText = cov && cov.missing.length
+                      ? `Faltam: ${cov.missing.slice(0, 4).join(', ')}${cov.missing.length > 4 ? ` +${cov.missing.length - 4}` : ''}`
+                      : null;
+                    const extraLines = cov ? (missingText ? 3 : 2) : 0;
+                    const boxW = cov ? 200 : 160;
+                    const boxX = Math.min(Math.max(getX(idx), boxW / 2 + 5), width - boxW / 2 - 5);
 
                     return (
                       <g>
                         <rect
-                          x={tooltipX - 80}
+                          x={boxX - boxW / 2}
                           y={paddingY - 26}
-                          width="160"
-                          height="52"
+                          width={boxW}
+                          height={52 + extraLines * 13 + (cov ? 4 : 0)}
                           rx="8"
                           fill="#0f172a"
                           opacity="0.96"
                         />
+                        {cov && (
+                          <g>
+                            <line x1={boxX - boxW / 2 + 10} x2={boxX + boxW / 2 - 10} y1={paddingY + 24} y2={paddingY + 24} stroke="#334155" strokeWidth="1" />
+                            <text
+                              x={boxX}
+                              y={paddingY + 36}
+                              textAnchor="middle"
+                              fill={cov.reported === cov.total ? '#34d399' : '#fbbf24'}
+                              className="text-[10px] font-bold font-mono"
+                            >
+                              Preenchido: {cov.reported} de {cov.total} órgãos
+                            </text>
+                            <text x={boxX} y={paddingY + 49} textAnchor="middle" fill="#cbd5e1" className="text-[9.5px] font-mono">
+                              Seccionais {cov.sectionsReported}/{cov.sectionsTotal}
+                              {cov.secondDegree !== null ? ` · 2º Grau ${cov.secondDegree ? '✓' : 'pendente'}` : ''}
+                            </text>
+                            {missingText && (
+                              <text x={boxX} y={paddingY + 62} textAnchor="middle" fill="#94a3b8" className="text-[9px] font-mono">
+                                {missingText}
+                              </text>
+                            )}
+                          </g>
+                        )}
                         <text
-                          x={tooltipX}
+                          x={boxX}
                           y={paddingY - 9}
                           textAnchor="middle"
                           fill="#ffffff"
@@ -562,7 +606,7 @@ export const MonthlyConsumptionLineChart: React.FC<MonthlyConsumptionChartProps>
                           {MONTH_NAMES[idx]}: {v26 !== null ? `${v26.toLocaleString('pt-BR')} ${unit}` : 'Pendente'}
                         </text>
                         <text
-                          x={tooltipX}
+                          x={boxX}
                           y={paddingY + 6}
                           textAnchor="middle"
                           fill={isPast ? '#94a3b8' : '#38bdf8'}
@@ -573,7 +617,7 @@ export const MonthlyConsumptionLineChart: React.FC<MonthlyConsumptionChartProps>
                             : `Projeção Estimada`}
                         </text>
                         <text
-                          x={tooltipX}
+                          x={boxX}
                           y={paddingY + 18}
                           textAnchor="middle"
                           fill="#f59e0b"

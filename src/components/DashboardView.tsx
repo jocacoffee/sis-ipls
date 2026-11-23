@@ -68,7 +68,8 @@ import {
   TrajectoryForecastChart,
   SustainabilityIndexCard,
   FleetEfficiencyChart,
-  StatusPill
+  StatusPill,
+  MonthCoverage
 } from './Charts';
 import { SexenniumBarComparisonCard } from './SexenniumBarComparisonCard';
 import { IndicatorSexenniumBarCard } from './IndicatorSexenniumBarCard';
@@ -102,6 +103,8 @@ interface DashboardViewProps {
   onOpenReplicateModal?: () => void;
   organizationLabel?: string;
   organization?: Organization;
+  /** Todos os órgãos (para a cobertura de preenchimento no consolidado). */
+  organizations?: Organization[];
   idsComplements?: IDSComplement[];
 }
 
@@ -247,6 +250,7 @@ const CURATED_CARD_METADATA: Record<string, { title: string; category: string; i
 };
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
+  organizations = [],
   indicators,
   measurements,
   targets,
@@ -554,6 +558,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isAlertDismissed, setIsAlertDismissed] = useState<boolean>(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState<boolean>(false);
 
+  /**
+   * Consolidado regional: quantos órgãos (seccionais e 2º Grau) compõem o valor do mês.
+   * Esperados = órgãos ativos, mais os inativos que tenham lançado (ex.: histórico da SJMG).
+   */
+  const coverageOf = (reportingIds?: string[]): MonthCoverage | null => {
+    if (!organization?.isConsolidated || !reportingIds) return null;
+    const reported = new Set(reportingIds);
+    const expected = organizations.filter(o => !o.isConsolidated && (o.active !== false || reported.has(o.id)));
+    if (expected.length === 0) return null;
+    const sections = expected.filter(o => o.type === 'SECAO_JUDICIARIA');
+    const secondDegree = expected.filter(o => o.type !== 'SECAO_JUDICIARIA');
+    return {
+      reported: expected.filter(o => reported.has(o.id)).length,
+      total: expected.length,
+      sectionsReported: sections.filter(o => reported.has(o.id)).length,
+      sectionsTotal: sections.length,
+      secondDegree: secondDegree.length ? secondDegree.every(o => reported.has(o.id)) : null,
+      missing: expected.filter(o => !reported.has(o.id)).map(o => o.acronym)
+    };
+  };
+
   // Helper universal to extract monthly data for current and comparison year
   const getSeries = (indicatorId: string) => {
     const dataPrev = Array(12).fill(null);
@@ -583,17 +608,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
       });
 
+    const coverageCurr: (MonthCoverage | null)[] = Array(12).fill(null);
     measurements
       .filter(m => matchId(m.indicatorId) && m.year === currYear)
       .forEach(m => {
         if (m.month >= 1 && m.month <= 12) {
           dataCurr[m.month - 1] = m.value;
+          coverageCurr[m.month - 1] = coverageOf(m.reportingOrgIds);
         }
       });
+    // No consolidado, mês sem nenhum lançamento também mostra a cobertura (0 de N)
+    if (organization?.isConsolidated) {
+      for (let i = 0; i < 12; i++) if (!coverageCurr[i]) coverageCurr[i] = coverageOf([]);
+    }
 
     return {
       dataPrev,
       dataCurr,
+      coverageCurr,
       data2025: dataPrev,
       data2026: dataCurr
     };
@@ -810,6 +842,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="kWh"
             data2025={energySeries.dataPrev}
             data2026={energySeries.dataCurr}
+            coverage2026={energySeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(energyTarget / 12)}
@@ -837,6 +870,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="m³"
             data2025={waterSeries.dataPrev}
             data2026={waterSeries.dataCurr}
+            coverage2026={waterSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(waterTarget / 12)}
@@ -864,6 +898,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="litros"
             data2025={fuelSeries.dataPrev}
             data2026={fuelSeries.dataCurr}
+            coverage2026={fuelSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(fuelTarget / 12)}
@@ -891,6 +926,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="km"
             data2025={mileageSeries.dataPrev}
             data2026={mileageSeries.dataCurr}
+            coverage2026={mileageSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(mileageTarget / 12)}
@@ -931,6 +967,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="resmas"
             data2025={paperSeries.dataPrev}
             data2026={paperSeries.dataCurr}
+            coverage2026={paperSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(paperTarget / 12)}
@@ -958,6 +995,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="centenas"
             data2025={cupsSeries.dataPrev}
             data2026={cupsSeries.dataCurr}
+            coverage2026={cupsSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={cupsTarget > 0 ? Math.round(cupsTarget / 12) : 0}
@@ -985,6 +1023,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="garrafas"
             data2025={bottlesSeries.dataPrev}
             data2026={bottlesSeries.dataCurr}
+            coverage2026={bottlesSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={bottlesTarget > 0 ? Math.round(bottlesTarget / 12) : 0}
@@ -1012,6 +1051,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="páginas"
             data2025={printSeries.dataPrev}
             data2026={printSeries.dataCurr}
+            coverage2026={printSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(printTarget / 12)}
@@ -1039,6 +1079,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="R$"
             data2025={telephonySeries.dataPrev}
             data2026={telephonySeries.dataCurr}
+            coverage2026={telephonySeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(telephonyTarget / 12)}
@@ -1066,6 +1107,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="kg"
             data2025={wasteSeries.dataPrev}
             data2026={wasteSeries.dataCurr}
+            coverage2026={wasteSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(wasteTarget / 12)}
@@ -1093,6 +1135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="kWh"
             data2025={cleanEnergySeries.dataPrev}
             data2026={cleanEnergySeries.dataCurr}
+            coverage2026={cleanEnergySeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={Math.round(cleanEnergyTarget / 12)}
@@ -1120,6 +1163,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="%"
             data2025={genderSeries.dataPrev}
             data2026={genderSeries.dataCurr}
+            coverage2026={genderSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={genderTarget}
@@ -1147,6 +1191,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="ações"
             data2025={trainingSeries.dataPrev}
             data2026={trainingSeries.dataCurr}
+            coverage2026={trainingSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={trainingTarget > 0 ? Math.round(trainingTarget / 12) : 1}
@@ -1174,6 +1219,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             unit="%"
             data2025={contractsSeries.dataPrev}
             data2026={contractsSeries.dataCurr}
+            coverage2026={contractsSeries.coverageCurr}
             currentYear={currYear}
             previousYear={prevYear}
             monthlyTarget={contractsTarget}
@@ -1235,6 +1281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               unit={ind.unit}
               data2025={dynamicSeries.dataPrev}
               data2026={dynamicSeries.dataCurr}
+              coverage2026={dynamicSeries.coverageCurr}
               currentYear={currYear}
               previousYear={prevYear}
               monthlyTarget={monthlyTarget}

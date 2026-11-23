@@ -68,6 +68,7 @@ export function buildConsolidatedMeasurements(
     validationStatus: 'VALIDADO' as const,
     confidenceScore: 100,
     notes: `Órgãos informantes: ${g.orgs.size}`,
+    reportingOrgIds: [...g.orgs].sort(),
     createdAt: now,
     updatedAt: now
   }));

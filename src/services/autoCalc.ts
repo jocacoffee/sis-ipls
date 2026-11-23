@@ -339,13 +339,15 @@ export function consolidateAutoCalculations(
   indicators: Indicator[],
   consolidatedOrgId: string
 ): IndicatorMeasurement[] {
-  const agg = new Map<string, { orgs: number; sums: Record<string, number | null> }>();
+  const agg = new Map<string, { orgs: number; orgIds: string[]; sums: Record<string, number | null> }>();
   for (const list of measurementsByOrg) {
     const { periods } = computeAuto(list, indicators);
+    const orgId = list[0]?.organizationId;
     for (const [key, p] of periods) {
       let a = agg.get(key);
-      if (!a) agg.set(key, (a = { orgs: 0, sums: {} }));
+      if (!a) agg.set(key, (a = { orgs: 0, orgIds: [], sums: {} }));
       a.orgs++;
+      if (orgId) a.orgIds.push(orgId);
       for (const [id, v] of Object.entries(p.inputs)) {
         if (v === null) { if (!(id in a.sums)) a.sums[id] = null; continue; }
         a.sums[id] = (a.sums[id] ?? 0) + v;
@@ -362,8 +364,11 @@ export function consolidateAutoCalculations(
     if (!ind || !node) continue;
     const v = evaluate(node, id => a.sums[id] ?? null);
     if (v === null || !Number.isFinite(v)) continue;
-    out.push(autoRecord(ind, consolidatedOrgId, Number(y), Number(mo), round(v), now,
-      `Consolidado: fórmula aplicada à soma das variáveis de ${a.orgs} órgão(s) com dados completos.`));
+    out.push({
+      ...autoRecord(ind, consolidatedOrgId, Number(y), Number(mo), round(v), now,
+        `Consolidado: fórmula aplicada à soma das variáveis de ${a.orgs} órgão(s) com dados completos.`),
+      reportingOrgIds: a.orgIds.sort()
+    });
   }
   return out;
 }

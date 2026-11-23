@@ -986,6 +986,7 @@ export function App() {
         {activeTab === 'dashboard' && (
           <DashboardView
             organization={currentOrg}
+            organizations={organizations}
             idsComplements={idsComplements}
             organizationLabel={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : undefined}
             indicators={indicators}

@@ -236,6 +236,8 @@ export interface IndicatorMeasurement {
   notes?: string;
   /** Lançamento mensal de indicador anual (o total do ano é a soma dos meses). */
   isMonthlyEntry?: boolean;
+  /** Só no consolidado regional: órgãos cujos lançamentos compõem o valor (cobertura do mês). */
+  reportingOrgIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
