@@ -153,6 +153,7 @@ export function App() {
   const [isDataIngestionOpen, setIsDataIngestionOpen] = useState<boolean>(false);
   const [preselectedIndicatorId, setPreselectedIndicatorId] = useState<string | undefined>(undefined);
   const [preselectedMonth, setPreselectedMonth] = useState<number | undefined>(undefined);
+  const [preselectedYear, setPreselectedYear] = useState<number | undefined>(undefined);
   const [isReplicateModalOpen, setIsReplicateModalOpen] = useState<boolean>(false);
 
   // Chat pre-filled query
@@ -395,7 +396,7 @@ export function App() {
   };
 
   // Open Data Ingestion Modal
-  const handleOpenDataIngestion = (indicatorId?: string, month?: number) => {
+  const handleOpenDataIngestion = (indicatorId?: string, month?: number, year?: number) => {
     if (!ensureCanEdit()) return;
     const ind = indicatorId ? indicators.find(i => i.id === indicatorId) : undefined;
     if (ind && isAutoIndicator(ind)) {
@@ -404,6 +405,7 @@ export function App() {
     }
     setPreselectedIndicatorId(indicatorId);
     setPreselectedMonth(month);
+    setPreselectedYear(year);
     setIsDataIngestionOpen(true);
   };
 
@@ -1223,6 +1225,8 @@ export function App() {
           onClose={() => setSelectedIndicatorForDetail(null)}
           onOpenDataIngestion={handleOpenDataIngestion}
           onOpenChatWithQuery={handleOpenChatWithQuery}
+          selectedYear={selectedYear}
+          organizationAcronym={currentOrg?.acronym}
           onEditIndicator={ind => { if (ensureCanEdit('admin')) setEditingIndicator(ind); }}
           onOpenEditTarget={(ind, tgt) => {
             setSelectedIndicatorForDetail(null);
@@ -1247,7 +1251,7 @@ export function App() {
           measurements={calcMeasurements}
           preselectedIndicatorId={preselectedIndicatorId}
           preselectedMonth={preselectedMonth}
-          selectedYear={selectedYear}
+          selectedYear={preselectedYear ?? selectedYear}
           onClose={() => setIsDataIngestionOpen(false)}
           onSave={handleSaveMeasurement}
         />

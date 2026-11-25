@@ -43,7 +43,11 @@ interface IndicatorDetailModalProps {
   documents: PLSDocument[];
   actionPlans: ActionPlan[];
   onClose: () => void;
-  onOpenDataIngestion: (indicatorId: string, month?: number) => void;
+  onOpenDataIngestion: (indicatorId: string, month?: number, year?: number) => void;
+  /** Exercício selecionado no iPLS (gráfico, medições e lançamentos usam este ano). */
+  selectedYear: number;
+  /** Sigla do órgão selecionado (para a pergunta à IA). */
+  organizationAcronym?: string;
   onOpenChatWithQuery: (q: string) => void;
   onEditIndicator?: (indicator: Indicator) => void;
   onOpenEditTarget?: (indicator: Indicator, target?: IndicatorTarget) => void;
@@ -60,29 +64,40 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
   onOpenDataIngestion,
   onOpenChatWithQuery,
   onEditIndicator,
-  onOpenEditTarget
+  onOpenEditTarget,
+  selectedYear,
+  organizationAcronym
 }) => {
   const [activeTab, setActiveTab] = useState<'evolucao' | 'medicoes' | 'evidencias' | 'metodologia'>('evolucao');
   // Indicador de cálculo automático: valores vêm da fórmula, sem lançamento manual
   const autoCalc = isAutoIndicator(indicator);
 
-  // Monthly series
-  const year2025Data = Array(12).fill(null);
-  const year2026Data = Array(12).fill(null);
+  // Séries mensais: exercício selecionado e o anterior (para comparação)
+  const year = selectedYear;
+  const prevYear = selectedYear - 1;
+  const calendarYear = new Date().getFullYear();
+  const prevYearData = Array(12).fill(null);
+  const yearData = Array(12).fill(null);
 
-  const indMeasurements2026 = measurements
-    .filter(m => m.indicatorId === indicator.id && m.year === 2026)
+  const yearMeasurements = measurements
+    .filter(m => m.indicatorId === indicator.id && m.year === year)
     .sort((a, b) => a.month - b.month);
 
   measurements
-    .filter(m => m.indicatorId === indicator.id && m.year === 2025)
+    .filter(m => m.indicatorId === indicator.id && m.year === prevYear)
     .forEach(m => {
-      year2025Data[m.month - 1] = m.value;
+      prevYearData[m.month - 1] = m.value;
     });
 
-  indMeasurements2026.forEach(m => {
-    year2026Data[m.month - 1] = m.value;
+  yearMeasurements.forEach(m => {
+    yearData[m.month - 1] = m.value;
   });
+
+  // Rótulo do período realizado (ex.: Jan–Out), a partir dos meses informados
+  const reportedMonths = yearMeasurements.map(m => m.month).filter(m => m >= 1 && m <= 12);
+  const realizedLabel = reportedMonths.length
+    ? `${MONTH_NAMES[Math.min(...reportedMonths) - 1].slice(0, 3)}–${MONTH_NAMES[Math.max(...reportedMonths) - 1].slice(0, 3)}`
+    : 'sem dados';
 
   const relatedDocs = documents.filter(d => d.indicatorId === indicator.id);
   const relatedActions = actionPlans.filter(a => a.relatedIndicatorIds.includes(indicator.id));
@@ -143,7 +158,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
         {/* KPI Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 sm:px-6 bg-slate-50/40 border-b border-slate-200/80">
           <div className="rounded-2xl bg-white p-3.5 border border-slate-200/80 shadow-xs">
-            <div className="text-[11px] font-medium text-slate-400">Linha de Base (2025)</div>
+            <div className="text-[11px] font-medium text-slate-400">Linha de Base ({target?.baselineYear ?? prevYear})</div>
             <div className="text-lg font-bold font-mono text-slate-800 mt-1 tabular-nums">
               {result.baselineValue.toLocaleString('pt-BR')} <span className="text-xs font-sans font-normal text-slate-500">{indicator.unit}</span>
             </div>
@@ -151,7 +166,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
 
           <div className="rounded-2xl bg-white p-3.5 border border-emerald-200/80 bg-emerald-50/20 shadow-xs relative group">
             <div className="flex items-center justify-between text-[11px] font-medium text-emerald-700">
-              <span>Meta Fixada (2026)</span>
+              <span>Meta Fixada ({year})</span>
               {onOpenEditTarget && (
                 <button
                   onClick={() => onOpenEditTarget(indicator, target)}
@@ -170,7 +185,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
 
           <div className="rounded-2xl bg-white p-3.5 border border-slate-200/80 shadow-xs">
             <div className="text-[11px] font-medium text-slate-400">
-              {indicator.periodicity === 'ANUAL' ? 'Realizado (Consolidado)' : 'Realizado (Jan–Ago)'}
+              {indicator.periodicity === 'ANUAL' ? `Realizado ${year}` : `Realizado ${year} (${realizedLabel})`}
             </div>
             <div className="text-lg font-bold font-mono text-slate-900 mt-1 tabular-nums">
               {result.accumulatedValue.toLocaleString('pt-BR')} <span className="text-xs font-sans font-normal text-slate-500">{indicator.unit}</span>
@@ -207,7 +222,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
           >
             {indicator.periodicity === 'ANUAL'
               ? 'Lançamentos & Histórico Anual'
-              : `Medições Mensais (${indMeasurements2026.length})`}
+              : `Medições Mensais ${year} (${yearMeasurements.length})`}
           </button>
           <button
             onClick={() => setActiveTab('evidencias')}
@@ -249,9 +264,11 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
               <TrendLineChart
                 title={indicator.name}
                 unit={indicator.unit}
-                data2025={year2025Data}
-                data2026={year2026Data}
-                monthlyTarget={indicator.defaultMonthlyTarget}
+                data2025={prevYearData}
+                data2026={yearData}
+                currentYear={year}
+                previousYear={prevYear}
+                monthlyTarget={target && indicator.periodicity === 'MENSAL' && result.targetValue > 0 ? Math.round(result.targetValue / 12) : undefined}
                 height={220}
               />
 
@@ -310,10 +327,10 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
 
                     {!autoCalc ? (
                     <button
-                      onClick={() => onOpenDataIngestion(indicator.id, 12)}
+                      onClick={() => onOpenDataIngestion(indicator.id, 12, year)}
                       className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <span>+ Atualizar Valor Anual</span>
+                      <span>+ Atualizar Valor de {year}</span>
                     </button>
                     ) : (
                       <span className="text-[11px] font-semibold text-slate-400" title="Cálculo automático: não aceita lançamento">Automático</span>
@@ -334,23 +351,32 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-mono">
-                        {[2026, 2025, 2024, 2023, 2022].map(yr => {
+                        {Array.from({ length: 5 }, (_, k) => Math.max(year, Math.min(calendarYear, year + 2)) - k).map(yr => {
                           const yrMeasurements = measurements.filter(m => m.indicatorId === indicator.id && m.year === yr);
                           const lastM = yrMeasurements[yrMeasurements.length - 1];
                           const hasData = yrMeasurements.length > 0;
+                          // Anual lançado mês a mês: o total do ano é a soma dos meses
+                          const total = yrMeasurements.some(m => m.isMonthlyEntry)
+                            ? yrMeasurements.reduce((s, m) => s + m.value, 0)
+                            : lastM?.value;
 
                           return (
-                            <tr key={yr} className={`hover:bg-slate-50/60 ${yr === 2026 ? 'bg-emerald-50/30' : ''}`}>
+                            <tr key={yr} className={`hover:bg-slate-50/60 ${yr === year ? 'bg-emerald-50/40' : ''}`}>
                               <td className="py-2.5 px-3 font-sans font-bold text-slate-900 flex items-center gap-1.5">
                                 <span>{yr}</span>
-                                {yr === 2026 && (
+                                {yr === year && (
+                                  <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-semibold">
+                                    Selecionado
+                                  </span>
+                                )}
+                                {yr === calendarYear && yr !== year && (
                                   <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-semibold">
                                     Vigente
                                   </span>
                                 )}
                               </td>
                               <td className="py-2.5 px-3 text-right font-bold text-slate-900 tabular-nums">
-                                {hasData ? `${lastM.value.toLocaleString('pt-BR')} ${indicator.unit}` : '—'}
+                                {hasData ? `${Number(total).toLocaleString('pt-BR')} ${indicator.unit}` : '—'}
                               </td>
                               <td className="py-2.5 px-3 font-sans text-slate-500 capitalize text-[11px]">
                                 {hasData ? lastM.sourceType : '—'}
@@ -370,7 +396,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                               <td className="py-2.5 px-3 text-right font-sans">
                                 {!autoCalc ? (
                                 <button
-                                  onClick={() => onOpenDataIngestion(indicator.id, 12)}
+                                  onClick={() => onOpenDataIngestion(indicator.id, 12, yr)}
                                   className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                                 >
                                   {hasData ? 'Editar' : 'Lançar'}
@@ -391,11 +417,11 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500">
-                      Valores mensais homologados na base estruturada para o exercício de 2026
+                      Valores mensais registrados no iPLS para o exercício de {year}
                     </span>
                     {!autoCalc ? (
                     <button
-                      onClick={() => onOpenDataIngestion(indicator.id)}
+                      onClick={() => onOpenDataIngestion(indicator.id, undefined, year)}
                       className="rounded-xl bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
                     >
                       + Lançar Medição
@@ -419,13 +445,13 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-mono">
                         {Array.from({ length: 12 }, (_, i) => i + 1).map(monthNum => {
-                          const m = indMeasurements2026.find(item => item.month === monthNum);
+                          const m = yearMeasurements.find(item => item.month === monthNum);
                           const monthName = MONTH_NAMES[monthNum - 1];
 
                           return (
                             <tr key={monthNum} className="hover:bg-slate-50/60">
                               <td className="py-2 px-3 font-sans font-medium text-slate-900">
-                                {monthName}/2026
+                                {monthName}/{year}
                               </td>
                               <td className="py-2 px-3 text-right font-bold text-slate-900 tabular-nums">
                                 {m ? `${m.value.toLocaleString('pt-BR')} ${indicator.unit}` : '—'}
@@ -448,7 +474,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
                               <td className="py-2 px-3 text-right font-sans">
                                 {!autoCalc ? (
                                 <button
-                                  onClick={() => onOpenDataIngestion(indicator.id, monthNum)}
+                                  onClick={() => onOpenDataIngestion(indicator.id, monthNum, year)}
                                   className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                                 >
                                   {m ? 'Editar' : 'Lançar'}
@@ -623,7 +649,7 @@ export const IndicatorDetailModal: React.FC<IndicatorDetailModalProps> = ({
         {/* Modal Footer */}
         <div className="p-4 sm:px-6 border-t border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
           <button
-            onClick={() => onOpenChatWithQuery(`Faça uma análise profunda do indicador ${indicator.name} (${indicator.code}) da SJRR para o ano ${2026} e sugira medidas práticas para cumprir a meta.`)}
+            onClick={() => onOpenChatWithQuery(`Faça uma análise do indicador ${indicator.name} (${indicator.code}) ${organizationAcronym ? `da ${organizationAcronym} ` : ''}no exercício de ${year} e sugira medidas práticas para cumprir a meta.`)}
             className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors shadow-xs"
           >
             <Sparkles className="w-3.5 h-3.5" />
