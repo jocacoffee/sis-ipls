@@ -285,6 +285,10 @@ export interface PLSDocument {
   sourceSystem?: 'UPLOAD' | 'SEI';
   seiDocumentId?: string;
   uploadedBy?: string;
+  /** Faixas de consumo somadas (ex.: Ponta + Fora de ponta). */
+  consumptionBreakdown?: { label: string; posto: string; kwh: number }[];
+  /** Histórico de medição impresso na fatura, comparado com o lançado no iPLS (CEE do órgão). */
+  consumptionHistory?: { competence: string; invoiceKwh: number; iplsKwh: number | null; diffPct: number | null }[];
 }
 
 export type ActionStatus = 'NAO_INICIADA' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'ATRASADA' | 'SUSPENSA';

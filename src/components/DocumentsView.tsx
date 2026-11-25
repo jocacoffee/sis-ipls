@@ -485,6 +485,61 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
               </div>
 
+              {selectedDoc.consumptionBreakdown && selectedDoc.consumptionBreakdown.length > 1 && (
+                <div className="p-3 rounded-2xl bg-white border border-slate-200">
+                  <div className="font-bold text-slate-700 mb-1">Consumo por faixa (somado)</div>
+                  <div className="flex flex-wrap gap-2 font-mono">
+                    {selectedDoc.consumptionBreakdown.map(l => (
+                      <span key={l.posto} className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200">
+                        {l.label}: <strong>{l.kwh.toLocaleString('pt-BR')}</strong> kWh
+                      </span>
+                    ))}
+                    <span className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800">
+                      Total: <strong>{selectedDoc.consumptionBreakdown.reduce((a, l) => a + l.kwh, 0).toLocaleString('pt-BR')}</strong> kWh
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedDoc.consumptionHistory && selectedDoc.consumptionHistory.length > 0 && (
+                <div className="p-3 rounded-2xl bg-white border border-slate-200">
+                  <div className="font-bold text-slate-700">Histórico de medição da fatura × lançado no iPLS (CEE)</div>
+                  <p className="text-[10px] text-slate-400 mb-2">
+                    O iPLS soma todas as unidades consumidoras do órgão; diferença só indica erro se esta for a única UC.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] font-mono">
+                      <thead>
+                        <tr className="text-slate-500 border-b border-slate-200">
+                          <th className="text-left py-1 pr-2 font-semibold">Mês</th>
+                          <th className="text-right py-1 px-2 font-semibold">Fatura (kWh)</th>
+                          <th className="text-right py-1 px-2 font-semibold">iPLS (kWh)</th>
+                          <th className="text-right py-1 pl-2 font-semibold">Dif.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedDoc.consumptionHistory.map(h => {
+                          const [y, m] = h.competence.split('-');
+                          const off = h.diffPct !== null && Math.abs(h.diffPct) > 5;
+                          return (
+                            <tr key={h.competence} className="border-b border-slate-100">
+                              <td className="py-1 pr-2">{m}/{y}</td>
+                              <td className="py-1 px-2 text-right">{h.invoiceKwh.toLocaleString('pt-BR')}</td>
+                              <td className={`py-1 px-2 text-right ${h.iplsKwh === null ? 'text-slate-400' : ''}`}>
+                                {h.iplsKwh === null ? 'sem lançamento' : h.iplsKwh.toLocaleString('pt-BR')}
+                              </td>
+                              <td className={`py-1 pl-2 text-right ${off ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
+                                {h.diffPct === null ? '—' : `${h.diffPct > 0 ? '+' : ''}${h.diffPct.toLocaleString('pt-BR')}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {selectedDoc.reviewReasons && selectedDoc.reviewReasons.length > 0 && (
                 <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
                   <div className="font-bold">Por que não foi lançado automaticamente:</div>

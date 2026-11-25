@@ -91,40 +91,132 @@ export interface InvoiceFields {
   kwh: number | null;
   totalAmount: number | null;
   dueDate: string | null;
+  /** Faixas de consumo lidas da descrição da conta (ponta, fora de ponta...). */
+  kwhBreakdown?: ConsumptionLine[];
+  /** Histórico de medição impresso na fatura (do mais antigo ao mês faturado). */
+  history?: HistoryPoint[];
+}
+
+export interface ConsumptionLine {
+  label: string;
+  posto: string;
+  kwh: number;
+}
+
+export interface HistoryPoint {
+  competence: string; // YYYY-MM
+  kwh: number;
+}
+
+/** Posto tarifário de uma linha "Consumo ...": TUSD e TE da mesma faixa repetem o mesmo kWh. */
+function postoOf(label: string): string {
+  const l = label.toLowerCase();
+  if (/f\s*\/\s*p|fora|\bfp\b|f\.\s*p/.test(l)) return 'Fora de ponta';
+  if (/interm/.test(l)) return 'Intermediário';
+  if (/reserv/.test(l)) return 'Reservado';
+  if (/ponta|\bpta\b/.test(l)) return 'Ponta';
+  return 'Geral';
+}
+
+/**
+ * Linhas "Consumo <faixa> N kWh" da descrição da conta. Faturas do grupo A trazem uma linha por
+ * posto (Ponta, F/Ponta...); o consumo do mês é a soma dos postos. Linhas de TUSD e TE do mesmo
+ * posto repetem o kWh e contam uma vez só.
+ */
+export function consumptionLines(text: string): { lines: ConsumptionLine[]; total: number | null } {
+  const re = new RegExp(`consumo\\s+([^\\n\\d]{0,40}?)\\s*${NUM}\\s*kwh`, 'gi');
+  const found: ConsumptionLine[] = [];
+  for (const m of text.matchAll(re)) {
+    const label = m[1].trim().replace(/[:\-]+$/, '').trim();
+    if (/reativ|m[eé]di|hist|meses|kvar/i.test(label)) continue;
+    const kwh = parseBRNumber(m[2]);
+    if (kwh === null || kwh <= 0) continue;
+    found.push({ label: label || 'Consumo', posto: postoOf(label), kwh });
+  }
+  const byPosto = new Map<string, ConsumptionLine>();
+  for (const l of found) {
+    const prev = byPosto.get(l.posto);
+    if (!prev || l.kwh > prev.kwh) byPosto.set(l.posto, l);
+  }
+  // Com postos definidos, uma linha "Consumo" genérica igual à soma é o total: não soma de novo
+  if (byPosto.size > 1 && byPosto.has('Geral')) {
+    const geral = byPosto.get('Geral')!;
+    byPosto.delete('Geral');
+    const sum = [...byPosto.values()].reduce((a, l) => a + l.kwh, 0);
+    if (Math.abs(sum - geral.kwh) > 1) byPosto.set('Geral', geral);
+  }
+  const lines = [...byPosto.values()];
+  return { lines, total: lines.length ? Math.round(lines.reduce((a, l) => a + l.kwh, 0) * 100) / 100 : null };
+}
+
+const addMonths = (competence: string, delta: number) => {
+  const [y, m] = competence.split('-').map(Number);
+  const t = y * 12 + (m - 1) + delta;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Histórico de medição (gráfico de barras da fatura). O texto traz os valores em ordem
+ * cronológica, terminando no mês faturado; os rótulos dos meses saem embaralhados no PDF,
+ * por isso os meses são atribuídos a partir da competência.
+ */
+export function parseHistory(text: string, competence: string | null): HistoryPoint[] {
+  if (!competence) return [];
+  const i = text.search(/hist[oó]rico\s*de\s*(?:medi[cç][aã]o|consumo)/i);
+  if (i < 0) return [];
+  const win = text.slice(i, i + 800);
+  const tok = '(?:\\d{1,3}(?:\\.\\d{3})+|\\d{1,7})';
+  const run = new RegExp(`(?:^|\\s)(${tok}(?:[ \\t]+${tok}){5,12})(?=\\s|$)`).exec(win);
+  if (!run) return [];
+  const values = run[1].trim().split(/\s+/).map(v => parseBRNumber(v)).filter((v): v is number => v !== null);
+  if (values.length < 6 || values.length > 13) return [];
+  return values.map((kwh, k) => ({ competence: addMonths(competence, k - (values.length - 1)), kwh }));
+}
+
+/** Nº da NF3e a partir da chave de acesso (44 dígitos, modelo 66): posições 26–34. */
+function nf3eNumber(text: string): string | null {
+  for (const m of text.matchAll(/(?:\d{4}\s){10}\d{4}/g)) {
+    const d = m[0].replace(/\s/g, '');
+    if (d.length === 44 && d.slice(20, 22) === '66') return String(Number(d.slice(25, 34)));
+  }
+  return null;
 }
 
 const NUM = '(\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+(?:,\\d+)?)';
+/** Valor em reais: sempre com centavos (evita pegar "00" ou códigos soltos). */
+const MONEY = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2}|\\d+,\\d{2})(?!\\d)';
 
 export function regexFields(text: string): InvoiceFields {
   const t = text.replace(/ /g, ' ');
   const first = (re: RegExp) => re.exec(t)?.[1] ?? null;
 
   const competenceRaw =
-    first(/(?:m[eê]s\s*(?:\/\s*ano)?\s*(?:de\s*)?refer[eê]ncia|refer[eê]ncia|compet[eê]ncia)\s*[:\-]?\s*([a-zç]{3,9}\.?\s*(?:de\s*)?[/.-]?\s*\d{4}|\d{1,2}\s*[/.-]\s*\d{4})/i);
+    first(/(?:m[eê]s\s*(?:\/\s*ano)?\s*(?:de\s*)?refer[eê]ncia|refer[eê]ncia|compet[eê]ncia)\s*[:\-]?\s*([a-zç]{3,9}\.?\s*(?:de\s*)?[/.-]?\s*\d{4}|\d{1,2}\s*[/.-]\s*\d{4})/i) ??
+    // "Mês Faturado" com o valor algumas palavras adiante (layout em colunas)
+    first(/m[eê]s\s*faturado[\s\S]{0,120}?(?<![\d/])(\d{2}\/\d{4})(?!\d)/i);
 
   const total =
-    first(new RegExp(`(?:total\\s*a\\s*pagar|valor\\s*a\\s*pagar|valor\\s*total(?:\\s*da\\s*(?:fatura|nota))?|total\\s*da\\s*fatura)\\s*(?:\\(?R\\$\\)?)?\\s*[:\\-]?\\s*(?:R\\$\\s*)?${NUM}`, 'i'));
+    first(new RegExp(`(?:total\\s*a\\s*pagar|valor\\s*a\\s*pagar|valor\\s*total(?:\\s*da\\s*(?:fatura|nota))?|total\\s*da\\s*fatura)\\s*(?:\\(?R\\$\\)?)?\\s*[:\\-]?\\s*(?:R\\$\\s*)?${MONEY}`, 'i')) ??
+    // "R$ 36.099,42 Total a pagar" (valor antes do rótulo)
+    first(new RegExp(`R\\$\\s*${MONEY}\\s*(?:total|valor)\\s*a\\s*pagar`, 'i')) ??
+    // canhoto: "Valor a Pagar ... R$ 36.099,42"
+    first(new RegExp(`valor\\s*a\\s*pagar[\\s\\S]{0,160}?R\\$\\s*${MONEY}`, 'i'));
 
-  // Consumo: soma ponta + fora ponta quando existirem; senão o primeiro "consumo ... kWh"
-  const ponta = first(new RegExp(`consumo\\s*(?:ativo\\s*)?(?:na\\s*)?ponta[^\\n\\d]{0,30}${NUM}\\s*kwh`, 'i'));
-  const foraPonta = first(new RegExp(`consumo\\s*(?:ativo\\s*)?fora\\s*(?:de\\s*)?ponta[^\\n\\d]{0,30}${NUM}\\s*kwh`, 'i'));
-  let kwh: number | null = null;
-  if (ponta && foraPonta) kwh = (parseBRNumber(ponta) ?? 0) + (parseBRNumber(foraPonta) ?? 0);
-  else {
-    const c =
-      first(new RegExp(`consumo[^\\n\\d]{0,40}${NUM}\\s*kwh`, 'i')) ??
-      first(new RegExp(`${NUM}\\s*kwh[^\\n]{0,20}consumo`, 'i'));
-    kwh = parseBRNumber(c);
-  }
+  // Consumo: soma das faixas (ponta, fora de ponta...); senão "N kWh ... consumo"
+  const { lines, total: linesTotal } = consumptionLines(t);
+  const kwh = linesTotal ?? parseBRNumber(first(new RegExp(`${NUM}\\s*kwh[^\\n]{0,20}consumo`, 'i')));
+  const competence = parseCompetence(competenceRaw);
 
   return {
     supplier: null,
-    consumerUnit: first(/(?:unidade\s*consumidora|\bUC\b|c[oó]digo\s*(?:da\s*)?instala[cç][aã]o|instala[cç][aã]o|n[ºo°.]?\s*do\s*cliente|c[oó]digo\s*do\s*cliente)\s*[:\-nº°.]*\s*([0-9][0-9.\-/]{3,})/i),
-    invoiceNumber: first(/(?:nota\s*fiscal|n\.?\s*f\.?|fatura)\s*(?:eletr[oô]nica\s*)?(?:n[ºo°.]?|n[uú]mero)\s*[:\-]?\s*([0-9][0-9.\-/]{2,})/i),
-    competence: parseCompetence(competenceRaw),
+    consumerUnit: first(/n[uú]mero\s*da\s*UC[\s\S]{0,140}?(\d{6,}-\d{1,2})/i) ?? first(/(?:unidade\s*consumidora|\bUC\b|c[oó]digo\s*(?:da\s*)?instala[cç][aã]o|instala[cç][aã]o|n[ºo°.]?\s*do\s*cliente|c[oó]digo\s*do\s*cliente)\s*[:\-nº°.]*\s*([0-9][0-9.\-/]{3,})/i),
+    invoiceNumber: nf3eNumber(t) ?? first(/(?:nota\s*fiscal|n\.?\s*f\.?|fatura)\s*(?:eletr[oô]nica\s*)?(?:n[ºo°.]?|n[uú]mero)\s*[:\-]?\s*([0-9][0-9.\-/]{2,})/i),
+    competence,
     kwh,
     totalAmount: parseBRNumber(total),
-    dueDate: first(/vencimento\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i)
+    dueDate: first(/vencimento\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i) ?? first(/vencimento[\s\S]{0,100}?(\d{2}\/\d{2}\/\d{4})/i),
+    kwhBreakdown: lines,
+    history: parseHistory(t, competence)
   };
 }
 
@@ -135,7 +227,9 @@ Responda SOMENTE com um objeto JSON, sem texto antes ou depois, com estas chaves
  "mes_referencia": "MM/AAAA"|null, "consumo_kwh": number|null, "valor_total_reais": number|null,
  "vencimento": "DD/MM/AAAA"|null}
 Regras:
-- consumo_kwh é o consumo de energia ATIVA faturado no mês; se houver ponta e fora de ponta, some os dois. Não use demanda (kW), energia reativa (kVArh) nem leituras do medidor.
+- consumo_kwh é o consumo de energia ATIVA faturado no mês. Faturas do grupo A têm uma linha por posto
+  tarifário ("Consumo Ponta", "Consumo F/Ponta" ou "Fora Ponta", "Intermediário"): SOME todas essas linhas.
+  Não use demanda (kW), energia reativa (kVArh), leituras do medidor nem a média de 12 meses.
 - valor_total_reais é o total a pagar da fatura.
 - mes_referencia é o mês de consumo/referência da fatura (não o vencimento).
 - Números em formato JSON (ponto como separador decimal, sem separador de milhar).
@@ -189,10 +283,30 @@ export async function extractEnergyInvoice(text: string): Promise<InvoiceExtract
     notes.push(`IA local indisponível: ${err?.message || err}`);
   }
   if (!ai) {
+    const histNow = rx.history?.length ? rx.history[rx.history.length - 1].kwh : null;
+    if (histNow !== null && close(rx.kwh, histNow)) notes.push('Consumo confere com o histórico de medição da fatura.');
     return { fields: rx, confidence: 55, method: 'Expressões regulares (sem IA)', notes: [...notes, 'Lido sem IA: confira os valores.'] };
   }
-  const f = ai.fields;
+  const f: InvoiceFields = { ...ai.fields, kwhBreakdown: rx.kwhBreakdown };
   let confidence = 100;
+  // Histórico impresso na fatura: o último ponto é o próprio mês faturado
+  const hist = parseHistory(text, f.competence ?? rx.competence);
+  f.history = hist;
+  const histNow = hist.length ? hist[hist.length - 1].kwh : null;
+  if (rx.kwh !== null && close(rx.kwh, histNow)) {
+    if (!close(f.kwh, rx.kwh)) {
+      const parts = (rx.kwhBreakdown || []).map(l => `${l.label} ${l.kwh.toLocaleString('pt-BR')}`).join(' + ');
+      notes.push(`Consumo = soma das faixas (${parts}) = ${rx.kwh.toLocaleString('pt-BR')} kWh, igual ao histórico de medição da fatura${f.kwh !== null ? `; a IA tinha lido ${f.kwh.toLocaleString('pt-BR')}` : ''}.`);
+      f.kwh = rx.kwh;
+    } else {
+      notes.push('Consumo confere com o histórico de medição da fatura.');
+    }
+  } else if (histNow !== null && f.kwh !== null && close(f.kwh, histNow)) {
+    notes.push('Consumo confere com o histórico de medição da fatura.');
+  } else if (histNow !== null && f.kwh !== null) {
+    confidence -= 15;
+    notes.push(`Consumo lido (${f.kwh.toLocaleString('pt-BR')} kWh) difere do histórico de medição da fatura para o mês (${histNow.toLocaleString('pt-BR')} kWh).`);
+  }
   const check = (label: string, aiVal: number | null, rxVal: number | null) => {
     if (aiVal === null) { confidence -= 40; notes.push(`${label} não encontrado.`); return; }
     if (rxVal === null) { confidence -= 8; notes.push(`${label}: só a IA encontrou (${aiVal.toLocaleString('pt-BR')}).`); return; }
@@ -211,8 +325,9 @@ export async function extractEnergyInvoice(text: string): Promise<InvoiceExtract
   return {
     fields: {
       ...f,
-      consumerUnit: f.consumerUnit ?? rx.consumerUnit,
-      invoiceNumber: f.invoiceNumber ?? rx.invoiceNumber,
+      consumerUnit: rx.consumerUnit ?? f.consumerUnit,
+      // Número tirado da chave de acesso da NF3e é exato
+      invoiceNumber: rx.invoiceNumber ?? f.invoiceNumber,
       dueDate: f.dueDate ?? rx.dueDate
     },
     confidence: Math.max(0, confidence),
@@ -348,4 +463,43 @@ export function energyMeasurementsFor(ctx: IngestContext, competence: string, us
     build(cee, docs.reduce((a, d) => a + Number(d.consumption || 0), 0)),
     build(gee, docs.reduce((a, d) => a + Number(d.amount || 0), 0))
   ];
+}
+
+
+/**
+ * Compara o histórico de medição da fatura com o que está lançado no iPLS (CEE do órgão).
+ * O órgão pode ter várias unidades consumidoras: diferença não é necessariamente erro.
+ */
+export function compareHistory(
+  history: HistoryPoint[] | undefined,
+  measurements: IndicatorMeasurement[],
+  ceeId: string,
+  organizationId: string,
+  currentCompetence?: string | null
+): HistoryComparison[] {
+  if (!history?.length) return [];
+  const launched = new Map<string, number>();
+  for (const m of measurements) {
+    if (m.indicatorId !== ceeId || m.organizationId !== organizationId || m.month < 1 || m.month > 12) continue;
+    const k = `${m.year}-${String(m.month).padStart(2, '0')}`;
+    launched.set(k, (launched.get(k) ?? 0) + m.value);
+  }
+  return history
+    .filter(h => h.competence !== currentCompetence)
+    .map(h => {
+      const v = launched.get(h.competence) ?? null;
+      return {
+        competence: h.competence,
+        invoiceKwh: h.kwh,
+        iplsKwh: v,
+        diffPct: v !== null && h.kwh > 0 ? Math.round(((v - h.kwh) / h.kwh) * 1000) / 10 : null
+      };
+    });
+}
+
+export interface HistoryComparison {
+  competence: string;
+  invoiceKwh: number;
+  iplsKwh: number | null;
+  diffPct: number | null;
 }

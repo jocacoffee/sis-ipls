@@ -8,6 +8,7 @@
 import { storage } from './storage';
 import type { AuditLog, IndicatorMeasurement, PLSDocument } from '../types';
 import {
+  compareHistory,
   ENERGY_KWH_ACRONYM,
   energyMeasurementsFor,
   extractEnergyInvoice,
@@ -91,7 +92,11 @@ export async function ingestEnergyInvoice(p: IngestParams): Promise<IngestResult
       extractionConfidence: ex.confidence,
       ocrConfidence: ex.confidence,
       extractionMethod: ex.method,
-      extractionNotes: ex.notes
+      extractionNotes: ex.notes,
+      consumptionBreakdown: f.kwhBreakdown?.length ? f.kwhBreakdown : undefined,
+      consumptionHistory: cee && f.history?.length
+        ? compareHistory(f.history, db.measurements, cee.id, p.organizationId, f.competence)
+        : undefined
     });
     const ctx = {
       organizationId: p.organizationId,
