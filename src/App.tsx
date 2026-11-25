@@ -1180,14 +1180,13 @@ export function App() {
 
         {activeTab === 'integrations' && isDev && (
           <IntegrationsView
-            seiConnectors={seiConnectors}
+            organizations={organizations}
+            selectedOrgId={selectedOrgId}
+            canManageSei={orgId =>
+              !!authUser && (authUser.role === 'ADMIN' || (orgId !== '*' && authUser.role === 'MASTER' && authUser.organizationId === orgId))
+            }
             plsJudMappings={plsJudMappings}
             indicators={indicators}
-            onSyncSEI={id => {
-              setSeiConnectors(prev =>
-                prev.map(c => c.id === id ? { ...c, status: 'SINCRONIZADO', lastSyncDate: new Date().toISOString() } : c)
-              );
-            }}
             onTransmitPLSJud={id => {
               setPlsJudMappings(prev =>
                 prev.map(m => m.id === id ? { ...m, status: 'CONFIRMADO', lastTransmissionDate: new Date().toISOString().split('T')[0] } : m)

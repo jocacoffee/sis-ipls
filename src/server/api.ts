@@ -34,6 +34,8 @@ import { indicatorConsolidates, CONSOLIDATED_ORG_ID } from '../services/orgScope
 import { EntryMode, yearEntryMode } from '../services/periodicity';
 import { legacyTargetType, resolveTarget } from '../services/targets';
 import { isAutoIndicator } from '../services/autoCalc';
+import { agentEnabled, runChatAgent } from './agent/chatAgent';
+import { ingestEnergyInvoice } from './invoiceIngest';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -618,99 +620,19 @@ export function createApiRouter() {
     if (!canWriteOrg(user, organizationId)) return res.status(403).json({ error: 'Sem permissão para lançar dados neste órgão.' });
     if (typeof contentBase64 !== 'string' || !contentBase64) return res.status(400).json({ error: 'Envie o PDF da fatura.' });
 
-    const data = Buffer.from(contentBase64, 'base64');
-    if (data.length > 8 * 1024 * 1024) return res.status(400).json({ error: 'PDF maior que 8 MB.' });
-    if (data.subarray(0, 5).toString('latin1') !== '%PDF-') return res.status(400).json({ error: 'O arquivo não é um PDF.' });
-
-    const hash = sha256(data);
-    const same = db.documents.find(d => d.contentHash === hash && d.organizationId === organizationId && d.status !== 'ERRO');
-    if (same) return res.status(409).json({ error: `Este PDF já foi enviado (${same.fileName}).`, document: same });
-
-    const cee = db.indicators.find(i => i.acronym === ENERGY_KWH_ACRONYM);
-    const now = new Date().toISOString();
-    const doc: PLSDocument = {
-      id: `doc-${Date.now()}-${hash.slice(0, 6)}`,
+    const result = await ingestEnergyInvoice({
       organizationId,
-      title: 'Fatura de energia elétrica',
-      fileName: String(fileName || 'fatura.pdf').slice(0, 200),
-      fileType: 'FATURA',
-      indicatorId: cee?.id,
-      processNumber: typeof processNumber === 'string' && processNumber.trim() ? processNumber.trim().slice(0, 40) : undefined,
-      status: 'PENDENTE_VALIDACAO',
-      extractionConfidence: 0,
-      fileSize: `${(data.length / 1024).toFixed(0)} KB`,
-      uploadedAt: now,
-      uploadedBy: user?.username,
-      contentHash: hash,
-      sourceSystem: 'UPLOAD'
-    };
-
-    let text = '';
-    try {
-      text = (await pdfToText(data)).text;
-    } catch (err: any) {
-      doc.status = 'ERRO';
-      doc.reviewReasons = [`Não foi possível ler o PDF: ${err?.message || err}`];
+      fileName: String(fileName || 'fatura.pdf'),
+      data: Buffer.from(contentBase64, 'base64'),
+      processNumber: typeof processNumber === 'string' ? processNumber : undefined,
+      actor: { username: user?.username || '', displayName: user?.displayName || '' },
+      source: 'UPLOAD'
+    });
+    if (result.kind === 'invalid') return res.status(400).json({ error: result.error });
+    if (result.kind === 'duplicate') {
+      return res.status(409).json({ error: `Este PDF já foi enviado (${result.existing.fileName}).`, document: result.existing });
     }
-    if (doc.status !== 'ERRO' && text.replace(/\s/g, '').length < 80) {
-      doc.reviewReasons = ['PDF sem texto (provavelmente escaneado): informe os valores manualmente.'];
-    }
-
-    let measurements: IndicatorMeasurement[] = [];
-    if (doc.status !== 'ERRO' && !doc.reviewReasons) {
-      const ex = await extractEnergyInvoice(text);
-      const f = ex.fields;
-      Object.assign(doc, {
-        title: f.supplier ? `Fatura de energia — ${f.supplier}` : doc.title,
-        supplier: f.supplier ?? undefined,
-        consumerUnit: f.consumerUnit ?? undefined,
-        invoiceNumber: f.invoiceNumber ?? undefined,
-        dueDate: f.dueDate ?? undefined,
-        competence: f.competence ?? undefined,
-        consumption: f.kwh ?? undefined,
-        unit: 'kWh',
-        amount: f.totalAmount ?? undefined,
-        extractionConfidence: ex.confidence,
-        ocrConfidence: ex.confidence,
-        extractionMethod: ex.method,
-        extractionNotes: ex.notes
-      });
-      const ctx = {
-        organizationId,
-        indicators: db.indicators,
-        measurements: db.measurements.filter(m => m.organizationId === organizationId),
-        documents: db.documents
-      };
-      doc.reviewReasons = reviewReasons(f, ex.confidence, ctx, doc.id);
-      if (doc.reviewReasons.length === 0 && f.competence) {
-        doc.status = 'PROCESSADO';
-        doc.validatedAt = now;
-        doc.validatedBy = 'Lançamento automático';
-        measurements = energyMeasurementsFor({ ...ctx, documents: [doc, ...db.documents] }, f.competence, user?.username || '');
-      }
-    }
-    doc.rawTextSnippet = text.slice(0, 4000);
-
-    db.documents.unshift(doc);
-    for (const m of measurements) {
-      const i = db.measurements.findIndex(x => x.id === m.id);
-      if (i >= 0) db.measurements[i] = m; else db.measurements.push(m);
-    }
-    logAudit(
-      user?.username || '',
-      user?.displayName || '',
-      'EXTRAÇÃO_OCR',
-      'DOCUMENT',
-      doc.id,
-      undefined,
-      doc.status === 'PROCESSADO'
-        ? `Lançado: ${doc.consumption?.toLocaleString('pt-BR')} kWh e R$ ${doc.amount?.toLocaleString('pt-BR')} (${doc.competence})`
-        : `Pendente: ${(doc.reviewReasons || []).join(' ')}`,
-      `Leitura da fatura ${doc.fileName}. Confiança ${doc.extractionConfidence}%.`,
-      'Leitura de faturas de energia'
-    );
-    await storage.saveNow();
-    res.json({ success: true, document: doc, measurements });
+    res.json({ success: true, document: result.document, measurements: result.measurements });
   });
 
   // POST /api/documents/:id/validate — confirma (e corrige, se preciso) a leitura e lança CEE/GEE.
@@ -804,8 +726,30 @@ export function createApiRouter() {
     }
 
     const org = db.organizations.find(o => o.id === orgId) || db.organizations[0];
-    const scoped = scopeFor(org.id);
 
+    // Agente com ferramentas (modelo local consulta a base sob demanda); se falhar, usa o chat com contexto fixo
+    if (provider === 'local' && !localConfig && agentEnabled()) {
+      const t0 = Date.now();
+      try {
+        const { trace, ...message } = await runChatAgent({
+          query: query.trim().slice(0, 4000),
+          conversationHistory: Array.isArray(conversationHistory) ? conversationHistory : [],
+          organizationAcronym: org.acronym,
+          organizationName: org.name,
+          isConsolidated: isConsolidatedOrg(org.id, db.organizations),
+          year: Number(year) || new Date().getFullYear()
+        });
+        console.log(
+          `[Agente] ${currentUser()?.username || '?'} · ${org.acronym} · ${Date.now() - t0} ms · ` +
+            (trace.map(t => `${t.tool}${t.ok ? '' : '(erro)'}`).join(', ') || 'sem ferramentas')
+        );
+        return res.json(message);
+      } catch (err: any) {
+        console.warn('[Agente] Falhou; usando o chat com contexto fixo:', err?.message || err);
+      }
+    }
+
+    const scoped = scopeFor(org.id);
     try {
       const responseMessage = await executeRAGChatQuery({
         query: query.trim(),

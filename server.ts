@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url';
 import { createApiRouter } from './src/server/api';
 import { storage } from './src/server/storage';
 import { authMiddleware, createAuthRouter } from './src/server/auth';
+import { createMcpRouter } from './src/server/agent/mcpServer';
+import { createSeiRouter } from './src/server/agent/seiRoutes';
+import { startSeiScheduler } from './src/server/agent/seiSync';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +65,9 @@ async function startServer() {
     });
   });
 
+  // Servidor MCP (somente leitura, chave de serviço em MCP_TOKENS): LM Studio e outros assistentes
+  app.use('/mcp', createMcpRouter());
+
   // Sessão do usuário (visitantes navegam sem login; escrita exige login no AD)
   app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
   app.use('/api', authMiddleware);
@@ -69,6 +75,9 @@ async function startServer() {
 
   // Mount API router
   app.use('/api', createApiRouter());
+  // Coleta automática do SEI (Fase 3): processos monitorados, execuções e agendamento diário
+  app.use('/api', createSeiRouter());
+  startSeiScheduler();
 
   if (!isProd) {
     // Development mode with Vite dev middleware

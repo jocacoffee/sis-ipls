@@ -11,34 +11,28 @@ import {
   ArrowRight,
   FileText
 } from 'lucide-react';
-import { PLSJudMapping, SEIConnector, Indicator } from '../types';
+import { PLSJudMapping, Indicator, Organization } from '../types';
+import { SeiCollectionPanel } from './SeiCollectionPanel';
 
 interface IntegrationsViewProps {
-  seiConnectors: SEIConnector[];
+  organizations: Organization[];
+  selectedOrgId: string;
+  /** Pode gerenciar a coleta do SEI no órgão ('*' = todos os órgãos)? */
+  canManageSei: (orgId: string) => boolean;
   plsJudMappings: PLSJudMapping[];
   indicators: Indicator[];
-  onSyncSEI?: (id: string) => void;
   onTransmitPLSJud?: (id: string) => void;
 }
 
 export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
-  seiConnectors,
+  organizations,
+  selectedOrgId,
+  canManageSei,
   plsJudMappings,
   indicators,
-  onSyncSEI,
   onTransmitPLSJud
 }) => {
   const [activeTab, setActiveTab] = useState<'SEI' | 'PLS_JUD'>('SEI');
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-
-  const handleSimulateSync = (id: string) => {
-    setSyncingId(id);
-    setTimeout(() => {
-      setSyncingId(null);
-      if (onSyncSEI) onSyncSEI(id);
-    }, 1200);
-  };
-
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
@@ -66,7 +60,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
                 : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
-            Processos SEI ({seiConnectors.length})
+            Coleta do SEI
           </button>
           <button
             onClick={() => setActiveTab('PLS_JUD')}
@@ -82,74 +76,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
       </div>
 
       {activeTab === 'SEI' ? (
-        /* SEI Connectors List */
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {seiConnectors.map(c => {
-              const ind = indicators.find(i => i.id === c.indicatorId);
-              const isSyncing = syncingId === c.id;
-
-              return (
-                <div
-                  key={c.id}
-                  className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between transition-colors dark:border-slate-800/80 dark:bg-slate-900"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 dark:bg-slate-800 dark:text-slate-200 px-2 py-0.5 rounded">
-                        {c.processNumber}
-                      </span>
-
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                          c.status === 'SINCRONIZADO'
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-1">{c.description}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Processo: <strong className="text-slate-700 dark:text-slate-300 font-mono">{c.processNumber}</strong>
-                    </p>
-
-                    <div className="mt-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Indicador Vinculado:</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ind?.code} — {ind?.name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Documento Mapeado:</span>
-                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">{c.expectedDocumentType}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Última Sincronização:</span>
-                        <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                          {c.lastSyncDate ? new Date(c.lastSyncDate).toLocaleDateString('pt-BR') : 'Pendente'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                    <span className="text-slate-400 text-[11px]">Webhook SEI Ativo</span>
-                    <button
-                      onClick={() => handleSimulateSync(c.id)}
-                      disabled={isSyncing}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs transition-colors"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
-                      <span>{isSyncing ? 'Consultando...' : 'Sincronizar'}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <SeiCollectionPanel organizations={organizations} selectedOrgId={selectedOrgId} canManage={canManageSei} />
       ) : (
         /* PLS-Jud Transmission Panel */
         <div className="space-y-4">

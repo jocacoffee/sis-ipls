@@ -19,7 +19,10 @@ import {
   AuditLog,
   InconsistencyAlert,
   IDSComplement,
-  UserPermission
+  UserPermission,
+  SeiMonitoredProcess,
+  SeiSyncedDocument,
+  SeiSyncRun
 } from '../types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -62,6 +65,10 @@ export interface AppDatabase {
   alerts: InconsistencyAlert[];
   idsComplements: IDSComplement[];
   userPermissions: UserPermission[];
+  /** Coleta automática do SEI (Fase 3) */
+  seiProcesses: SeiMonitoredProcess[];
+  seiSyncedDocuments: SeiSyncedDocument[];
+  seiSyncRuns: SeiSyncRun[];
   lastSavedAt: string;
 }
 
@@ -110,6 +117,9 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     alerts: parsed.alerts || [...INITIAL_ALERTS],
     idsComplements: parsed.idsComplements || [],
     userPermissions: parsed.userPermissions || [],
+    seiProcesses: parsed.seiProcesses || [],
+    seiSyncedDocuments: parsed.seiSyncedDocuments || [],
+    seiSyncRuns: parsed.seiSyncRuns || [],
     lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
   };
   return { db, wasFixed };

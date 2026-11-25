@@ -27,16 +27,62 @@ documentos direto no SEI, é preciso o acesso descrito abaixo.
 
 O iPLS só **lê**: não cria, assina, tramita nem altera documentos.
 
-## Configuração no iPLS (depois de liberado)
+## Situação (nov/2026)
 
-Variáveis de ambiente do servidor (aba Environment do Easypanel), nunca no repositório:
+Resposta da TI do TRF1:
+
+- SEI **5.0.3** em produção, com atualização para a **6.0** prevista para o início de 2027.
+  Depois da atualização, refaça os testes na homologação antes de ligar em produção.
+- Homologação em `seihml.trf1.jus.br`. Pode ficar fora do ar e, durante os testes do banco, aponta
+  para uma **cópia da produção**, ou seja, com dados reais: só leitura, sem guardar PDFs fora do iPLS.
+- Cadastro do sistema: **processo SEI ao NUPAE**.
+- O web service devolve o **conteúdo do documento em Base64**. Use o web service, e não o mod-wssei.
+- A Pesquisa Pública não está ativa.
+
+## Agente de coleta (Fase 3) — já implementado
+
+O iPLS já tem o agente de coleta. Ele fica desligado até a configuração abaixo.
+
+- **Processos monitorados** ficam em *Integrações (SEI / CNJ) → Coleta do SEI*, que por enquanto
+  só aparece no perfil dev. O administrador cadastra processos de qualquer órgão; o master, do próprio.
+- **Coleta:** para cada processo ativo, o agente faz o seguinte:
+  1. lista os documentos e filtra pelos tipos configurados (ex.: "Fatura") e pelo nível de acesso
+     (só públicos, por padrão);
+  2. pula os documentos já vistos;
+  3. baixa o PDF de cada documento novo;
+  4. passa o PDF pela **mesma leitura do upload manual** (seção abaixo).
+- A coleta roda na hora agendada (`SEI_SYNC_HOUR`) ou pelo botão **Sincronizar agora**. Cada
+  execução, cada documento e cada lançamento ficam registrados (histórico na tela e auditoria).
+- **Modo simulado** (`SEI_MODE=simulado`) para testar sem o SEI: uma pasta com uma subpasta por
+  processo (só os dígitos do número) contendo os PDFs e, opcionalmente, um `documentos.json`
+  (`[{"arquivo","tipo","numero","data"}]`). Esse modo é bloqueado em produção.
+
+### Configuração (variáveis do servidor, nunca no repositório)
 
 ```env
-SEI_URL=https://<endereco-do-sei>/sei/controlador_ws.php?servico=sei
+SEI_MODE=soap
+SEI_URL=https://seihml.trf1.jus.br/sei/controlador_ws.php?servico=sei
 SEI_SIGLA_SISTEMA=IPLS
-SEI_CHAVE=<chave do serviço>
+SEI_CHAVE=<chave do serviço, fornecida pelo NUPAE>
 SEI_ID_UNIDADE=<id da unidade>
+SEI_OP_LISTAR=<operação que lista os documentos do processo>
+SEI_OP_DOCUMENTO=consultarDocumento
+SEI_SYNC_HOUR=2
+SEI_SOMENTE_PUBLICOS=true
 ```
+
+### A confirmar na homologação
+
+Os nomes exatos da **operação que lista os documentos do processo** (`SEI_OP_LISTAR`) e dos campos
+de retorno do SEI 5.0.3 ainda precisam ser confirmados. Ficam concentrados em `SOAP_FIELDS`
+(`src/server/agent/seiClient.ts`) e nas variáveis `SEI_OP_*`, para que o ajuste seja pequeno.
+Roteiro do primeiro teste:
+
+1. Cadastre um processo de energia da SJRR na tela e clique em **Sincronizar agora**.
+2. No histórico, confira se a lista de documentos veio com tipo, número e nível de acesso.
+3. Confira se a fatura foi baixada, lida e conferida (documento LANCADO ou PENDENTE).
+4. Se algum campo vier vazio, ajuste `SOAP_FIELDS` e as operações `SEI_OP_*` com base na resposta
+   real do serviço.
 
 ## Como a fatura vira dado no indicador
 

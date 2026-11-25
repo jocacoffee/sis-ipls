@@ -384,7 +384,7 @@ export interface AuditLog {
   userName: string;
   action: 'CRIACAO' | 'ALTERACAO' | 'EXCLUSAO' | 'VALIDACAO' | 'IMPORTACAO' | 'EXTRAÇÃO_OCR';
   timestamp: string;
-  entityType: 'MEASUREMENT' | 'INDICATOR' | 'TARGET' | 'DOCUMENT' | 'ACTION_PLAN' | 'GHG' | 'PERMISSION';
+  entityType: 'MEASUREMENT' | 'INDICATOR' | 'TARGET' | 'DOCUMENT' | 'ACTION_PLAN' | 'GHG' | 'PERMISSION' | 'INTEGRACAO';
   entityId: string;
   indicatorCode?: string;
   previousValue?: string;
@@ -445,6 +445,60 @@ export interface SEIConnector {
   lastSyncDate?: string;
   lastFoundDocNumber?: string;
   status: 'ATIVO' | 'SINCRONIZADO' | 'PENDENTE';
+}
+
+/** Processo SEI acompanhado pelo agente de coleta (ex.: contrato de energia de um órgão). */
+export interface SeiMonitoredProcess {
+  id: string;
+  organizationId: string;
+  /** Número do processo como aparece no SEI (ex.: 0001234-56.2024.4.01.8013). */
+  processNumber: string;
+  description?: string;
+  kind: 'ENERGIA';
+  /** Tipos de documento do SEI que contêm a fatura (ex.: "Fatura", "Nota Fiscal"). Vazio = todos. */
+  documentTypes: string[];
+  /** Unidades consumidoras esperadas (opcional, só conferência). */
+  consumerUnits?: string[];
+  active: boolean;
+  createdAt: string;
+  createdBy: string;
+  lastSyncAt?: string;
+  lastSyncStatus?: 'OK' | 'ERRO';
+  lastSyncMessage?: string;
+}
+
+/** Documento do SEI já visto pelo agente (evita reprocessar). */
+export interface SeiSyncedDocument {
+  id: string;
+  processId: string;
+  organizationId: string;
+  seiDocumentId: string;
+  seiDocumentNumber?: string;
+  documentType: string;
+  documentDate?: string;
+  status: 'LANCADO' | 'PENDENTE' | 'IGNORADO' | 'ERRO';
+  message?: string;
+  plsDocumentId?: string;
+  syncedAt: string;
+}
+
+/** Execução da coleta do SEI (agendada ou manual). */
+export interface SeiSyncRun {
+  id: string;
+  trigger: 'AGENDADO' | 'MANUAL';
+  triggeredBy?: string;
+  organizationId?: string;
+  clientMode: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: 'EM_ANDAMENTO' | 'OK' | 'PARCIAL' | 'ERRO';
+  processes: number;
+  newDocuments: number;
+  launched: number;
+  pending: number;
+  ignored: number;
+  errors: number;
+  log: string[];
 }
 
 export interface RAGDocumentChunk {

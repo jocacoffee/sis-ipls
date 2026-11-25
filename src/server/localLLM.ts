@@ -122,6 +122,86 @@ export async function callLocalLLM(
   }
 }
 
+// ------------------------------------------------------------------ chamada de ferramentas
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+/** Mensagem no formato da API da OpenAI, incluindo chamadas e resultados de ferramentas. */
+export type AgentMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+export interface ToolSpec {
+  type: 'function';
+  function: { name: string; description: string; parameters: unknown };
+}
+
+/**
+ * Uma rodada do agente: envia a conversa e as ferramentas disponíveis e devolve a resposta
+ * do modelo (texto final e/ou pedidos de chamada de ferramenta). Exige modelo com suporte
+ * a "tool calling" (ex.: Qwen 2.5/3.x, Llama 3.1+ no LM Studio).
+ */
+export async function callLocalLLMWithTools(
+  messages: AgentMessage[],
+  tools: ToolSpec[],
+  opts: { timeoutMs?: number; maxTokens?: number } = {}
+): Promise<{ content: string; toolCalls: ToolCall[]; model: string; finishReason?: string }> {
+  const s = localLLMSettings();
+  if (!s.endpoint || !s.model) throw new Error('IA local não configurada (LOCAL_AI_ENDPOINT e LOCAL_AI_MODEL).');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (s.apiKey) headers.Authorization = `Bearer ${s.apiKey}`;
+  const controller = new AbortController();
+  const timeoutMs = opts.timeoutMs ?? s.timeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${s.endpoint}/chat/completions`, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: s.model,
+        messages,
+        ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
+        temperature: s.temperature,
+        max_tokens: opts.maxTokens ?? s.maxTokens,
+        stream: false
+      })
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Servidor de IA respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    const choice = json.choices?.[0];
+    const msg = choice?.message || {};
+    const toolCalls: ToolCall[] = Array.isArray(msg.tool_calls)
+      ? msg.tool_calls
+          .filter((c: any) => c?.function?.name)
+          .map((c: any, k: number) => ({
+            id: String(c.id || `call-${Date.now()}-${k}`),
+            type: 'function' as const,
+            function: {
+              name: String(c.function.name),
+              arguments: typeof c.function.arguments === 'string' ? c.function.arguments : JSON.stringify(c.function.arguments || {})
+            }
+          }))
+      : [];
+    return { content: stripReasoning(String(msg.content || '')), toolCalls, model: s.model, finishReason: choice?.finish_reason };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Tempo limite de ${Math.round(timeoutMs / 1000)} s esgotado aguardando a IA local (${s.model}).`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Extrai o primeiro objeto JSON de um texto (modelos locais às vezes cercam o JSON com texto ou ```json). */
 export function extractJson<T = any>(text: string): T {
   const cleaned = stripReasoning(text).replace(/```(?:json)?/gi, '');
