@@ -12,9 +12,13 @@ import {
   ENERGY_KWH_ACRONYM,
   energyMeasurementsFor,
   extractEnergyInvoice,
+  pdfToImages,
   pdfToText,
   reviewReasons,
-  sha256
+  SCANNED_MAX_CONFIDENCE,
+  sha256,
+  transcribeInvoiceImages,
+  visionEnabled
 } from './energyInvoice';
 
 export const MAX_INVOICE_BYTES = 8 * 1024 * 1024;
@@ -71,13 +75,36 @@ export async function ingestEnergyInvoice(p: IngestParams): Promise<IngestResult
     doc.status = 'ERRO';
     doc.reviewReasons = [`Não foi possível ler o PDF: ${err?.message || err}`];
   }
+  // PDF escaneado (sem camada de texto): a IA local com visão lê a imagem das páginas
+  let scannedModel: string | null = null;
   if (doc.status !== 'ERRO' && text.replace(/\s/g, '').length < 80) {
-    doc.reviewReasons = ['PDF sem texto (provavelmente escaneado): informe os valores manualmente.'];
+    if (!visionEnabled()) {
+      doc.reviewReasons = ['PDF sem texto (escaneado) e leitura de imagem desligada (AI_VISION=off): informe os valores manualmente.'];
+    } else {
+      try {
+        const images = await pdfToImages(p.data);
+        if (!images.length) throw new Error('PDF sem páginas');
+        const t = await transcribeInvoiceImages(images);
+        if (t.text.replace(/\s/g, '').length < 80) throw new Error('a IA não encontrou texto na imagem');
+        text = t.text;
+        scannedModel = t.model;
+      } catch (err: any) {
+        doc.reviewReasons = [
+          `PDF escaneado: não foi possível ler a imagem com a IA local (${err?.message || err}). ` +
+          'Verifique se o modelo carregado no LM Studio aceita imagens, ou informe os valores manualmente.'
+        ];
+      }
+    }
   }
 
   let measurements: IndicatorMeasurement[] = [];
   if (doc.status !== 'ERRO' && !doc.reviewReasons) {
     const ex = await extractEnergyInvoice(text);
+    if (scannedModel) {
+      ex.confidence = Math.min(ex.confidence, SCANNED_MAX_CONFIDENCE);
+      ex.method = `Imagem do PDF transcrita pela IA local (${scannedModel}) + ${ex.method}`;
+      ex.notes.unshift('Fatura escaneada: o texto foi lido da imagem. Confira os valores com o PDF antes de lançar.');
+    }
     const f = ex.fields;
     Object.assign(doc, {
       title: f.supplier ? `Fatura de energia — ${f.supplier}` : doc.title,

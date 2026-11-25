@@ -69,7 +69,9 @@ export function responseBudget(promptChars: number, cap: number): number {
 /** Remove blocos de raciocínio (<think>…</think>) que alguns modelos emitem. */
 export const stripReasoning = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-export type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+/** Parte de mensagem no formato OpenAI: texto ou imagem (data URL), para modelos com visão. */
+export type LLMContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+export type LLMMessage = { role: 'system' | 'user' | 'assistant'; content: string | LLMContentPart[] };
 
 /**
  * Chama /chat/completions. Lança erro com mensagem clara em caso de falha.

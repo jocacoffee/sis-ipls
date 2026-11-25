@@ -49,6 +49,67 @@ export async function pdfToText(data: Buffer): Promise<{ text: string; pages: nu
   return { text, pages: doc.numPages };
 }
 
+// ------------------------------------------------------------------ PDF escaneado (imagem)
+/** Leitura de PDF escaneado pela IA local com visão. AI_VISION=off desliga. */
+export const visionEnabled = () => (process.env.AI_VISION || '').toLowerCase() !== 'off';
+/** Fatura escaneada nunca é lançada sozinha: a confiança fica abaixo do mínimo de lançamento. */
+export const SCANNED_MAX_CONFIDENCE = 80;
+
+/**
+ * Converte as primeiras páginas do PDF em JPEG (data URL) para enviar ao modelo com visão.
+ * Usa o canvas do próprio pdfjs (@napi-rs/canvas).
+ */
+export async function pdfToImages(data: Buffer, opts: { maxPages?: number; longSide?: number } = {}): Promise<string[]> {
+  const maxPages = opts.maxPages ?? 2;
+  const longSide = opts.longSide ?? 1800;
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(data), isEvalSupported: false, disableFontFace: true }).promise;
+  const out: string[] = [];
+  try {
+    for (let p = 1; p <= Math.min(doc.numPages, maxPages); p++) {
+      const page = await doc.getPage(p);
+      const base = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: Math.min(4, longSide / Math.max(base.width, base.height)) });
+      const factory = (doc as any).canvasFactory;
+      const { canvas, context } = factory.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      await page.render({ canvasContext: context, viewport }).promise;
+      const jpeg: Buffer = canvas.toBuffer('image/jpeg', 82);
+      out.push(`data:image/jpeg;base64,${jpeg.toString('base64')}`);
+      factory.destroy?.({ canvas, context });
+    }
+  } finally {
+    await doc.destroy();
+  }
+  return out;
+}
+
+const OCR_PROMPT = `Você recebe a imagem de uma fatura de energia elétrica brasileira digitalizada.
+Transcreva TODO o texto visível, de cima para baixo, uma linha por linha, mantendo os rótulos junto dos valores
+(ex.: "Consumo Ponta 935 kWh", "Total a pagar R$ 18.078,23", "Mês Faturado 02/2026").
+Copie os números exatamente como aparecem (formato brasileiro). Na área "Histórico de Medição", escreva
+"Histórico de Medição (kWh)" e, na linha seguinte, só os valores das barras em ordem, do mais antigo ao mais recente.
+Se um trecho estiver ilegível, escreva [ilegível]. Não resuma, não explique e não invente.`;
+
+/** Transcreve as imagens da fatura com a IA local (modelo com visão). */
+export async function transcribeInvoiceImages(images: string[]): Promise<{ text: string; model: string }> {
+  const settings = localLLMSettings();
+  if (!settings.endpoint || !settings.model) throw new Error('IA local não configurada.');
+  const { text, model } = await callLocalLLM(
+    [
+      { role: 'system', content: OCR_PROMPT },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Transcreva a fatura:' },
+          ...images.map(url => ({ type: 'image_url' as const, image_url: { url } }))
+        ]
+      }
+    ],
+    { maxTokens: 3000, timeoutMs: Math.max(settings.timeoutMs, 180_000) }
+  );
+  return { text: text.replace(/^```\w*\n?|```$/g, '').trim(), model };
+}
+
 // ------------------------------------------------------------------ números e datas (pt-BR)
 /** "12.345,67" → 12345.67; "12345" → 12345; "1,234.5" (raro) → 1234.5 */
 export function parseBRNumber(raw: string | number | null | undefined): number | null {

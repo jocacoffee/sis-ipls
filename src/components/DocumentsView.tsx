@@ -443,6 +443,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{uploadError}</div>
               )}
 
+              <p className="text-[11px] text-slate-500">
+                {uploadBusy
+                  ? 'Lendo… Fatura escaneada (imagem) é lida pela IA local e pode levar 1 a 2 minutos.'
+                  : 'Aceita PDF com texto ou escaneado. A fatura escaneada é lida pela IA local e sempre fica para conferência antes de lançar.'}
+              </p>
+
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
