@@ -344,8 +344,14 @@ export async function extractEnergyInvoice(text: string): Promise<InvoiceExtract
     notes.push(`IA local indisponível: ${err?.message || err}`);
   }
   if (!ai) {
-    const histNow = rx.history?.length ? rx.history[rx.history.length - 1].kwh : null;
-    if (histNow !== null && close(rx.kwh, histNow)) notes.push('Consumo confere com o histórico de medição da fatura.');
+    const h = rx.history || [];
+    const histNow = h.length ? h[h.length - 1].kwh : null;
+    if (histNow !== null && rx.kwh !== null && close(rx.kwh, histNow)) {
+      notes.push(histNow === rx.kwh
+        ? 'Consumo igual ao histórico de medição da fatura.'
+        : `Consumo confere com o histórico de medição da fatura (no gráfico foi lido ${histNow.toLocaleString('pt-BR')}; corrigido para ${rx.kwh.toLocaleString('pt-BR')}).`);
+      h[h.length - 1] = { ...h[h.length - 1], kwh: rx.kwh };
+    }
     return { fields: rx, confidence: 55, method: 'Expressões regulares (sem IA)', notes: [...notes, 'Lido sem IA: confira os valores.'] };
   }
   const f: InvoiceFields = { ...ai.fields, kwhBreakdown: rx.kwhBreakdown };
@@ -354,19 +360,32 @@ export async function extractEnergyInvoice(text: string): Promise<InvoiceExtract
   const hist = parseHistory(text, f.competence ?? rx.competence);
   f.history = hist;
   const histNow = hist.length ? hist[hist.length - 1].kwh : null;
+  const fmt = (v: number) => v.toLocaleString('pt-BR');
+  /**
+   * Frase sobre a conferência com o histórico. Diferença pequena (até 1%) costuma ser erro de leitura
+   * de um dígito do gráfico (fatura escaneada): o consumo das faixas prevalece e o último ponto do
+   * histórico é corrigido para ele.
+   */
+  const againstHistory = (kwh: number) => {
+    if (histNow === kwh) return 'igual ao histórico de medição da fatura';
+    const lido = histNow as number;
+    hist[hist.length - 1] = { ...hist[hist.length - 1], kwh };
+    return `confere com o histórico de medição da fatura (no gráfico foi lido ${fmt(lido)}, provável erro de leitura de um dígito; histórico corrigido para ${fmt(kwh)})`;
+  };
   if (rx.kwh !== null && close(rx.kwh, histNow)) {
-    if (!close(f.kwh, rx.kwh)) {
-      const parts = (rx.kwhBreakdown || []).map(l => `${l.label} ${l.kwh.toLocaleString('pt-BR')}`).join(' + ');
-      notes.push(`Consumo = soma das faixas (${parts}) = ${rx.kwh.toLocaleString('pt-BR')} kWh, igual ao histórico de medição da fatura${f.kwh !== null ? `; a IA tinha lido ${f.kwh.toLocaleString('pt-BR')}` : ''}.`);
+    if (!close(f.kwh, rx.kwh) || f.kwh !== rx.kwh) {
+      const parts = (rx.kwhBreakdown || []).map(l => `${l.label} ${fmt(l.kwh)}`).join(' + ');
+      const iaRead = f.kwh !== null && f.kwh !== rx.kwh ? `; a IA tinha lido ${fmt(f.kwh)}` : '';
+      notes.push(`Consumo = soma das faixas (${parts}) = ${fmt(rx.kwh)} kWh, ${againstHistory(rx.kwh)}${iaRead}.`);
       f.kwh = rx.kwh;
     } else {
-      notes.push('Consumo confere com o histórico de medição da fatura.');
+      notes.push(`Consumo ${againstHistory(rx.kwh)}.`);
     }
   } else if (histNow !== null && f.kwh !== null && close(f.kwh, histNow)) {
-    notes.push('Consumo confere com o histórico de medição da fatura.');
+    notes.push(`Consumo ${againstHistory(f.kwh)}.`);
   } else if (histNow !== null && f.kwh !== null) {
     confidence -= 15;
-    notes.push(`Consumo lido (${f.kwh.toLocaleString('pt-BR')} kWh) difere do histórico de medição da fatura para o mês (${histNow.toLocaleString('pt-BR')} kWh).`);
+    notes.push(`Consumo lido (${fmt(f.kwh)} kWh) difere do histórico de medição da fatura para o mês (${fmt(histNow)} kWh).`);
   }
   const check = (label: string, aiVal: number | null, rxVal: number | null) => {
     if (aiVal === null) { confidence -= 40; notes.push(`${label} não encontrado.`); return; }
