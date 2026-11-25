@@ -632,7 +632,10 @@ export function App() {
     return { document: data.document as PLSDocument };
   };
 
-  const handleValidateDocument = async (documentId: string, values?: { kwh?: number; amount?: number; competence?: string }) => {
+  const handleValidateDocument = async (
+    documentId: string,
+    values?: { kwh?: number; amount?: number; competence?: string; mode?: 'keep' | 'overwrite' }
+  ) => {
     if (!ensureCanEdit()) return { error: 'Sem permissão para lançar dados neste órgão.' };
     const res = await fetch(`/api/documents/${encodeURIComponent(documentId)}/validate`, {
       method: 'POST',
@@ -640,7 +643,7 @@ export function App() {
       body: JSON.stringify(values || {})
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { error: data.error || `Falha na validação (HTTP ${res.status}).` };
+    if (!res.ok) return { error: data.error || `Falha na validação (HTTP ${res.status}).`, conflict: res.status === 409 && !!data.conflict };
     applyDocumentResult(data);
     return { document: data.document as PLSDocument };
   };
@@ -1117,6 +1120,7 @@ export function App() {
             indicators={indicators}
             onUploadDocument={handleUploadDocument}
             onValidateDocument={handleValidateDocument}
+            measurements={measurements}
           />
         )}
 

@@ -285,6 +285,8 @@ export interface PLSDocument {
   sourceSystem?: 'UPLOAD' | 'SEI';
   seiDocumentId?: string;
   uploadedBy?: string;
+  /** Mês já tinha valor lançado: o usuário manteve o valor ou o substituiu pela fatura. */
+  measurementDecision?: 'MANTIDO' | 'ATUALIZADO';
   /** Faixas de consumo somadas (ex.: Ponta + Fora de ponta). */
   consumptionBreakdown?: { label: string; posto: string; kwh: number }[];
   /** Histórico de medição impresso na fatura, comparado com o lançado no iPLS (CEE do órgão). */

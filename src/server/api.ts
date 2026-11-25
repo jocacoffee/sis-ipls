@@ -642,7 +642,7 @@ export function createApiRouter() {
     const user = currentUser();
     if (!canWriteOrg(user, doc.organizationId)) return res.status(403).json({ error: 'Sem permissão para este órgão.' });
 
-    const { kwh, amount, competence } = req.body || {};
+    const { kwh, amount, competence, mode } = req.body || {};
     const k = kwh !== undefined ? Number(kwh) : Number(doc.consumption);
     const a = amount !== undefined ? Number(amount) : Number(doc.amount);
     const comp = typeof competence === 'string' && /^\d{4}-\d{2}$/.test(competence) ? competence : doc.competence;
@@ -655,14 +655,22 @@ export function createApiRouter() {
     const [y, m] = comp.split('-').map(Number);
     const cee = db.indicators.find(i => i.acronym === ENERGY_KWH_ACRONYM);
     const gee = db.indicators.find(i => i.acronym === ENERGY_COST_ACRONYM);
-    // Lançamento manual/importado do mês não é sobrescrito
-    const manual = db.measurements.find(
+    // Já há valor manual/importado no mês: o usuário escolhe manter (mode=keep) ou atualizar (mode=overwrite)
+    const existing = db.measurements.filter(
       x => x.organizationId === doc.organizationId && x.year === y && x.month === m &&
         (x.indicatorId === cee?.id || x.indicatorId === gee?.id) && x.sourceType !== 'document_extraction'
     );
-    if (manual) {
-      return res.status(409).json({ error: `Já existe lançamento ${manual.sourceType === 'manual' ? 'manual' : 'importado'} de energia para ${String(m).padStart(2, '0')}/${y}. Corrija pelo lançamento mensal.` });
+    if (existing.length && mode !== 'keep' && mode !== 'overwrite') {
+      return res.status(409).json({
+        error: `Já existe valor lançado de energia para ${String(m).padStart(2, '0')}/${y}. Escolha manter o valor atual ou atualizar com a fatura.`,
+        conflict: {
+          competence: comp,
+          kwh: existing.find(x => x.indicatorId === cee?.id)?.value ?? null,
+          amount: existing.find(x => x.indicatorId === gee?.id)?.value ?? null
+        }
+      });
     }
+    const keptIds = new Set(mode === 'keep' ? existing.map(x => x.indicatorId) : []);
 
     const before = `${doc.consumption ?? '-'} kWh / R$ ${doc.amount ?? '-'} (${doc.competence ?? '-'})`;
     Object.assign(doc, {
@@ -674,9 +682,10 @@ export function createApiRouter() {
       status: 'PROCESSADO' as const,
       validatedAt: new Date().toISOString(),
       validatedBy: user?.username,
-      reviewReasons: []
+      reviewReasons: [],
+      measurementDecision: existing.length ? (mode === 'keep' ? 'MANTIDO' : 'ATUALIZADO') : undefined
     });
-    const measurements = energyMeasurementsFor(
+    const computed = energyMeasurementsFor(
       {
         organizationId: doc.organizationId,
         indicators: db.indicators,
@@ -686,9 +695,26 @@ export function createApiRouter() {
       comp,
       user?.username || ''
     );
+    // "Manter": só preenche o indicador que ainda não tem valor no mês
+    const measurements = computed.filter(meas => !keptIds.has(meas.indicatorId));
     for (const meas of measurements) {
       const i = db.measurements.findIndex(x => x.id === meas.id);
+      const old = i >= 0 ? db.measurements[i] : undefined;
       if (i >= 0) db.measurements[i] = meas; else db.measurements.push(meas);
+      if (old && old.sourceType !== 'document_extraction') {
+        const ind = db.indicators.find(x => x.id === meas.indicatorId);
+        logAudit(
+          user?.username || '',
+          user?.displayName || '',
+          'ALTERACAO',
+          'MEASUREMENT',
+          meas.id,
+          `${ind?.acronym ?? meas.indicatorId} ${String(m).padStart(2, '0')}/${y}: ${old.value} ${old.unit} (${old.sourceType})`,
+          `${meas.value} ${meas.unit} (fatura)`,
+          `Valor substituído pela leitura da fatura ${doc.fileName}, por escolha do usuário.`,
+          'Leitura de faturas de energia'
+        );
+      }
     }
     logAudit(
       user?.username || '',
@@ -698,7 +724,9 @@ export function createApiRouter() {
       doc.id,
       before,
       `${k} kWh / R$ ${a} (${comp})`,
-      'Leitura da fatura confirmada pelo usuário.',
+      existing.length
+        ? `Leitura da fatura confirmada pelo usuário; ${mode === 'keep' ? 'valor já lançado mantido' : 'valor já lançado substituído pela fatura'}.`
+        : 'Leitura da fatura confirmada pelo usuário.',
       'Leitura de faturas de energia'
     );
     await storage.saveNow();

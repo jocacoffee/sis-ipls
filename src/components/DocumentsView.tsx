@@ -18,7 +18,7 @@ import {
   Sparkles,
   FileSpreadsheet
 } from 'lucide-react';
-import { PLSDocument, DocumentType, Indicator } from '../types';
+import { PLSDocument, DocumentType, Indicator, IndicatorMeasurement } from '../types';
 
 interface DocumentsViewProps {
   documents: PLSDocument[];
@@ -26,14 +26,20 @@ interface DocumentsViewProps {
   /** Envia o PDF da fatura de energia; o servidor lê, confere e lança (ou deixa pendente). */
   onUploadDocument: (file: { fileName: string; contentBase64: string; processNumber?: string }) => Promise<{ document?: PLSDocument; error?: string }>;
   /** Confirma a leitura (com valores corrigidos, se preciso) e lança CEE/GEE. */
-  onValidateDocument: (documentId: string, values?: { kwh?: number; amount?: number; competence?: string }) => Promise<{ document?: PLSDocument; error?: string }>;
+  onValidateDocument: (
+    documentId: string,
+    values?: { kwh?: number; amount?: number; competence?: string; mode?: 'keep' | 'overwrite' }
+  ) => Promise<{ document?: PLSDocument; error?: string; conflict?: boolean }>;
+  /** Medições do órgão: para mostrar o valor já lançado no mês da fatura. */
+  measurements?: IndicatorMeasurement[];
 }
 
 export const DocumentsView: React.FC<DocumentsViewProps> = ({
   documents,
   indicators,
   onUploadDocument,
-  onValidateDocument
+  onValidateDocument,
+  measurements = []
 }) => {
   const [selectedDoc, setSelectedDoc] = useState<PLSDocument | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -107,18 +113,37 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   const toNumber = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'));
 
-  const handleValidate = async () => {
+  // Valor já lançado (manual/importado) no mês da fatura, em CEE e GEE
+  const ceeId = indicators.find(i => i.acronym === 'CEE')?.id;
+  const geeId = indicators.find(i => i.acronym === 'GEE')?.id;
+  const existingFor = (doc: PLSDocument | null, competence: string) => {
+    const mm = /^(\d{4})-(\d{2})$/.exec(competence);
+    if (!doc || !mm) return null;
+    const [y, m] = [Number(mm[1]), Number(mm[2])];
+    const find = (id?: string) =>
+      measurements.find(x => x.indicatorId === id && x.organizationId === doc.organizationId && x.year === y && x.month === m &&
+        x.sourceType !== 'document_extraction');
+    const kwh = find(ceeId);
+    const amount = find(geeId);
+    return kwh || amount ? { kwh: kwh?.value ?? null, amount: amount?.value ?? null } : null;
+  };
+  const existing = existingFor(selectedDoc, editCompetence);
+  const fmtNum = (v: number | null, money = false) =>
+    v === null ? 'sem lançamento' : money ? `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${v.toLocaleString('pt-BR')} kWh`;
+
+  const handleValidate = async (mode?: 'keep' | 'overwrite') => {
     if (!selectedDoc) return;
     setValidateBusy(true);
     setValidateError('');
     const r = await onValidateDocument(selectedDoc.id, {
       kwh: toNumber(editKwh),
       amount: toNumber(editAmount),
-      competence: editCompetence
+      competence: editCompetence,
+      ...(mode ? { mode } : {})
     });
     setValidateBusy(false);
     if (r.error) {
-      setValidateError(r.error);
+      setValidateError(r.conflict ? `${r.error} Atualize a página para ver o valor atual.` : r.error);
       return;
     }
     setSelectedDoc(null);
@@ -579,8 +604,48 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
               )}
 
+              {selectedDoc.status === 'PENDENTE_VALIDACAO' && existing && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2">
+                  <div className="font-bold">Já há valor lançado para {editCompetence.split('-').reverse().join('/')}. Manter ou atualizar?</div>
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="text-amber-800/80">
+                        <th className="text-left font-semibold py-0.5"></th>
+                        <th className="text-right font-semibold py-0.5 px-2">Lançado no iPLS</th>
+                        <th className="text-right font-semibold py-0.5 pl-2">Lido da fatura</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      <tr>
+                        <td className="py-0.5 font-sans font-semibold">Consumo (CEE)</td>
+                        <td className="py-0.5 px-2 text-right">{fmtNum(existing.kwh)}</td>
+                        <td className="py-0.5 pl-2 text-right font-bold">{fmtNum(toNumber(editKwh) || null)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-0.5 font-sans font-semibold">Gasto (GEE)</td>
+                        <td className="py-0.5 px-2 text-right">{fmtNum(existing.amount, true)}</td>
+                        <td className="py-0.5 pl-2 text-right font-bold">{fmtNum(toNumber(editAmount) || null, true)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className="text-[10px] text-amber-800">
+                    Atualizar substitui o valor do mês pela soma das faturas lidas desse mês (fica registrado na auditoria).
+                    Se o órgão tiver outras unidades consumidoras ainda sem fatura lida, o valor atual pode estar mais completo.
+                    Manter deixa o valor atual e só preenche o que estiver sem lançamento.
+                  </p>
+                </div>
+              )}
+
               {validateError && (
                 <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{validateError}</div>
+              )}
+
+              {selectedDoc.measurementDecision && (
+                <div className="text-[11px] text-slate-500">
+                  {selectedDoc.measurementDecision === 'MANTIDO'
+                    ? 'O mês já tinha valor lançado e ele foi mantido.'
+                    : 'O valor que já estava lançado no mês foi substituído pela fatura.'}
+                </div>
               )}
 
               <div>
@@ -604,9 +669,29 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     Fechar
                   </button>
 
-                  {selectedDoc.status === 'PENDENTE_VALIDACAO' && (
+                  {selectedDoc.status === 'PENDENTE_VALIDACAO' && existing && (
+                    <>
+                      <button
+                        onClick={() => handleValidate('keep')}
+                        disabled={validateBusy}
+                        className="rounded-xl px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 font-semibold"
+                      >
+                        Manter valor atual
+                      </button>
+                      <button
+                        onClick={() => handleValidate('overwrite')}
+                        disabled={validateBusy}
+                        className="rounded-xl px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>{validateBusy ? 'Lançando…' : 'Atualizar com a fatura'}</span>
+                      </button>
+                    </>
+                  )}
+
+                  {selectedDoc.status === 'PENDENTE_VALIDACAO' && !existing && (
                     <button
-                      onClick={handleValidate}
+                      onClick={() => handleValidate()}
                       disabled={validateBusy}
                       className="rounded-xl px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold flex items-center gap-1.5 shadow-xs"
                     >
