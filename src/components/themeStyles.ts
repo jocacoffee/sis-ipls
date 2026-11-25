@@ -17,6 +17,8 @@ export interface ThemeStyle {
   chip: string;
   /** Borda dos cartões ao passar o mouse */
   cardHover: string;
+  /** Cor das barras dos minigráficos (usa currentColor) */
+  bar: string;
 }
 
 const STYLES: Record<number, ThemeStyle> = {
@@ -28,6 +30,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-slate-400',
     chip: 'bg-slate-50 text-slate-800 border-slate-200',
     cardHover: 'hover:border-slate-400',
+    bar: 'text-slate-500',
   },
   // Papel
   2: {
@@ -37,6 +40,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-amber-400',
     chip: 'bg-amber-50 text-amber-800 border-amber-200',
     cardHover: 'hover:border-amber-400',
+    bar: 'text-amber-500',
   },
   // Copos Descartáveis
   3: {
@@ -46,6 +50,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-orange-400',
     chip: 'bg-orange-50 text-orange-800 border-orange-200',
     cardHover: 'hover:border-orange-400',
+    bar: 'text-orange-500',
   },
   // Água Envasada
   4: {
@@ -55,6 +60,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-cyan-400',
     chip: 'bg-cyan-50 text-cyan-800 border-cyan-200',
     cardHover: 'hover:border-cyan-400',
+    bar: 'text-cyan-500',
   },
   // Impressão
   5: {
@@ -64,6 +70,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-zinc-400',
     chip: 'bg-zinc-50 text-zinc-800 border-zinc-200',
     cardHover: 'hover:border-zinc-400',
+    bar: 'text-zinc-500',
   },
   // Energia Elétrica
   6: {
@@ -73,6 +80,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-yellow-400',
     chip: 'bg-yellow-50 text-yellow-800 border-yellow-200',
     cardHover: 'hover:border-yellow-400',
+    bar: 'text-yellow-500',
   },
   // Água e Esgoto
   7: {
@@ -82,6 +90,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-blue-400',
     chip: 'bg-blue-50 text-blue-800 border-blue-200',
     cardHover: 'hover:border-blue-400',
+    bar: 'text-blue-500',
   },
   // Gestão de Resíduos
   8: {
@@ -91,6 +100,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-lime-400',
     chip: 'bg-lime-50 text-lime-800 border-lime-200',
     cardHover: 'hover:border-lime-400',
+    bar: 'text-lime-500',
   },
   // Reformas e Construções
   9: {
@@ -100,6 +110,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-stone-400',
     chip: 'bg-stone-50 text-stone-800 border-stone-200',
     cardHover: 'hover:border-stone-400',
+    bar: 'text-stone-500',
   },
   // Limpeza
   10: {
@@ -109,6 +120,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-teal-400',
     chip: 'bg-teal-50 text-teal-800 border-teal-200',
     cardHover: 'hover:border-teal-400',
+    bar: 'text-teal-500',
   },
   // Vigilância
   11: {
@@ -118,6 +130,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-indigo-400',
     chip: 'bg-indigo-50 text-indigo-800 border-indigo-200',
     cardHover: 'hover:border-indigo-400',
+    bar: 'text-indigo-500',
   },
   // Telefonia
   12: {
@@ -127,6 +140,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-violet-400',
     chip: 'bg-violet-50 text-violet-800 border-violet-200',
     cardHover: 'hover:border-violet-400',
+    bar: 'text-violet-500',
   },
   // Veículos
   13: {
@@ -136,6 +150,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-sky-400',
     chip: 'bg-sky-50 text-sky-800 border-sky-200',
     cardHover: 'hover:border-sky-400',
+    bar: 'text-sky-500',
   },
   // Combustível
   14: {
@@ -145,6 +160,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-red-400',
     chip: 'bg-red-50 text-red-800 border-red-200',
     cardHover: 'hover:border-red-400',
+    bar: 'text-red-500',
   },
   // Apoio ao Serviço Administrativo
   15: {
@@ -154,6 +170,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-gray-400',
     chip: 'bg-gray-50 text-gray-800 border-gray-200',
     cardHover: 'hover:border-gray-400',
+    bar: 'text-gray-500',
   },
   // Aquisições e Contratações
   16: {
@@ -163,6 +180,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-fuchsia-400',
     chip: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200',
     cardHover: 'hover:border-fuchsia-400',
+    bar: 'text-fuchsia-500',
   },
   // Qualidade de Vida
   17: {
@@ -172,6 +190,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-pink-400',
     chip: 'bg-pink-50 text-pink-800 border-pink-200',
     cardHover: 'hover:border-pink-400',
+    bar: 'text-pink-500',
   },
   // Capacitação em Sustentabilidade
   18: {
@@ -181,6 +200,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-purple-400',
     chip: 'bg-purple-50 text-purple-800 border-purple-200',
     cardHover: 'hover:border-purple-400',
+    bar: 'text-purple-500',
   },
   // Equidade e Diversidade
   19: {
@@ -190,6 +210,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-rose-400',
     chip: 'bg-rose-50 text-rose-800 border-rose-200',
     cardHover: 'hover:border-rose-400',
+    bar: 'text-rose-500',
   },
   // Programa Justiça Carbono Zero
   20: {
@@ -199,6 +220,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-green-400',
     chip: 'bg-green-50 text-green-800 border-green-200',
     cardHover: 'hover:border-green-400',
+    bar: 'text-green-500',
   },
   // Novas Tecnologias
   21: {
@@ -208,6 +230,7 @@ const STYLES: Record<number, ThemeStyle> = {
     accent: 'border-l-emerald-400',
     chip: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     cardHover: 'hover:border-emerald-400',
+    bar: 'text-emerald-500',
   },
 };
 

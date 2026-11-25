@@ -5,6 +5,7 @@ import { Indicator, PLSTheme, IndicatorCalculationResult, IndicatorTarget } from
 import { StatusPill } from './Charts';
 import { isAutoIndicator } from '../services/autoCalc';
 import { themeStyle } from './themeStyles';
+import { MonthlyMiniBars } from './MonthlyMiniBars';
 import { acceptsMonthlyEntry } from '../services/periodicity';
 
 interface IndicatorsViewProps {
@@ -405,6 +406,16 @@ export const IndicatorsView: React.FC<IndicatorsViewProps> = ({
                                 {!res ? '—' : res.status === 'VARIAVEL_GERAL' ? <span className="font-sans font-normal text-slate-400">não se aplica</span> : !perf?.target ? <span className="font-sans font-normal text-slate-400">sem meta definida</span> : `${res.targetValue.toLocaleString('pt-BR')} ${ind.unit}`}
                               </span>
                             </div>
+                            {/* Barras dos meses (indicadores mensais e anuais lançados mês a mês) */}
+                            {res && (ind.periodicity === 'MENSAL' || (ind.allowMonthlyEntry && res.monthlyValues.filter(v => v !== null).length > 1)) && (
+                              <MonthlyMiniBars
+                                values={res.monthlyValues}
+                                unit={ind.unit}
+                                year={selectedYear}
+                                colorClass={style.bar}
+                                monthlyTarget={perf?.target && res.targetValue > 0 ? res.targetValue / 12 : undefined}
+                              />
+                            )}
                           </div>
                         </div>
 
