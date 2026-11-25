@@ -328,28 +328,93 @@ export const TOOLS: ToolDefinition[] = [
   },
   {
     name: 'comparar_orgaos',
-    description: 'Total de um indicador no exercício em cada órgão da 1ª Região (seções e 2º Grau), para comparação.',
+    description:
+      'Compara um indicador entre todos os órgãos da 1ª Região (seções e 2º Grau). Com um ano: total de cada órgão. ' +
+      'Com ano_inicial e ano_final: série anual de cada órgão, variação % de um ano para o outro e a maior alta — use para ' +
+      'perguntas como "quem teve salto/queda de consumo em 2024".',
     parameters: {
       type: 'object',
-      properties: { indicador: IND_PARAM, ano: YEAR_PARAM },
+      properties: {
+        indicador: IND_PARAM,
+        ano: { ...YEAR_PARAM, description: 'Ano único (se não informar intervalo).' },
+        ano_inicial: { type: 'integer', description: 'Primeiro ano do intervalo (ex.: 2021).' },
+        ano_final: { type: 'integer', description: 'Último ano do intervalo (ex.: 2025).' },
+        ano_destaque: {
+          type: 'integer',
+          description: 'Opcional: ordena os órgãos pela variação deste ano em relação ao anterior (ex.: 2024 para "salto em 2024").'
+        }
+      },
       required: ['indicador']
     },
     handler: args => {
       const ind = findIndicator(args.indicador);
-      const y = year(args.ano);
       const orgs = db().organizations.filter(o => !o.isConsolidated);
+      const monthly = ind.periodicity === 'MENSAL';
+      if (!args.ano_inicial && !args.ano_final) {
+        const y = year(args.ano);
+        const linhas = orgs
+          .map(o => {
+            const res = performance(o, ind, y).result;
+            return {
+              orgao: o.acronym,
+              tipo: orgKind(o),
+              total: res.monthsReported ? r(res.accumulatedValue, 4) : null,
+              ...(monthly ? { meses_informados: res.monthsReported } : {})
+            };
+          })
+          .filter(l => l.total !== null || orgs.find(o => o.acronym === l.orgao)?.active !== false);
+        return { indicador: indicatorSummary(ind), ano: y, orgaos: linhas };
+      }
+
+      const from = args.ano_inicial ? year(args.ano_inicial) : 2021;
+      const to = args.ano_final ? year(args.ano_final) : currentYear();
+      if (to <= from || to - from > 10) throw new ToolError('Intervalo de anos inválido (até 10 anos).');
+      const destaque = args.ano_destaque ? year(args.ano_destaque) : null;
+      if (destaque && (destaque <= from || destaque > to)) throw new ToolError('ano_destaque deve estar dentro do intervalo (e não ser o primeiro ano).');
+      const pct = (a: number | null, b: number | null) => (a && b !== null && a > 0 ? Number((((b - a) / a) * 100).toFixed(1)) : null);
       const linhas = orgs
         .map(o => {
-          const res = performance(o, ind, y).result;
+          const scoped = scopeOf(o);
+          const serie: Record<string, number | null> = {};
+          const meses: Record<string, number> = {};
+          for (let y = from; y <= to; y++) {
+            const res = performance(o, ind, y, scoped).result;
+            serie[y] = res.monthsReported ? r(res.accumulatedValue, 4) : null;
+            if (monthly && res.monthsReported && res.monthsReported < 12) meses[y] = res.monthsReported;
+          }
+          const variacao: Record<string, number | null> = {};
+          let maior: { ano: number; pct: number } | null = null;
+          for (let y = from + 1; y <= to; y++) {
+            // Só compara anos completos (anos parciais distorcem a variação)
+            const v = meses[y] || meses[y - 1] ? null : pct(serie[y - 1], serie[y]);
+            variacao[y] = v;
+            if (v !== null && (!maior || v > maior.pct)) maior = { ano: y, pct: v };
+          }
           return {
             orgao: o.acronym,
             tipo: orgKind(o),
-            total: res.monthsReported ? r(res.accumulatedValue, 4) : null,
-            ...(ind.periodicity === 'MENSAL' ? { meses_informados: res.monthsReported } : {})
+            ...(destaque ? { variacao_no_ano_destaque_pct: variacao[destaque] ?? null } : {}),
+            totais: serie,
+            variacao_pct_sobre_ano_anterior: variacao,
+            maior_alta: maior,
+            ...(Object.keys(meses).length ? { anos_parciais_meses_informados: meses } : {})
           };
         })
-        .filter(l => l.total !== null || orgs.find(o => o.acronym === l.orgao)?.active !== false);
-      return { indicador: indicatorSummary(ind), ano: y, orgaos: linhas };
+        .filter(l => Object.values(l.totais).some(v => v !== null));
+      if (destaque) {
+        linhas.sort((a, b) => ((b as any).variacao_no_ano_destaque_pct ?? -Infinity) - ((a as any).variacao_no_ano_destaque_pct ?? -Infinity));
+      }
+      const now = new Date();
+      const anosCompletos = Array.from({ length: to - from + 1 }, (_, k) => from + k).filter(y => y < now.getFullYear());
+      return {
+        indicador: indicatorSummary(ind),
+        anos: `${from}–${to}`,
+        anos_completos: anosCompletos,
+        ...(to >= now.getFullYear() ? { ano_em_andamento: now.getFullYear() } : {}),
+        ...(destaque ? { ordenado_por: `variação de ${destaque} sobre ${destaque - 1} (maior primeiro)` } : {}),
+        observacao: 'Variação só entre anos completos para o órgão; anos com meses faltando aparecem em anos_parciais_meses_informados.',
+        orgaos: linhas
+      };
     }
   },
   {

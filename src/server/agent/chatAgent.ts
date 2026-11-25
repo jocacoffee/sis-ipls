@@ -10,7 +10,7 @@
  *   AI_AGENT_MAX_STEPS    rodadas de ferramentas por pergunta (padrão 6)
  */
 import type { ChatMessage } from '../../types';
-import { AgentMessage, callLocalLLMWithTools, localLLMSettings, ToolSpec } from '../localLLM';
+import { AgentMessage, callLocalLLMWithTools, localLLMSettings, ToolCall, ToolSpec } from '../localLLM';
 import { runTool, TOOLS } from './tools';
 
 export const agentEnabled = () => (process.env.AI_AGENT || '').toLowerCase() !== 'off';
@@ -62,6 +62,63 @@ Como responder:
 - Cite as resoluções do CNJ só pelo número, sem inventar artigos.`;
 }
 
+/**
+ * Alguns modelos (ex.: Qwen no LM Studio) às vezes ESCREVEM a chamada de ferramenta no texto
+ * em vez de devolvê-la estruturada. Reconhece os formatos usuais:
+ *   <tool_call>{"name": "x", "arguments": {...}}</tool_call>
+ *   <tool_call><function=x><parameter=p>valor</parameter></function></tool_call>
+ * Devolve as chamadas encontradas e o texto sem elas.
+ */
+export function parseTextToolCalls(content: string): { calls: ToolCall[]; rest: string } {
+  const calls: ToolCall[] = [];
+  const known = new Set(TOOLS.map(t => t.name));
+  const add = (name: string, args: Record<string, unknown>) => {
+    if (!known.has(name)) return;
+    calls.push({
+      id: `textcall-${Date.now()}-${calls.length}`,
+      type: 'function',
+      function: { name, arguments: JSON.stringify(args) }
+    });
+  };
+  const value = (raw: string): unknown => {
+    const v = raw.trim();
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  };
+  let rest = content;
+  // Formato XML: <function=nome> ... <parameter=p>v</parameter> ... </function>
+  rest = rest.replace(/<function=([\w-]+)>([\s\S]*?)<\/function>/g, (_m, name: string, body: string) => {
+    const args: Record<string, unknown> = {};
+    body.replace(/<parameter=([\w-]+)>([\s\S]*?)<\/parameter>/g, (_p: string, k: string, v: string) => {
+      args[k] = value(v);
+      return '';
+    });
+    add(name, args);
+    return '';
+  });
+  // Formato JSON dentro de <tool_call>
+  rest = rest.replace(/<tool_call>([\s\S]*?)<\/tool_call>/g, (_m, body: string) => {
+    const t = body.trim();
+    if (t.startsWith('{')) {
+      try {
+        const j = JSON.parse(t);
+        const name = j.name || j.function?.name;
+        let args = j.arguments ?? j.parameters ?? j.function?.arguments ?? {};
+        if (typeof args === 'string') args = JSON.parse(args);
+        if (name) add(String(name), args);
+      } catch {
+        /* ignora */
+      }
+    }
+    return '';
+  });
+  rest = rest.replace(/<\/?tool_call>/g, '').trim();
+  return { calls, rest };
+}
+
 const clip = (s: string) => (s.length > MAX_RESULT_CHARS ? `${s.slice(0, MAX_RESULT_CHARS)}… [resultado truncado: refine a consulta]` : s);
 
 /**
@@ -90,8 +147,19 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
     const canUseTools = size() < budgetChars;
     const out = await callLocalLLMWithTools(messages, canUseTools ? tools : []);
     model = out.model;
+    if (!out.toolCalls.length) {
+      // Chamada escrita no texto em vez de estruturada: executa do mesmo jeito
+      const parsed = parseTextToolCalls(out.content);
+      if (parsed.calls.length && canUseTools) {
+        out.toolCalls = parsed.calls;
+        out.content = parsed.rest;
+      } else {
+        answer = parsed.rest;
+        if (answer || !parsed.calls.length) break;
+      }
+    }
     if (!out.toolCalls.length || !canUseTools) {
-      answer = out.content;
+      answer = parseTextToolCalls(out.content).rest;
       break;
     }
     messages.push({ role: 'assistant', content: out.content || null, tool_calls: out.toolCalls });
@@ -113,7 +181,7 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
     // Esgotou as rodadas: pede a resposta final com o que já foi coletado
     messages.push({ role: 'user', content: 'Responda agora à pergunta original com os dados já obtidos, sem chamar mais ferramentas.' });
     const out = await callLocalLLMWithTools(messages, []);
-    answer = out.content;
+    answer = parseTextToolCalls(out.content).rest;
   }
   if (!answer) throw new Error('A IA local não produziu resposta.');
 
