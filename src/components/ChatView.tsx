@@ -180,6 +180,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Rola só a área de mensagens. scrollIntoView rolaria também os contêineres de fora
@@ -299,10 +300,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  const handleCopyText = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopyText = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Sem permissão de área de transferência: copia por seleção temporária
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  /** Coloca uma pergunta anterior na caixa de texto, para ajustar e reenviar. */
+  const handleReuseQuestion = (text: string) => {
+    setInputQuery(text);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(text.length, text.length);
+    }, 0);
   };
 
   return (
@@ -505,10 +527,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {/* Timestamp & Copy */}
               <div className="mt-1 flex items-center gap-2 px-2 text-[10px] text-slate-400">
                 <span>{new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                {!isUser && (
+                {isUser && (
+                  <button
+                    onClick={() => handleReuseQuestion(msg.text)}
+                    className="hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1 ml-1"
+                    title="Colocar esta pergunta na caixa de texto para ajustar e reenviar"
+                  >
+                    <CornerDownLeft className="w-3 h-3" />
+                    <span>Reusar</span>
+                  </button>
+                )}
+                {
                   <button
                     onClick={() => handleCopyText(msg.id, msg.text)}
                     className="hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1 ml-1"
+                    title={isUser ? 'Copiar a pergunta' : 'Copiar a resposta'}
                   >
                     {copiedId === msg.id ? (
                       <>
@@ -522,7 +555,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </>
                     )}
                   </button>
-                )}
+                }
               </div>
             </div>
           );
@@ -552,6 +585,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           className="flex items-center gap-2"
         >
           <input
+            ref={inputRef}
             type="text"
             value={inputQuery}
             onChange={e => setInputQuery(e.target.value)}
