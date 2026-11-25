@@ -733,6 +733,35 @@ export function createApiRouter() {
     res.json({ success: true, document: doc, measurements });
   });
 
+  // DELETE /api/documents/:id — exclui fatura que ainda não foi lançada (pendente de conferência ou com erro).
+  // Documento já lançado (PROCESSADO) não sai por aqui: os valores estão nos indicadores.
+  router.delete('/documents/:id', requireRole('ADMIN', 'MASTER', 'PREENCHEDOR'), async (req: Request, res: Response) => {
+    const idx = db.documents.findIndex(d => d.id === req.params.id);
+    if (idx < 0) return res.status(404).json({ error: 'Documento não encontrado.' });
+    const doc = db.documents[idx];
+    const user = currentUser();
+    if (!canWriteOrg(user, doc.organizationId)) return res.status(403).json({ error: 'Sem permissão para este órgão.' });
+    if (doc.status === 'PROCESSADO') {
+      return res.status(409).json({ error: 'Esta fatura já foi lançada nos indicadores e não pode ser excluída.' });
+    }
+    db.documents.splice(idx, 1);
+    logAudit(
+      user?.username || '',
+      user?.displayName || '',
+      'EXCLUSAO',
+      'DOCUMENT',
+      doc.id,
+      `${doc.fileName} (${doc.status}${doc.competence ? `, ${doc.competence}` : ''}${doc.consumption ? `, ${doc.consumption} kWh` : ''}${doc.amount ? `, R$ ${doc.amount}` : ''})`,
+      undefined,
+      typeof req.body?.reason === 'string' && req.body.reason.trim()
+        ? req.body.reason.trim().slice(0, 300)
+        : 'Fatura pendente de conferência excluída pelo usuário.',
+      'Leitura de faturas de energia'
+    );
+    await storage.saveNow();
+    res.json({ success: true, id: doc.id });
+  });
+
   // POST /api/chat and /api/ai/chat - Query AI assistant with Gemini API, RAG, and On-Premise Local AI
   const handleChatRequest = async (req: Request, res: Response) => {
     const {

@@ -648,6 +648,15 @@ export function App() {
     return { document: data.document as PLSDocument };
   };
 
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!ensureCanEdit()) return { error: 'Sem permissão para este órgão.' };
+    const res = await fetch(`/api/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: data.error || `Falha ao excluir (HTTP ${res.status}).` };
+    setDocuments(prev => prev.filter(d => d.id !== documentId));
+    return {};
+  };
+
   // Save action plan item with API persistence and audit log
   const handleSaveActionPlan = async (action: Partial<ActionPlan>) => {
     if (!ensureCanEdit('manage')) return;
@@ -1121,6 +1130,7 @@ export function App() {
             onUploadDocument={handleUploadDocument}
             onValidateDocument={handleValidateDocument}
             measurements={measurements}
+            onDeleteDocument={handleDeleteDocument}
           />
         )}
 

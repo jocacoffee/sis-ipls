@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FileText,
   Upload,
@@ -16,7 +16,8 @@ import {
   Clock,
   Layers,
   Sparkles,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2
 } from 'lucide-react';
 import { PLSDocument, DocumentType, Indicator, IndicatorMeasurement } from '../types';
 
@@ -32,6 +33,8 @@ interface DocumentsViewProps {
   ) => Promise<{ document?: PLSDocument; error?: string; conflict?: boolean }>;
   /** Medições do órgão: para mostrar o valor já lançado no mês da fatura. */
   measurements?: IndicatorMeasurement[];
+  /** Exclui fatura ainda não lançada (pendente de conferência ou com erro). */
+  onDeleteDocument?: (documentId: string) => Promise<{ error?: string }>;
 }
 
 export const DocumentsView: React.FC<DocumentsViewProps> = ({
@@ -39,7 +42,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   indicators,
   onUploadDocument,
   onValidateDocument,
-  measurements = []
+  measurements = [],
+  onDeleteDocument
 }) => {
   const [selectedDoc, setSelectedDoc] = useState<PLSDocument | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -56,6 +60,23 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   const [editCompetence, setEditCompetence] = useState<string>('');
   const [validateBusy, setValidateBusy] = useState<boolean>(false);
   const [validateError, setValidateError] = useState<string>('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Barra de progresso do envio: o servidor responde só no fim, então o avanço é estimado pelo tempo
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    if (!uploadStartedAt) return;
+    const t = setInterval(() => setNow(Date.now()), 400);
+    return () => clearInterval(t);
+  }, [uploadStartedAt]);
+  const elapsed = uploadStartedAt ? Math.max(0, (now - uploadStartedAt) / 1000) : 0;
+  // Curva assintótica: ~50% em 20 s, ~85% em 55 s, nunca chega a 100% antes da resposta
+  const uploadPct = uploadStartedAt ? Math.min(97, 4 + 93 * (1 - Math.exp(-elapsed / 28))) : 0;
+  const uploadPhase =
+    elapsed < 3 ? 'Enviando o arquivo…'
+      : elapsed < 12 ? 'Lendo o texto do PDF e conferindo os valores…'
+        : elapsed < 90 ? 'Fatura escaneada: a IA local está lendo a imagem (cerca de 1 minuto)…'
+          : 'Ainda lendo… a IA local está demorando mais que o normal.';
 
   const filteredDocs = documents.filter(doc => {
     if (filterType !== 'ALL' && doc.fileType !== filterType) return false;
@@ -85,6 +106,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     if (!uploadFile) return;
     setUploadBusy(true);
     setUploadError('');
+    setUploadStartedAt(Date.now());
+    setNow(Date.now());
     try {
       const contentBase64 = await readBase64(uploadFile);
       const r = await onUploadDocument({ fileName: uploadFile.name, contentBase64, processNumber: uploadProcess || undefined });
@@ -100,6 +123,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       setUploadError('Não foi possível ler o arquivo.');
     } finally {
       setUploadBusy(false);
+      setUploadStartedAt(null);
     }
   };
 
@@ -109,6 +133,24 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
     setEditAmount(doc.amount !== undefined ? String(doc.amount).replace('.', ',') : '');
     setEditCompetence(doc.competence || '');
     setValidateError('');
+  };
+
+  const canDelete = (doc: PLSDocument) => !!onDeleteDocument && doc.status !== 'PROCESSADO';
+  const handleDelete = async (doc: PLSDocument) => {
+    if (!onDeleteDocument) return;
+    const ok = window.confirm(
+      `Excluir a fatura "${doc.fileName}"?\n\nEla ainda não foi lançada nos indicadores; a exclusão fica registrada na auditoria.`
+    );
+    if (!ok) return;
+    setDeletingId(doc.id);
+    const r = await onDeleteDocument(doc.id);
+    setDeletingId(null);
+    if (r.error) {
+      if (selectedDoc?.id === doc.id) setValidateError(r.error);
+      else window.alert(r.error);
+      return;
+    }
+    if (selectedDoc?.id === doc.id) setSelectedDoc(null);
   };
 
   const toNumber = (v: string) => Number(v.replace(/\./g, '').replace(',', '.'));
@@ -295,12 +337,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
                   <span
                     className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
-                      isPending
+                      doc.status === 'ERRO'
+                        ? 'bg-rose-50 text-rose-800 border-rose-200/80'
+                        : isPending
                         ? 'bg-amber-50 text-amber-800 border-amber-200/80'
                         : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
                     }`}
                   >
-                    {isPending ? (
+                    {doc.status === 'ERRO' ? (
+                      <>
+                        <AlertTriangle className="w-3 h-3 text-rose-600" />
+                        Erro na leitura
+                      </>
+                    ) : isPending ? (
                       <>
                         <Clock className="w-3 h-3 text-amber-600" />
                         Pendente
@@ -381,6 +430,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {canDelete(doc) && (
+                    <button
+                      onClick={() => handleDelete(doc)}
+                      disabled={deletingId === doc.id}
+                      title="Excluir esta fatura (ainda não lançada)"
+                      aria-label={`Excluir ${doc.fileName}`}
+                      className="flex items-center justify-center p-1.5 rounded-xl bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-400 hover:text-rose-600 disabled:opacity-50 shadow-2xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => openDoc(doc)}
                     className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-[11px] shadow-2xs"
@@ -443,17 +503,43 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">{uploadError}</div>
               )}
 
-              <p className="text-[11px] text-slate-500">
-                {uploadBusy
-                  ? 'Lendo… Fatura escaneada (imagem) é lida pela IA local e pode levar 1 a 2 minutos.'
-                  : 'Aceita PDF com texto ou escaneado. A fatura escaneada é lida pela IA local e sempre fica para conferência antes de lançar.'}
-              </p>
+              {uploadBusy ? (
+                <div className="space-y-1.5" role="status" aria-live="polite">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-emerald-800">{uploadPhase}</span>
+                    <span className="font-mono text-slate-500">{Math.floor(elapsed)} s</span>
+                  </div>
+                  <div
+                    className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden border border-slate-200"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(uploadPct)}
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500 ease-out relative overflow-hidden"
+                      style={{ width: `${uploadPct}%` }}
+                    >
+                      <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.45)_50%,transparent_75%)] bg-[length:200%_100%] animate-[ipls-shimmer_1.4s_linear_infinite]" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Progresso estimado. Não feche esta janela; a fatura escaneada pode levar 1 a 2 minutos.
+                  </p>
+                  <style>{`@keyframes ipls-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }`}</style>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  Aceita PDF com texto ou escaneado. A fatura escaneada é lida pela IA local e sempre fica para conferência antes de lançar.
+                </p>
+              )}
 
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => { setIsUploading(false); setUploadError(''); }}
-                  className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                  disabled={uploadBusy}
+                  className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold"
                 >
                   Cancelar
                 </button>
@@ -668,6 +754,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 </div>
 
                 <div className="flex gap-2">
+                  {canDelete(selectedDoc) && (
+                    <button
+                      onClick={() => handleDelete(selectedDoc)}
+                      disabled={deletingId === selectedDoc.id || validateBusy}
+                      className="rounded-xl px-4 py-2 bg-white border border-rose-200 hover:bg-rose-50 disabled:opacity-50 text-rose-700 font-semibold flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>{deletingId === selectedDoc.id ? 'Excluindo…' : 'Excluir'}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedDoc(null)}
                     className="rounded-xl px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
