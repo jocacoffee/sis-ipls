@@ -136,7 +136,7 @@ const activeParts = (orgs: Organization[]) => orgs.filter(o => !o.isConsolidated
 
 /** Tipo do órgão em linguagem clara (evita o modelo confundir o 2º Grau com o consolidado). */
 const orgKind = (o: Organization) =>
-  o.isConsolidated ? 'consolidado da 1ª Região (soma dos órgãos)' : o.type === 'SECAO_JUDICIARIA' ? 'seção judiciária (1º Grau)' : 'Tribunal — 2º Grau';
+  o.isConsolidated ? 'consolidado da 1ª Região (soma dos órgãos)' : o.type === 'SECAO_JUDICIARIA' ? 'seção judiciária (1º Grau)' : 'TRF1 — 2º Grau (Tribunal da 1ª Região; não é a 2ª Região)';
 
 // -------------------------------------------------------------------------------- ferramentas
 

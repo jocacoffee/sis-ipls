@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { reportOrgLabels } from '../services/annualReportSections';
+import { ChatMarkdown } from './ChatMarkdown';
 import type { Organization } from '../types';
 import {
   MessageSquare,
@@ -395,7 +396,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {providerMode === 'local' && (
             <>
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              <span><strong>IA local:</strong> modelo <strong>{serverAI?.localModel || 'não configurado'}</strong>, configurado no servidor do iPLS, com RAG institucional injetado.</span>
+              <span><strong>IA local:</strong> modelo <strong>{serverAI?.localModel || 'não configurado'}</strong>, configurado no servidor do iPLS, que consulta a base do iPLS por ferramentas (somente leitura) antes de responder.</span>
             </>
           )}
           {providerMode === 'heuristic' && (
@@ -451,21 +452,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 )}
 
                 {/* Text Content */}
-                <div className="whitespace-pre-wrap font-sans">
-                  {msg.text.split('\n\n').map((paragraph, i) => (
-                    <p key={i} className="mb-2.5 last:mb-0">
-                      {paragraph.split('**').map((chunk, j) =>
-                        j % 2 === 1 ? (
-                          <strong key={j} className={isUser ? 'text-white font-bold' : 'text-slate-900 dark:text-white font-bold'}>
-                            {chunk}
-                          </strong>
-                        ) : (
-                          chunk
-                        )
-                      )}
-                    </p>
-                  ))}
-                </div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap font-sans">{msg.text}</div>
+                ) : (
+                  <ChatMarkdown text={msg.text} />
+                )}
 
                 {/* Evidence & Sources */}
                 {msg.sources && msg.sources.length > 0 && (
