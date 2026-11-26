@@ -5,7 +5,8 @@ import {
   computeGHGInventory,
   computeGHGSeries,
   commercialFuelFactors,
-  FUEL_FACTORS_KG_PER_L,
+  FUEL_EF,
+  GWP,
   sinFactorFor,
   YEAR_FACTORS
 } from '../services/ghgInventory';
@@ -268,10 +269,10 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
         </div>
         <ul className="list-disc ml-5 space-y-1">
           <li>
-            <b>Escopo 1:</b> gasolina pura {fmt(FUEL_FACTORS_KG_PER_L.gasolinaA, 3)} e diesel puro {fmt(FUEL_FACTORS_KG_PER_L.dieselA, 3)} kg CO₂/L (IPCC 2006, adotados pelo MCTI e pelo Programa Brasileiro GHG Protocol), aplicados só à parcela fóssil. Em {selectedYear}: gasolina C com {fmt(fuel.etanolNaGasolina * 100, 1)}% de etanol anidro ({fmt(fuel.gasolinaC, 3)} kg CO₂/L) e diesel B com {fmt(fuel.biodieselNoDiesel * 100, 1)}% de biodiesel ({fmt(fuel.dieselB, 3)} kg CO₂/L).{fuel.nota ? ` ${fuel.nota}` : ''} O etanol hidratado e as parcelas renováveis emitem CO₂ biogênico, que não entra no escopo 1. CH₄ e N₂O da combustão não estão incluídos.
+            <b>Escopo 1:</b> fatores da Ferramenta GHG Protocol (Programa Brasileiro GHG Protocol/FGV), a mesma usada nos inventários da Justiça Federal. A gasolina C e o diesel B são separados em parcela fóssil e renovável: o CO₂ entra só da parcela fóssil (gasolina pura {fmt(FUEL_EF.gasolinaPura.co2, 3)} e diesel puro {fmt(FUEL_EF.dieselPuro.co2, 3)} kg CO₂/L), e o CH₄ e o N₂O entram de todas as parcelas, convertidos pelo GWP do AR5 (CH₄ = {GWP.CH4}; N₂O = {GWP.N2O}). Em {selectedYear}: gasolina C com {fmt(fuel.etanolNaGasolina * 100, 1)}% de etanol anidro ({fmt(fuel.gasolinaC.co2e, 3)} kg CO₂e/L) e diesel B com {fmt(fuel.biodieselNoDiesel * 100, 1)}% de biodiesel ({fmt(fuel.dieselB.co2e, 3)} kg CO₂e/L).{fuel.nota ? ` ${fuel.nota}` : ''} O CO₂ do etanol e do biodiesel é biogênico e fica fora do total{inv.biogenic != null ? ` (${fmt(inv.biogenic)} tCO₂ biogênico em ${selectedYear})` : ''}.
           </li>
           <li>
-            <b>Escopo 2:</b> abordagem por localização, com o fator médio anual do Sistema Interligado Nacional publicado pelo MCTI (tCO₂/MWh):{' '}
+            <b>Escopo 2:</b> abordagem por localização, com o consumo de cada mês multiplicado pelo fator mensal do Sistema Interligado Nacional (MCTI), como na Ferramenta GHG Protocol; sem fator mensal, usa-se o fator médio anual (tCO₂/MWh):{' '}
             {factorYears.filter(y => YEAR_FACTORS[y].sin != null).map(y => `${y}: ${fmt(YEAR_FACTORS[y].sin!, 4)}`).join('; ')}. Anos sem publicação usam o último fator disponível, marcado como provisório.
           </li>
           <li>
