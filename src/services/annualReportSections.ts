@@ -1,4 +1,5 @@
-import { ghgReportText, GHGInventoryData } from './ghgReport';
+import { ghgReportText, GHGInventoryData, treesOf } from './ghgReport';
+import { TREES_PER_TCO2E } from './ghgInventory';
 /**
  * Textos do Relatório Anual montados a partir dos dados do órgão selecionado
  * (seção judiciária, TRF1 2º grau ou consolidado da 1ª Região).
@@ -196,8 +197,20 @@ export function buildAnnualReportSections(args: BuildArgs): AnnualReportSection[
   // Com o inventário calculado no servidor (órgão a órgão), usa os mesmos números da tela Inventário GEE.
   // Sem ele, lista os valores informados dos indicadores do Anexo (sem os campos complementares).
   let s6: string;
+  let s6Highlight: AnnualReportSection['highlight'];
   if (args.ghg) {
     s6 = ghgReportText(args.ghg, year, labels.acronym);
+    const inv = args.ghg.series.find(s => s.year === year);
+    const trees = treesOf(inv?.total);
+    if (inv?.total && trees) {
+      s6Highlight = {
+        value: trees.toLocaleString('pt-BR'),
+        label: 'árvores equivalentes',
+        note:
+          `Árvores de Mata Atlântica necessárias para fixar, em 20 anos, as ${fmt(inv.total, 2)} tCO2e emitidas por ${labels.acronym} em ${year} ` +
+          `(${TREES_PER_TCO2E.toLocaleString('pt-BR')} árvores por tCO2e; estimativa de divulgação, não fator oficial de compensação).`
+      };
+    }
   } else {
     const ghgInds = indicators.filter(i =>
       i.category !== 'INSTITUCIONAL' && (i.themeId === 'theme-20' || /GEE|emiss/i.test(`${i.acronym || ''} ${i.name}`)) && /tCO2e/i.test(i.unit || '')
@@ -240,7 +253,7 @@ export function buildAnnualReportSections(args: BuildArgs): AnnualReportSection[
     { id: 3, title: `3. Desempenho e Metas do Exercício (${year})`, category: 'DESEMPENHO', statusBadge: evaluated.length ? `${evaluated.length} metas avaliadas` : 'Sem metas cadastradas', content: s3 },
     { id: 4, title: `4. Série Histórica dos Últimos 5 Anos (${firstYear} a ${year})`, category: 'HISTORICO', statusBadge: 'Série quinquenal', content: s4 },
     { id: 5, title: '5. Execução do Plano de Ação', category: 'PLANO_ACAO', statusBadge: plans.length ? `${plans.length} ações` : 'Sem ações cadastradas', content: s5 },
-    { id: 6, title: '6. Programa Justiça Carbono Zero (Resolução CNJ nº 594/2024)', category: 'DESCARBONIZACAO', statusBadge: 'CNJ 594/2024', content: s6 },
+    { id: 6, title: '6. Programa Justiça Carbono Zero (Resolução CNJ nº 594/2024)', category: 'DESCARBONIZACAO', statusBadge: 'CNJ 594/2024', content: s6, highlight: s6Highlight },
     { id: 7, title: '7. Conclusão e Recomendações', category: 'CONCLUSAO', statusBadge: ids.hasScore ? `IDS ${fmt(ids.idsScore, 1)}%` : 'IDS n.d.', content: s7 }
   ];
 }

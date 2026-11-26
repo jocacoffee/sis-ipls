@@ -742,6 +742,29 @@ export function generateProgrammaticPdf(options: GeneratePdfOptions): void {
     pdf.text(sec.title, margin, y);
     y += 5;
 
+    if (sec.highlight) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
+      const noteLines = pdf.splitTextToSize(sec.highlight.note, contentWidth - 34) as string[];
+      const boxH = Math.max(13, 6 + noteLines.length * 3.3);
+      checkPageBreak(boxH + 3);
+      pdf.setFillColor(240, 253, 244);
+      pdf.setDrawColor(167, 243, 208);
+      pdf.setLineWidth(0.3);
+      pdf.roundedRect(margin, y, contentWidth, boxH, 1.5, 1.5, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(15);
+      pdf.setTextColor(6, 95, 70);
+      pdf.text(sec.highlight.value, margin + 16, y + boxH / 2 + 1, { align: 'center' });
+      pdf.setFontSize(5.4);
+      pdf.text(sec.highlight.label.toUpperCase(), margin + 16.5, y + boxH / 2 + 4.3, { align: 'center' });
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
+      pdf.setTextColor(51, 65, 85);
+      noteLines.forEach((ln, i) => pdf.text(ln, margin + 32, y + 5 + i * 3.3));
+      y += boxH + 3;
+    }
+
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(51, 65, 85);

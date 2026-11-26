@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   BookOpen,
   Download,
+  TreePine,
   Printer,
   Sparkles,
   Edit3,
@@ -981,6 +982,19 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
                     <span>{isEditing ? 'Concluir' : 'Editar Texto'}</span>
                   </button>
                 </div>
+
+                {sec.highlight && (
+                  <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 print:break-inside-avoid">
+                    <TreePine className="w-8 h-8 text-emerald-700 shrink-0" />
+                    <div>
+                      <div className="text-slate-900">
+                        <span className="font-mono text-xl font-bold tabular-nums">{sec.highlight.value}</span>{' '}
+                        <span className="text-sm font-semibold">{sec.highlight.label}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-600 leading-snug">{sec.highlight.note}</div>
+                    </div>
+                  </div>
+                )}
 
                 {isEditing ? (
                   <div className="space-y-2">

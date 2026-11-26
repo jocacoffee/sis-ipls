@@ -295,6 +295,40 @@ export function generateGHGInventoryPdf({ data, year, labels, organizationName }
 
   // ---------- 1. Resumo
   heading('1. EMISSÕES POR ESCOPO');
+  // Destaque: total e árvores equivalentes
+  const totalTrees = treesOf(inv.total);
+  if (inv.total != null && totalTrees) {
+    const boxH = 18;
+    need(boxH + 3);
+    pdf.setFillColor(240, 253, 244);
+    pdf.setDrawColor(167, 243, 208);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(M, y, CW, boxH, 1.5, 1.5, 'FD');
+    const colW = 42;
+    const cell = (x: number, value: string, label: string) => {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(15);
+      pdf.setTextColor(6, 95, 70);
+      pdf.text(value, x + colW / 2, y + 9, { align: 'center' });
+      pdf.setFontSize(5.6);
+      pdf.text(label, x + colW / 2, y + 13.5, { align: 'center' });
+    };
+    cell(M, fmtT(inv.total), 'TCO2E EMITIDAS NO ANO');
+    cell(M + colW, totalTrees.toLocaleString('pt-BR'), 'ÁRVORES EQUIVALENTES');
+    pdf.setDrawColor(167, 243, 208);
+    pdf.line(M + colW, y + 3, M + colW, y + boxH - 3);
+    pdf.line(M + 2 * colW, y + 3, M + 2 * colW, y + boxH - 3);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+    pdf.setTextColor(51, 65, 85);
+    const note = pdf.splitTextToSize(
+      `Número de árvores de Mata Atlântica necessárias para fixar, em 20 anos de crescimento, as emissões de ${year} ` +
+      `(${TREES_PER_TCO2E.toLocaleString('pt-BR')} árvores por tCO2e, cerca de 140 kg de CO2 por árvore). Estimativa de divulgação, não fator oficial de compensação.`,
+      CW - 2 * colW - 6
+    ) as string[];
+    note.forEach((ln, i) => pdf.text(ln, M + 2 * colW + 4, y + 5.5 + i * 3.3));
+    y += boxH + 4;
+  }
   const scope1Fug = inv.lines.filter(l => l.key.startsWith('fugitiva-') && !l.excluded).reduce((s, l) => s + (l.tCO2e || 0), 0);
   table(
     [{ title: 'Escopo', w: 25 }, { title: 'Fontes', w: 85 }, { title: 'Emissões (tCO₂e)', w: 35, align: 'r' }, { title: 'Árvores equivalentes', w: 35, align: 'r' }],
@@ -312,7 +346,6 @@ export function generateGHGInventoryPdf({ data, year, labels, organizationName }
   if (v != null) resumo.push(`Variação do total em relação a ${year - 1} (${fmtT(prev!.total)} tCO₂e): ${v > 0 ? '+' : ''}${fmtT(v, 1)}%.`);
   if (inv.reported12 != null) resumo.push(`Escopos 1 e 2 informados ao CNJ (GEE1e2): ${fmtT(inv.reported12)} tCO₂e; calculados pelo iPLS: ${fmtT(inv.total12)} tCO₂e.`);
   if (inv.scope3Reported != null) resumo.push(`Escopo 3 informado ao CNJ (GEE-Esc3): ${fmtT(inv.scope3Reported)} tCO₂e; viagens calculadas pelo iPLS: ${fmtT(inv.scope3)} tCO₂e.`);
-  resumo.push(`Árvores equivalentes: árvores de Mata Atlântica necessárias para fixar as emissões em 20 anos (${TREES_PER_TCO2E.toLocaleString('pt-BR')} por tCO₂e); estimativa de divulgação, não fator oficial de compensação.`);
   need(30);
   y += hbars(
     'Emissões por escopo (tCO2e)',

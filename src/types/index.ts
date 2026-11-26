@@ -602,6 +602,8 @@ export interface AnnualReportSection {
   category?: 'INSTITUCIONAL' | 'METODOLOGIA' | 'DESEMPENHO' | 'HISTORICO' | 'PLANO_ACAO' | 'DESCARBONIZACAO' | 'CONCLUSAO';
   isAiGenerated?: boolean;
   statusBadge?: string;
+  /** Número em destaque no início da seção (ex.: árvores equivalentes do inventário de GEE). */
+  highlight?: { value: string; label: string; note: string };
 }
 
 export interface AnnualReportAIData {
