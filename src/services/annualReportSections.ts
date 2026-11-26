@@ -1,3 +1,4 @@
+import { ghgReportText, GHGInventoryData } from './ghgReport';
 /**
  * Textos do Relatório Anual montados a partir dos dados do órgão selecionado
  * (seção judiciária, TRF1 2º grau ou consolidado da 1ª Região).
@@ -60,6 +61,8 @@ interface BuildArgs {
   performances: Performance[];
   actionPlans: ActionPlan[];
   idsComplements?: IDSComplement[];
+  /** Inventário de GEE calculado no servidor (GET /api/ghg/inventory). */
+  ghg?: GHGInventoryData | null;
 }
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -190,21 +193,27 @@ export function buildAnnualReportSections(args: BuildArgs): AnnualReportSection[
     : `Não há ações do plano de ação cadastradas no iPLS para ${labels.acronym}. As ações devem ser registradas no módulo Planos de Ação para constar deste relatório.`;
 
   // ---------- 6. Justiça Carbono Zero
-  const ghgInds = indicators.filter(i =>
-    i.themeId === 'theme-20' || /GEE|emiss/i.test(`${i.acronym || ''} ${i.name}`)
-  );
-  const ghgLines = ghgInds
-    .map(i => {
-      const rows = yearRows.filter(m => m.indicatorId === i.id);
-      if (!rows.length) return null;
-      const v = rows.reduce((a, m) => a + Number(m.value || 0), 0);
-      return `• ${i.name}${i.acronym ? ` (${i.acronym})` : ''}: ${fmt(v, 2)} ${i.unit || ''}`.trim();
-    })
-    .filter((x): x is string => Boolean(x))
-    .slice(0, 8);
-  const s6 = ghgLines.length
-    ? `Indicadores relacionados ao inventário e à redução de emissões de GEE registrados para ${labels.acronym} em ${year}:\n${ghgLines.join('\n')}`
-    : `Não há dados de emissões de GEE lançados para ${labels.acronym} em ${year}. O inventário anual (Escopos 1, 2 e 3) exigido pela Resolução CNJ nº 594/2024 deve ser registrado no iPLS.`;
+  // Com o inventário calculado no servidor (órgão a órgão), usa os mesmos números da tela Inventário GEE.
+  // Sem ele, lista os valores informados dos indicadores do Anexo (sem os campos complementares).
+  let s6: string;
+  if (args.ghg) {
+    s6 = ghgReportText(args.ghg, year, labels.acronym);
+  } else {
+    const ghgInds = indicators.filter(i =>
+      i.category !== 'INSTITUCIONAL' && (i.themeId === 'theme-20' || /GEE|emiss/i.test(`${i.acronym || ''} ${i.name}`)) && /tCO2e/i.test(i.unit || '')
+    );
+    const ghgLines = ghgInds
+      .map(i => {
+        const rows = yearRows.filter(m => m.indicatorId === i.id);
+        if (!rows.length) return null;
+        const v = rows.reduce((a, m) => a + Number(m.value || 0), 0);
+        return `• ${i.name}${i.acronym ? ` (${i.acronym})` : ''}: ${fmt(v, 2)} ${i.unit || ''}`.trim();
+      })
+      .filter((x): x is string => Boolean(x));
+    s6 = ghgLines.length
+      ? `Emissões de GEE informadas para ${labels.acronym} em ${year}:\n${ghgLines.join('\n')}`
+      : `Não há dados de emissões de GEE lançados para ${labels.acronym} em ${year}. O inventário anual (Escopos 1, 2 e 3) exigido pela Resolução CNJ nº 594/2024 deve ser registrado no iPLS.`;
+  }
 
   // ---------- 7. Conclusão (IDS)
   const context = { indicators, complements: args.idsComplements || [], organization };

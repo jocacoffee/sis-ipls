@@ -54,6 +54,8 @@ import { generateVisualPdf, generateProgrammaticPdf } from '../services/pdfGener
 import { BrasaoDaRepublica } from './BrasaoDaRepublica';
 import { generateIndicatorNarrativeAnalysis } from '../services/indicatorAnalysisText';
 import { buildAnnualReportSections, reportOrgLabels } from '../services/annualReportSections';
+import { fetchGHGInventory, GHGInventoryData } from '../services/ghgReport';
+import { generateGHGInventoryPdf } from '../services/ghgPdf';
 import { getPlsCycleForYear } from '../utils/yearUtils';
 
 interface AnnualReportViewProps {
@@ -113,6 +115,18 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
     setHistoricalSeries(buildFiveYearHistoricalSeries(indicators, measurements, targets, selectedYear));
   }, [indicators, measurements, targets, selectedYear]);
 
+  // Inventário de GEE calculado no servidor (seção 6 e PDF do inventário)
+  const [ghgData, setGhgData] = useState<GHGInventoryData | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchGHGInventory(organizationId)
+      .then(d => alive && setGhgData(d))
+      .catch(() => alive && setGhgData(null));
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, measurements]);
+
   // Seções do relatório geradas a partir dos dados do órgão selecionado
   const orgLabels = useMemo(() => reportOrgLabels(organization, organizationName), [organization, organizationName]);
   const generatedSections = useMemo(
@@ -125,9 +139,10 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
         measurements,
         performances,
         actionPlans,
-        idsComplements
+        idsComplements,
+        ghg: ghgData
       }),
-    [organization, organizationName, selectedYear, indicators, measurements, performances, actionPlans, idsComplements]
+    [organization, organizationName, selectedYear, indicators, measurements, performances, actionPlans, idsComplements, ghgData]
   );
   const [sections, setSections] = useState<AnnualReportSection[]>(generatedSections);
   // Texto editado pelo usuário ou gerado pela IA não é sobrescrito por atualizações de dados;
@@ -175,6 +190,19 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
       setIsGeneratingPdf(false);
       setPdfStatusMessage('');
       setPdfDropdownOpen(false);
+    }
+  };
+
+  const handleDownloadGhgPdf = () => {
+    setPdfDropdownOpen(false);
+    if (!ghgData?.series.some(s => s.year === selectedYear)) {
+      setPdfStatusMessage(`Sem inventário de GEE calculado para ${selectedYear}.`);
+      return;
+    }
+    try {
+      generateGHGInventoryPdf({ data: ghgData, year: selectedYear, labels: orgLabels, organizationName });
+    } catch (e) {
+      setPdfStatusMessage(e instanceof Error ? e.message : 'Falha ao gerar o PDF do inventário.');
     }
   };
 
@@ -392,6 +420,17 @@ export const AnnualReportView: React.FC<AnnualReportViewProps> = ({
                       <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] rounded font-bold">Recomendado</span>
                     </div>
                     <div className="text-[11px] text-slate-500">21 temas, todas as metas e gráficos quinquenais</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleDownloadGhgPdf}
+                  className="w-full text-left px-3 py-2.5 hover:bg-emerald-50/60 flex items-start gap-2.5 text-slate-800 font-medium border-t border-slate-100 transition-colors"
+                >
+                  <FileDown className="w-4 h-4 text-emerald-700 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-900">Inventário de GEE (PDF)</div>
+                    <div className="text-[11px] text-slate-500">Só o inventário de emissões do exercício, para envio ao CNJ</div>
                   </div>
                 </button>
 

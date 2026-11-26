@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2, TreePine } from 'lucide-react';
+import { Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2, TreePine, FileDown } from 'lucide-react';
+import { generateGHGInventoryPdf } from '../services/ghgPdf';
+import { reportOrgLabels } from '../services/annualReportSections';
 import { TravelEmissionsCharts, TravelYearStats } from './TravelEmissionsCharts';
-import { IndicatorMeasurement } from '../types';
+import { IndicatorMeasurement, Organization } from '../types';
 import {
   commercialFuelFactors,
   FUEL_EF,
@@ -16,6 +18,7 @@ import {
 interface GHGInventoryViewProps {
   organizationId: string;
   organizationName: string;
+  organization?: Organization;
   selectedYear: number;
   /** Medições do órgão: só para recarregar o inventário quando houver lançamento. */
   measurements: IndicatorMeasurement[];
@@ -44,6 +47,7 @@ const card = 'rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark
 export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
   organizationId,
   organizationName,
+  organization,
   selectedYear,
   measurements
 }) => {
@@ -108,12 +112,29 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
             {organizationName}: emissões calculadas a partir dos dados lançados no iPLS, com os fatores da Ferramenta GHG Protocol.
           </p>
         </div>
-        {inv?.reported12 != null && (
-          <div className="text-right">
-            <div className="text-[11px] text-slate-400">Informado ao CNJ (escopos 1 e 2, GEE1e2)</div>
-            <div className="font-mono font-bold text-sm text-slate-800 dark:text-slate-200">{fmt(inv.reported12)} tCO₂e</div>
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {inv && (
+            <button
+              onClick={() =>
+                generateGHGInventoryPdf({
+                  data: { orgId: organizationId, series, travel: travelStats },
+                  year: selectedYear,
+                  labels: reportOrgLabels(organization, organizationName),
+                  organizationName: organization ? `${organization.acronym} — ${organization.name}` : organizationName
+                })
+              }
+              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs"
+            >
+              <FileDown className="w-3.5 h-3.5" /> Baixar PDF do inventário
+            </button>
+          )}
+          {inv?.reported12 != null && (
+            <div className="text-right">
+              <div className="text-[11px] text-slate-400">Informado ao CNJ (escopos 1 e 2, GEE1e2)</div>
+              <div className="font-mono font-bold text-sm text-slate-800 dark:text-slate-200">{fmt(inv.reported12)} tCO₂e</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {!inv && (

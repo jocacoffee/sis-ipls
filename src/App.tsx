@@ -1184,6 +1184,7 @@ export function App() {
           <GHGInventoryView
             organizationId={selectedOrgId}
             organizationName={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : ''}
+            organization={currentOrg}
             selectedYear={selectedYear}
             measurements={measurements}
           />
