@@ -1182,11 +1182,10 @@ export function App() {
 
         {activeTab === 'ghg' && (
           <GHGInventoryView
-            measurements={calcMeasurements}
-            indicators={indicators}
-            selectedYear={selectedYear}
-            availableYears={availableSystemYears}
+            organizationId={selectedOrgId}
             organizationName={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : ''}
+            selectedYear={selectedYear}
+            measurements={measurements}
           />
         )}
 

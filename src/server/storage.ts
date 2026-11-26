@@ -39,6 +39,7 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_ALERTS
 } from '../data/seedData';
+import { GHG_COMPLEMENTARY_INDICATORS } from '../data/ghgComplementary';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,6 +119,12 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     }
     return ind;
   });
+  // Campos complementares do inventário de GEE (fora do Anexo): incluídos se ainda não existirem
+  for (const extra of GHG_COMPLEMENTARY_INDICATORS) {
+    if (indicators.some(i => i.id === extra.id || i.code === extra.code)) continue;
+    indicators.push({ ...extra });
+    wasFixed = true;
+  }
   const db: AppDatabase = {
     organizations: parsed.organizations || [...INITIAL_ORGANIZATIONS],
     users: parsed.users || [...INITIAL_USERS],

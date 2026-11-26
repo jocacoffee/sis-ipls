@@ -36,6 +36,8 @@ import { legacyTargetType, resolveTarget } from '../services/targets';
 import { isAutoIndicator } from '../services/autoCalc';
 import { agentEnabled, runChatAgent } from './agent/chatAgent';
 import { ingestEnergyInvoice } from './invoiceIngest';
+import { computeGHGInventory, hasGHGData, sumGHGInventories } from '../services/ghgInventory';
+import { runTravelBISync, travelBIStatus } from './agent/travelBI';
 
 export function createApiRouter() {
   const router = express.Router();
@@ -179,6 +181,35 @@ export function createApiRouter() {
    * - totais do exercício por indicador somável (consumos, gastos, quantidades);
    * - IDS de cada órgão e do consolidado (o IDS é um índice: não se soma).
    */
+  /**
+   * GET /api/ghg/inventory?orgId=
+   * Inventário de GEE de cada exercício, calculado no servidor órgão a órgão (cada órgão com o
+   * seu fator de energia: SIN ou sistema isolado). O consolidado é a soma dos órgãos.
+   */
+  router.get('/ghg/inventory', (req: Request, res: Response) => {
+    const orgId = typeof req.query.orgId === 'string' ? req.query.orgId : CONSOLIDATED_ORG_ID;
+    if (!db.organizations.some(o => o.id === orgId)) return res.status(404).json({ error: 'Órgão não encontrado.' });
+    const parts = isConsolidatedOrg(orgId, db.organizations)
+      ? db.organizations.filter(o => !o.isConsolidated).map(o => o.id)
+      : [orgId];
+    const scoped = parts.map(id => ({ id, ms: scopeMeasurements(id, db.measurements, db.indicators, db.organizations) }));
+    const years = [...new Set(scoped.flatMap(p => p.ms.map(m => m.year)))].filter(y => y >= 2021).sort((a, b) => a - b);
+    const series = years
+      .map(year => {
+        const inv = scoped.map(p => computeGHGInventory(p.ms, db.indicators, year, p.id));
+        return inv.length === 1 ? inv[0] : sumGHGInventories(inv, year);
+      })
+      .filter(hasGHGData);
+    res.json({ orgId, series });
+  });
+
+  /** Coleta das viagens do painel de BI: situação (pública) e execução manual (administrador). */
+  router.get('/travel-bi/status', (_req: Request, res: Response) => res.json(travelBIStatus()));
+  router.post('/travel-bi/sync', requireRole('ADMIN'), async (_req: Request, res: Response) => {
+    const run = await runTravelBISync('MANUAL');
+    res.status(run.ok ? 200 : 502).json(run);
+  });
+
   router.get('/consolidated/breakdown', (req: Request, res: Response) => {
     const year = Number(req.query.year) || new Date().getFullYear();
     const parts = db.organizations.filter(o => !o.isConsolidated);

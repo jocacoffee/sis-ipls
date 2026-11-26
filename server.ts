@@ -8,6 +8,7 @@ import { authMiddleware, createAuthRouter } from './src/server/auth';
 import { createMcpRouter } from './src/server/agent/mcpServer';
 import { createSeiRouter } from './src/server/agent/seiRoutes';
 import { startSeiScheduler } from './src/server/agent/seiSync';
+import { startTravelBIScheduler } from './src/server/agent/travelBI';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +79,7 @@ async function startServer() {
   // Coleta automática do SEI (Fase 3): processos monitorados, execuções e agendamento diário
   app.use('/api', createSeiRouter());
   startSeiScheduler();
+  startTravelBIScheduler();
 
   if (!isProd) {
     // Development mode with Vite dev middleware

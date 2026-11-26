@@ -69,6 +69,10 @@ services:
       - SEI_SOMENTE_PUBLICOS=${SEI_SOMENTE_PUBLICOS:-}
       - SEI_SIMULADO_DIR=${SEI_SIMULADO_DIR:-}
       - SEI_ALLOW_SIMULADO_IN_PRODUCTION=${SEI_ALLOW_SIMULADO_IN_PRODUCTION:-}
+      # Viagens a serviço: painel de BI (Power BI, "Publicar na Web")
+      - TRAVEL_BI_URL=${TRAVEL_BI_URL:-}
+      - TRAVEL_BI_API_HOST=${TRAVEL_BI_API_HOST:-}
+      - TRAVEL_BI_SYNC_HOUR=${TRAVEL_BI_SYNC_HOUR:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     volumes:
       # Cadeia da AC TRF1 (pública) versionada no repositório, para o LDAPS

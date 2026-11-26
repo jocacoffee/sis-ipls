@@ -45,6 +45,10 @@ services:
       - SEI_SOMENTE_PUBLICOS=${SEI_SOMENTE_PUBLICOS:-}
       - SEI_SIMULADO_DIR=${SEI_SIMULADO_DIR:-}
       - SEI_ALLOW_SIMULADO_IN_PRODUCTION=${SEI_ALLOW_SIMULADO_IN_PRODUCTION:-}
+      # Viagens a serviço: painel de BI (Power BI, "Publicar na Web")
+      - TRAVEL_BI_URL=${TRAVEL_BI_URL:-}
+      - TRAVEL_BI_API_HOST=${TRAVEL_BI_API_HOST:-}
+      - TRAVEL_BI_SYNC_HOUR=${TRAVEL_BI_SYNC_HOUR:-}
       # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
       # vazio, a base é importada de data/database.json.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-ipls_db}
