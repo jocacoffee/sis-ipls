@@ -71,7 +71,7 @@ export async function generateGeminiExecutiveAnalysis(
   if (!ai) return null;
 
   try {
-    const primaryCodes = ['6.1', '6.2', '7.1', '2.1', '3.1', '12.1', '13.1', '14.1', '8.6', '20.4'];
+    const primaryCodes = ['6.1', '6.2', '7.1', '2.1', '3.1', '12.1', '13.1', '14.1', '8.6', '20.10'];
     const summary = primaryCodes.map(code => {
       const ind = context.indicators.find(i => i.code === code);
       if (!ind) return null;
@@ -569,8 +569,8 @@ export async function executeRAGChatQuery(
       (queryLower.includes('combustível') && code === '14.1') ||
       (queryLower.includes('telefonia') && code === '12.1') ||
       (queryLower.includes('recicl') && code === '8.6') ||
-      (queryLower.includes('carbono') && code === '20.4') ||
-      (queryLower.includes('gee') && code === '20.4') ||
+      (queryLower.includes('carbono') && code === '20.10') ||
+      (queryLower.includes('gee') && code === '20.10') ||
       (queryLower.includes('compra') && code === '16.3') ||
       (queryLower.includes('contrataç') && code === '16.3')
     );
@@ -580,7 +580,7 @@ export async function executeRAGChatQuery(
   const displayedIndicators = relevantIndicators.length > 0
     ? relevantIndicators
     : calculatedIndicators.filter(i =>
-        ['6.1', '7.1', '2.1', '3.1', '8.6', '12.1', '14.1', '16.3', '20.4'].includes(i.indicator.code)
+        ['6.1', '7.1', '2.1', '3.1', '8.6', '12.1', '14.1', '16.3', '20.10'].includes(i.indicator.code)
       );
 
   // 3. Active alerts and relevant action plans

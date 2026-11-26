@@ -74,7 +74,7 @@ export function buildFiveYearHistoricalSeries(
       '14.1', '14.5',
       '15.1',
       '16.3', '17.3', '18.3', '19.1',
-      '20.1', '20.2', '20.3', '20.4',
+      '20.3', '20.10',
       '21.1', '21.2'
     ];
 
@@ -207,7 +207,7 @@ export function getFiveYearSummaryStats(seriesList: FiveYearIndicatorSeries[]): 
     paperChange5Y: getChange('2.1'),
     cupsEliminated: cups2026Val === 0,
     recyclingChange5Y: getChange('8.6'),
-    ghgChange5Y: getChange('20.4'),
+    ghgChange5Y: getChange('20.10'),
     printChange5Y: getChange('5.1'),
     fuelChange5Y: getChange('14.1')
   };

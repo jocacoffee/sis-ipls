@@ -45,13 +45,13 @@ export const HistoricalCharts: React.FC<HistoricalChartsProps> = ({
   const paperSeries = seriesList.find(s => s.code === '2.1');
   const cupsSeries = seriesList.find(s => s.code === '3.1');
   const recyclingSeries = seriesList.find(s => s.code === '8.6');
-  const ghgSeries = seriesList.find(s => s.code === '20.4');
+  const ghgSeries = seriesList.find(s => s.code === '20.10');
 
   // Filter available series based on category tab
   const filteredSeries = seriesList.filter(s => {
     if (activeCategory === 'energy_water') return ['6.1', '6.2', '7.1', '7.2'].includes(s.code);
     if (activeCategory === 'materials') return ['2.1', '3.1', '5.1', '5.3', '8.6'].includes(s.code);
-    if (activeCategory === 'climate') return ['20.1', '20.2', '20.3', '20.4', '16.3'].includes(s.code);
+    if (activeCategory === 'climate') return ['20.10', '20.3', '16.3'].includes(s.code);
     if (activeCategory === 'mobility') return ['14.1', '12.1', '17.3', '18.3'].includes(s.code);
     return true;
   });
@@ -78,10 +78,8 @@ export const HistoricalCharts: React.FC<HistoricalChartsProps> = ({
       case '3.1':
       case '8.6':
         return <Trash2 className="w-4 h-4 text-emerald-600" />;
-      case '20.1':
-      case '20.2':
       case '20.3':
-      case '20.4':
+      case '20.10':
         return <CloudFog className="w-4 h-4 text-teal-600" />;
       case '14.1':
         return <Car className="w-4 h-4 text-orange-600" />;

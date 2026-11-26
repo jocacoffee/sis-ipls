@@ -34,8 +34,6 @@ import {
   INITIAL_MEASUREMENTS,
   INITIAL_DOCUMENTS,
   INITIAL_ACTION_PLANS,
-  INITIAL_EMISSION_SOURCES,
-  INITIAL_GHG_CALCULATIONS,
   INITIAL_PLS_JUD_MAPPINGS,
   INITIAL_SEI_CONNECTORS,
   INITIAL_AUDIT_LOGS,
@@ -84,10 +82,31 @@ const FORMULA_FIXES: Record<string, { from: string; to: Partial<Indicator> }> = 
   }
 };
 
+/**
+ * Dados de demonstração do protótipo que não devem permanecer na base:
+ * - inventário de GEE fictício (fontes "src-NN" e cálculos "calc-AAAA-NN"), substituído pelo
+ *   cálculo a partir das medições (src/services/ghgInventory.ts);
+ * - indicadores fora do Anexo vigente da Res. CNJ 400/2021 (GEE-Esc1, GEE-Esc2, GEE-Tot, GEE-PC e ANT).
+ *   Só são removidos se não tiverem medição nem meta.
+ */
+const DEMO_GHG_RECORD = /^(src-\d+|calc-\d{4}-\d+)$/;
+const DEMO_INDICATOR_IDS = new Set([
+  'indicator-20-1', 'indicator-20-2', 'indicator-20-4', 'indicator-20-5', 'indicator-21-1'
+]);
+
 /** Normaliza uma base parcial (coleções ausentes recebem o seed; Tema 1 é sempre ANUAL). */
 function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; wasFixed: boolean } {
   let wasFixed = false;
-  const indicators = (parsed.indicators || [...INITIAL_INDICATORS]).map(ind => {
+  const usedIndicatorIds = new Set([
+    ...(parsed.measurements || INITIAL_MEASUREMENTS).map(m => m.indicatorId),
+    ...(parsed.targets || INITIAL_TARGETS).map(t => t.indicatorId)
+  ]);
+  const sourceIndicators = (parsed.indicators || [...INITIAL_INDICATORS]).filter(ind => {
+    if (!DEMO_INDICATOR_IDS.has(ind.id) || usedIndicatorIds.has(ind.id)) return true;
+    wasFixed = true;
+    return false;
+  });
+  const indicators = sourceIndicators.map(ind => {
     if (ind.themeId === 'theme-1' && ind.periodicity !== 'ANUAL') {
       wasFixed = true;
       ind = { ...ind, periodicity: 'ANUAL' as const };
@@ -109,8 +128,8 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     measurements: parsed.measurements || [...INITIAL_MEASUREMENTS],
     documents: parsed.documents || [...INITIAL_DOCUMENTS],
     actionPlans: parsed.actionPlans || [...INITIAL_ACTION_PLANS],
-    emissionSources: parsed.emissionSources || [...INITIAL_EMISSION_SOURCES],
-    ghgCalculations: parsed.ghgCalculations || [...INITIAL_GHG_CALCULATIONS],
+    emissionSources: dropDemoGhg(parsed.emissionSources),
+    ghgCalculations: dropDemoGhg(parsed.ghgCalculations),
     plsJudMappings: parsed.plsJudMappings || [...INITIAL_PLS_JUD_MAPPINGS],
     seiConnectors: parsed.seiConnectors || [...INITIAL_SEI_CONNECTORS],
     auditLogs: parsed.auditLogs || [...INITIAL_AUDIT_LOGS],
@@ -123,6 +142,12 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
   };
   return { db, wasFixed };
+
+  function dropDemoGhg<T extends { id: string }>(list: T[] | undefined): T[] {
+    const kept = (list || []).filter(r => !DEMO_GHG_RECORD.test(r.id));
+    if (list && kept.length !== list.length) wasFixed = true;
+    return kept;
+  }
 }
 
 /** Lê data/database.json (ou o seed padrão, se o arquivo não existir). */

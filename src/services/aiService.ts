@@ -58,8 +58,8 @@ export async function queryInstitutionalAI(
       (queryLower.includes('telefonia') && (item.indicator.code === '12.1' || item.indicator.acronym === 'GTF')) ||
       (queryLower.includes('impress') && (item.indicator.code === '5.1' || item.indicator.acronym === 'QI')) ||
       (queryLower.includes('resíduo') && (item.indicator.code === '8.1' || item.indicator.acronym === 'DPa')) ||
-      (queryLower.includes('carbono') && (item.indicator.code === '20.4' || item.indicator.acronym === 'GEETot')) ||
-      (queryLower.includes('gee') && (item.indicator.code === '20.4' || item.indicator.acronym === 'GEETot'));
+      (queryLower.includes('carbono') && (item.indicator.code === '20.10' || item.indicator.acronym === 'GEE1e2')) ||
+      (queryLower.includes('gee') && (item.indicator.code === '20.10' || item.indicator.acronym === 'GEE1e2'));
   });
 
   // 3. Query RAG knowledge

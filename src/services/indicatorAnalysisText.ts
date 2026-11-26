@@ -105,17 +105,6 @@ export function generateIndicatorNarrativeAnalysis(
     };
   }
 
-  if (code === '20.4') {
-    const tgt = targetVal ? formatNum(targetVal) : '102,0';
-    const base = baselineVal ? formatNum(baselineVal) : '118,4';
-    return {
-      targetDescription: `Em observância à Resolução CNJ nº 594/2024 (Justiça Carbono Zero), a meta anual estipulou o teto de ${tgt} ${unit} de Gases de Efeito Estufa (GEE) abrangendo Escopos 1, 2 e 3, representando redução de 13,8% sobre o baseline de ${baselineYear} (${base} ${unit}).`,
-      achievementDescription: `O inventário de emissões auditado no exercício apurou ${formatNum(y26)} ${unit}, atingindo rigorosamente a meta institucional planejada, refletindo a descarbonização da frota oficial e a otimização dos deslocamentos aéreos em missões institucionais.`,
-      historicalComparison: `No quinquênio 2022–2026, as emissões brutas da Seção Judiciária caíram de ${formatNum(y22)} ${unit} em 2022 para ${formatNum(y23)} (2023), ${formatNum(y24)} (2024), ${formatNum(y25)} (2025) e ${formatNum(y26)} em ${year}, alcançando descarbonização acumulada de ${fiveYearPct}%, pavimentando o objetivo de emissões líquidas zero do Poder Judiciário até 2030.`,
-      completeText: `Meta de descarbonização fixada em ${tgt} ${unit} cumprida em ${year} (Res. CNJ 594/2024). A trajetória quinquenal demonstra declínio acentuado de ${fiveYearPct}% nas emissões desde 2022 (${formatNum(y22)} ${unit}), atestando governança climática de vanguarda na Amazônia Legal.`
-    };
-  }
-
   // 2. Generic / Dynamic Generator for ANY other indicator
   let targetDesc = '';
   if (targetVal !== undefined && targetVal > 0) {

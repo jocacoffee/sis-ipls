@@ -8,8 +8,6 @@ import {
   PLSTheme,
   ActionPlan,
   PLSDocument,
-  EmissionSource,
-  GHGCalculation,
   PLSJudMapping,
   SEIConnector,
   AuditLog,
@@ -25,8 +23,6 @@ import {
   INITIAL_TARGETS,
   INITIAL_DOCUMENTS,
   INITIAL_ACTION_PLANS,
-  INITIAL_EMISSION_SOURCES,
-  INITIAL_GHG_CALCULATIONS,
   INITIAL_PLS_JUD_MAPPINGS,
   INITIAL_SEI_CONNECTORS,
   INITIAL_AUDIT_LOGS,
@@ -137,8 +133,6 @@ export function App() {
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>(() =>
     loadLocalData(STORAGE_KEYS.ACTION_PLANS, INITIAL_ACTION_PLANS)
   );
-  const [emissionSources] = useState<EmissionSource[]>(INITIAL_EMISSION_SOURCES);
-  const [ghgCalculations, setGhgCalculations] = useState<GHGCalculation[]>(INITIAL_GHG_CALCULATIONS);
   const [plsJudMappings, setPlsJudMappings] = useState<PLSJudMapping[]>(INITIAL_PLS_JUD_MAPPINGS);
   const [seiConnectors, setSeiConnectors] = useState<SEIConnector[]>(INITIAL_SEI_CONNECTORS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() =>
@@ -1188,9 +1182,11 @@ export function App() {
 
         {activeTab === 'ghg' && (
           <GHGInventoryView
-            sources={emissionSources}
-            calculations={ghgCalculations}
+            measurements={calcMeasurements}
+            indicators={indicators}
             selectedYear={selectedYear}
+            availableYears={availableSystemYears}
+            organizationName={currentOrg ? `${currentOrg.acronym} — ${currentOrg.name}` : ''}
           />
         )}
 

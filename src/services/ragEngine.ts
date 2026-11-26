@@ -64,7 +64,7 @@ Art. 3º O PLS-Jud é o sistema informatizado mantido pelo CNJ para coleta, cons
     organizationId: 'all',
     year: 2024,
     themeCode: 'GEE',
-    indicatorCode: '20.4',
+    indicatorCode: '20.10',
     section: 'Art. 1º a 4º - Diretrizes de Descarbonização',
     sourceReference: 'Resolução CNJ nº 594/2024, Art. 1º-4º',
     content: `Art. 1º Fica instituído o Programa Justiça Carbono Zero no Poder Judiciário, com o objetivo de orientar a transição ecológica dos órgãos judiciários para a neutralidade climática.
