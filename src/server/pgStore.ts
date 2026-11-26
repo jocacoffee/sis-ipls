@@ -26,7 +26,7 @@ interface TableSpec {
 const RECORD_COLLECTIONS = [
   'users', 'plsCycles', 'documents', 'actionPlans', 'emissionSources',
   'ghgCalculations', 'plsJudMappings', 'seiConnectors',
-  'seiProcesses', 'seiSyncedDocuments', 'seiSyncRuns'
+  'seiProcesses', 'seiSyncedDocuments', 'seiSyncRuns', 'travelStats'
 ] as const;
 type RecordCollection = (typeof RECORD_COLLECTIONS)[number];
 

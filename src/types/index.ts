@@ -489,6 +489,26 @@ export interface SeiSyncedDocument {
 }
 
 /** Execução da coleta do SEI (agendada ou manual). */
+/** Estatísticas agregadas de viagens a serviço de um órgão no ano (painel de BI; sem dados pessoais). */
+export interface TravelStats {
+  id: string;
+  organizationId: string;
+  year: number;
+  trips: number;
+  km: number;
+  tCO2e: number;
+  /** Trechos por cidade de destino. */
+  byDestination: Record<string, number>;
+  /** Trechos e emissões por trajeto (ex.: BSB-SSA). */
+  byRoute: Record<string, { trips: number; t: number }>;
+  /** Trechos, distância e emissões por faixa de distância (Curta, Média, Longa). */
+  byCategory: Record<string, { trips: number; km: number; t: number }>;
+  /** Trechos e emissões por mês (índice 0 = janeiro). */
+  byMonth: { trips: number; t: number }[];
+  panelRefreshedAt?: string;
+  updatedAt: string;
+}
+
 export interface SeiSyncRun {
   id: string;
   trigger: 'AGENDADO' | 'MANUAL';

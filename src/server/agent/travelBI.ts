@@ -18,7 +18,7 @@
  */
 import { gunzipSync } from 'zlib';
 import { storage } from '../storage';
-import type { AuditLog, IndicatorMeasurement } from '../../types';
+import type { AuditLog, IndicatorMeasurement, TravelStats } from '../../types';
 
 const env = process.env;
 const INDICATOR_ACRONYM = 'GEEViag';
@@ -137,6 +137,7 @@ export async function runTravelBISync(trigger: TravelBIRun['trigger'] = 'MANUAL'
 
     const select = [
       col('u', 'Índice'), col('u', 'Data Partida'), col('u', 'Unidade'), col('u', 'Distancia (km)'),
+      col('u', 'Trajeto Normalizado'), col('u', 'Destino'), col('u', 'Categoria Distancia'),
       mea('m', 'Emissão Total (t)')
     ];
     const query = {
@@ -164,7 +165,8 @@ export async function runTravelBISync(trigger: TravelBIRun['trigger'] = 'MANUAL'
     const limit = now.getUTCFullYear() * 12 + now.getUTCMonth();
     const agg = new Map<string, { orgId: string; year: number; month: number; t: number; trips: number; km: number }>();
     const unmapped = new Set<string>();
-    for (const [, dateMs, unit, km, emission] of rows) {
+    const stats = new Map<string, TravelStats>();
+    for (const [, dateMs, unit, km, route, dest, category, emission] of rows) {
       if (typeof dateMs !== 'number' || typeof unit !== 'string') continue;
       const d = new Date(dateMs);
       const year = d.getUTCFullYear();
@@ -178,6 +180,25 @@ export async function runTravelBISync(trigger: TravelBIRun['trigger'] = 'MANUAL'
       a.km += Number(km) || 0;
       a.trips += 1;
       agg.set(k, a);
+
+      // Estatísticas do ano (gráficos de viagens), sem dados pessoais
+      const sk = `${orgId}__${year}`;
+      const st = stats.get(sk) || {
+        id: sk, organizationId: orgId, year, trips: 0, km: 0, tCO2e: 0,
+        byDestination: {}, byRoute: {}, byCategory: {},
+        byMonth: Array.from({ length: 12 }, () => ({ trips: 0, t: 0 })), updatedAt: ''
+      };
+      const t = Number(emission) || 0;
+      const dist = Number(km) || 0;
+      st.trips += 1; st.km += dist; st.tCO2e += t;
+      st.byMonth[month - 1].trips += 1; st.byMonth[month - 1].t += t;
+      const city = typeof dest === 'string' && dest.trim() ? dest.trim() : 'Não informado';
+      st.byDestination[city] = (st.byDestination[city] || 0) + 1;
+      const r = typeof route === 'string' && route.trim() ? route.trim() : 'Não informado';
+      const rr = (st.byRoute[r] ||= { trips: 0, t: 0 }); rr.trips += 1; rr.t += t;
+      const c = typeof category === 'string' && category.trim() ? category.trim() : 'Não informada';
+      const cc = (st.byCategory[c] ||= { trips: 0, km: 0, t: 0 }); cc.trips += 1; cc.km += dist; cc.t += t;
+      stats.set(sk, st);
     }
 
     const refreshed = model.LastRefreshTime ? String(model.LastRefreshTime) : undefined;
@@ -225,6 +246,17 @@ export async function runTravelBISync(trigger: TravelBIRun['trigger'] = 'MANUAL'
     }
     const removed = before - db.measurements.length;
 
+    // Substitui as estatísticas de viagens (mantém só os 40 destinos e trajetos mais frequentes)
+    const top = <T,>(o: Record<string, T>, by: (v: T) => number) =>
+      Object.fromEntries(Object.entries(o).sort((x, y) => by(y[1]) - by(x[1])).slice(0, 40));
+    db.travelStats = [...stats.values()].map(s => ({
+      ...s,
+      byDestination: top(s.byDestination, v => v),
+      byRoute: top(s.byRoute, v => v.t),
+      panelRefreshedAt: refreshed,
+      updatedAt: stamp
+    }));
+
     const run: TravelBIRun = {
       at, trigger, ok: true,
       message: `${rows.length} trecho(s) lido(s); ${written} mês(es) gravado(s)${removed ? `, ${removed} removido(s)` : ''}${skippedManual ? `, ${skippedManual} com lançamento manual mantido` : ''}.`,
@@ -247,8 +279,8 @@ export async function runTravelBISync(trigger: TravelBIRun['trigger'] = 'MANUAL'
         source: 'Painel de BI de viagens (Power BI)'
       };
       db.auditLogs.unshift(audit);
-      await storage.saveNow();
     }
+    await storage.saveNow();
     console.log(`[Viagens BI] ${run.message}${unmapped.size ? ` Unidades sem órgão: ${[...unmapped].join(', ')}.` : ''}`);
     return (lastRun = run);
   } catch (err) {

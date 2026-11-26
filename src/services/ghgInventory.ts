@@ -20,6 +20,14 @@ import type { Indicator, IndicatorMeasurement } from '../types';
  * Nada é inventado: sem dado de atividade, a linha aparece como "sem dado".
  */
 
+/**
+ * Árvores equivalentes: árvores de Mata Atlântica necessárias para fixar 1 tCO2e em 20 anos de
+ * crescimento (7,14 árvores/tCO2e; cerca de 140 kg de CO2 por árvore). Estimativa de divulgação,
+ * não um fator oficial de compensação: varia com espécie, região, densidade e manejo.
+ * Referência: LACERDA, J. S. "Afinal, quanto carbono uma árvore sequestra?", O Eco.
+ */
+export const TREES_PER_TCO2E = 7.14;
+
 /** GWP-100 do 5º Relatório do IPCC (AR5), adotado pela Ferramenta GHG Protocol. */
 export const GWP = { CH4: 28, N2O: 265, HFC32: 677, HFC125: 3170, HFC134a: 1300, HFC143a: 4800, HCFC22: 1760, CO2: 1 };
 

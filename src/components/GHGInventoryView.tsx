@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2 } from 'lucide-react';
+import { Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2, TreePine } from 'lucide-react';
+import { TravelEmissionsCharts, TravelYearStats } from './TravelEmissionsCharts';
 import { IndicatorMeasurement } from '../types';
 import {
   commercialFuelFactors,
@@ -8,6 +9,7 @@ import {
   GHGYearInventory,
   GWP,
   sinFactorFor,
+  TREES_PER_TCO2E,
   YEAR_FACTORS
 } from '../services/ghgInventory';
 
@@ -48,13 +50,18 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
   const [series, setSeries] = useState<GHGYearInventory[] | null>(null);
   const [error, setError] = useState('');
   const [travel, setTravel] = useState<TravelBIStatus | null>(null);
+  const [travelStats, setTravelStats] = useState<Record<number, TravelYearStats>>({});
 
   useEffect(() => {
     let alive = true;
     setError('');
     fetch(`/api/ghg/inventory?orgId=${encodeURIComponent(organizationId)}`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(d => alive && setSeries(d.series || []))
+      .then(d => {
+        if (!alive) return;
+        setSeries(d.series || []);
+        setTravelStats(d.travel || {});
+      })
       .catch(e => alive && setError(`Não foi possível calcular o inventário (${e.message}).`));
     fetch('/api/travel-bi/status')
       .then(r => (r.ok ? r.json() : null))
@@ -198,6 +205,26 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
             </div>
           </div>
 
+          {inv.total != null && inv.total > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <TreePine className="w-8 h-8 text-emerald-700 dark:text-emerald-400 shrink-0" />
+              <div className="flex-1">
+                <div className="text-sm text-slate-800 dark:text-slate-100">
+                  <b className="font-mono text-lg tabular-nums">{Math.round(inv.total * TREES_PER_TCO2E).toLocaleString('pt-BR')}</b>{' '}
+                  árvores equivalentes: é o número de árvores de Mata Atlântica necessárias para fixar, em 20 anos, os {fmt(inv.total)} tCO₂e emitidos em {selectedYear}.
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Estimativa de divulgação ({TREES_PER_TCO2E.toLocaleString('pt-BR')} árvores por tCO₂e, cerca de 140 kg de CO₂ por árvore), não um fator oficial de compensação. Por escopo:{' '}
+                  {[['1', inv.scope1], ['2', inv.scope2], ['3', inv.scope3]]
+                    .filter(([, v]) => v != null)
+                    .map(([k, v]) => `escopo ${k}: ${Math.round((v as number) * TREES_PER_TCO2E).toLocaleString('pt-BR')}`)
+                    .join(' · ')}
+                  .
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Memória de cálculo */}
           <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden transition-colors dark:border-slate-800/80 dark:bg-slate-900">
             <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
@@ -265,6 +292,14 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
             )}
           </div>
         </>
+      )}
+
+      {travelStats[selectedYear] && (
+        <TravelEmissionsCharts
+          stats={travelStats[selectedYear]}
+          year={selectedYear}
+          consolidated={travelStats[selectedYear].byOrg.length > 1}
+        />
       )}
 
       {/* Série histórica */}

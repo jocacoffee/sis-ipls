@@ -22,7 +22,8 @@ import {
   UserPermission,
   SeiMonitoredProcess,
   SeiSyncedDocument,
-  SeiSyncRun
+  SeiSyncRun,
+  TravelStats
 } from '../types';
 import {
   INITIAL_ORGANIZATIONS,
@@ -68,6 +69,8 @@ export interface AppDatabase {
   seiProcesses: SeiMonitoredProcess[];
   seiSyncedDocuments: SeiSyncedDocument[];
   seiSyncRuns: SeiSyncRun[];
+  /** Viagens a serviço agregadas por órgão e ano (painel de BI). */
+  travelStats: TravelStats[];
   lastSavedAt: string;
 }
 
@@ -146,6 +149,7 @@ function normalizeDatabase(parsed: Partial<AppDatabase>): { db: AppDatabase; was
     seiProcesses: parsed.seiProcesses || [],
     seiSyncedDocuments: parsed.seiSyncedDocuments || [],
     seiSyncRuns: parsed.seiSyncRuns || [],
+    travelStats: parsed.travelStats || [],
     lastSavedAt: parsed.lastSavedAt || new Date().toISOString()
   };
   return { db, wasFixed };

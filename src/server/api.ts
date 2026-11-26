@@ -200,7 +200,28 @@ export function createApiRouter() {
         return inv.length === 1 ? inv[0] : sumGHGInventories(inv, year);
       })
       .filter(hasGHGData);
-    res.json({ orgId, series });
+
+    // Viagens a serviço (gráficos): soma das estatísticas dos órgãos por ano
+    const partSet = new Set(parts);
+    const travel: Record<number, unknown> = {};
+    for (const st of (db.travelStats || []).filter(t => partSet.has(t.organizationId))) {
+      const y = (travel[st.year] ||= {
+        trips: 0, km: 0, tCO2e: 0, byDestination: {}, byRoute: {}, byCategory: {},
+        byMonth: Array.from({ length: 12 }, () => ({ trips: 0, t: 0 })), byOrg: [], panelRefreshedAt: st.panelRefreshedAt
+      }) as any;
+      y.trips += st.trips; y.km += st.km; y.tCO2e += st.tCO2e;
+      for (const [k, v] of Object.entries(st.byDestination)) y.byDestination[k] = (y.byDestination[k] || 0) + v;
+      for (const [k, v] of Object.entries(st.byRoute)) {
+        const r = (y.byRoute[k] ||= { trips: 0, t: 0 }); r.trips += v.trips; r.t += v.t;
+      }
+      for (const [k, v] of Object.entries(st.byCategory)) {
+        const c = (y.byCategory[k] ||= { trips: 0, km: 0, t: 0 }); c.trips += v.trips; c.km += v.km; c.t += v.t;
+      }
+      st.byMonth.forEach((m, i) => { y.byMonth[i].trips += m.trips; y.byMonth[i].t += m.t; });
+      const org = db.organizations.find(o => o.id === st.organizationId);
+      y.byOrg.push({ orgId: st.organizationId, acronym: org?.acronym || st.organizationId, trips: st.trips, t: st.tCO2e });
+    }
+    res.json({ orgId, series, travel });
   });
 
   /** Coleta das viagens do painel de BI: situação (pública) e execução manual (administrador). */
