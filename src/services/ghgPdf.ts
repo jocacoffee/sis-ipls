@@ -346,6 +346,13 @@ export function generateGHGInventoryPdf({ data, year, labels, organizationName }
   if (v != null) resumo.push(`Variação do total em relação a ${year - 1} (${fmtT(prev!.total)} tCO₂e): ${v > 0 ? '+' : ''}${fmtT(v, 1)}%.`);
   if (inv.reported12 != null) resumo.push(`Escopos 1 e 2 informados ao CNJ (GEE1e2): ${fmtT(inv.reported12)} tCO₂e; calculados pelo iPLS: ${fmtT(inv.total12)} tCO₂e.`);
   if (inv.scope3Reported != null) resumo.push(`Escopo 3 informado ao CNJ (GEE-Esc3): ${fmtT(inv.scope3Reported)} tCO₂e; viagens calculadas pelo iPLS: ${fmtT(inv.scope3)} tCO₂e.`);
+  if (inv.injectedKwh != null && inv.injectedKwh > 0) {
+    resumo.push(
+      `Geração própria: ${fmtN(Math.round(inv.injectedKwh))} kWh injetados na rede (kWhI)` +
+        (inv.avoidedTCO2e != null ? `, que evitaram cerca de ${fmtT(inv.avoidedTCO2e)} tCO₂ na geração da rede` : '') +
+        '. Valor informativo, fora do total: pelo GHG Protocol, a energia exportada não abate o escopo 2.'
+    );
+  }
   need(30);
   y += hbars(
     'Emissões por escopo (tCO2e)',

@@ -23,6 +23,7 @@ import { calculateIndicatorPerformance, detectMeasurementInconsistencies } from 
 import { isAutoIndicator } from '../../services/autoCalc';
 import { acceptsMonthlyEntry } from '../../services/periodicity';
 import { calculateCNJIDS } from '../../services/idsCalculator';
+import { computeGHGInventory, GHGYearInventory, hasGHGData, ISOLATED_SYSTEM_UNTIL, sinFactorFor, sumGHGInventories, TREES_PER_TCO2E } from '../../services/ghgInventory';
 
 export interface ToolDefinition {
   name: string;
@@ -538,6 +539,97 @@ export const TOOLS: ToolDefinition[] = [
         ids: res.hasScore ? r(res.idsScore, 3) : null,
         indicadores_com_dados: `${res.coverage.available} de ${res.coverage.total}`,
         ...(res.hasScore ? {} : { aviso: 'Dados insuficientes para calcular o IDS.' })
+      };
+    }
+  },
+
+  {
+    name: 'inventario_gee',
+    description:
+      'Inventário de emissões de gases de efeito estufa (GHG Protocol) do órgão: escopos 1, 2 e 3, total, fontes ' +
+      '(gasolina, etanol, diesel, gases refrigerantes, energia elétrica, viagens aéreas) com dado de atividade, fator e tCO2e, ' +
+      'emissões evitadas pela geração própria, avisos e a série dos anos. Use para perguntas sobre emissões, carbono, ' +
+      'descarbonização, neutralidade e o Programa Justiça Carbono Zero (Resolução CNJ 594/2024).',
+    parameters: {
+      type: 'object',
+      properties: { orgao: ORG_PARAM, ano: YEAR_PARAM },
+      required: ['orgao']
+    },
+    handler: args => {
+      const org = findOrg(args.orgao);
+      const y = year(args.ano);
+      const d = db();
+      const parts = org.isConsolidated ? activeParts(d.organizations).map(o => o.id) : [org.id];
+      const scoped = parts.map(id => ({ id, ms: scopeMeasurements(id, d.measurements, d.indicators, d.organizations) }));
+      const inventory = (yy: number): GHGYearInventory => {
+        const inv = scoped.map(p => computeGHGInventory(p.ms, d.indicators, yy, p.id));
+        return inv.length === 1 ? inv[0] : sumGHGInventories(inv, yy);
+      };
+      const years = [...new Set(scoped.flatMap(p => p.ms.map(m => m.year)))].filter(v => v >= 2021).sort((a, b) => a - b);
+      const series = years.map(inventory).filter(hasGHGData);
+      const inv = inventory(y);
+      const t = (v: number | null) => r(v, 2);
+      const travel = (d.travelStats || []).filter(s => s.year === y && parts.includes(s.organizationId));
+      const routes: Record<string, { trips: number; t: number }> = {};
+      for (const s of travel) for (const [k, v] of Object.entries(s.byRoute)) {
+        const x = (routes[k] ||= { trips: 0, t: 0 });
+        x.trips += v.trips;
+        x.t += v.t;
+      }
+      // Órgão que saiu de sistema isolado para o SIN: mostra o efeito da troca de fator no escopo 2
+      const contexto: string[] = [];
+      const energy = inv.lines.find(l => l.key === 'energia');
+      for (const id of parts) {
+        const iso = ISOLATED_SYSTEM_UNTIL[id];
+        if (!iso) continue;
+        const now = sinFactorFor(currentYear());
+        if (y <= iso.until && energy?.activity && now.value != null && !org.isConsolidated) {
+          contexto.push(
+            `${iso.label}: a partir de ${iso.until + 1} o órgão é atendido pelo SIN. O mesmo consumo de ${y} ` +
+              `(${Math.round(energy.activity).toLocaleString('pt-BR')} kWh) emitiria cerca de ${r((energy.activity / 1000) * now.value, 1)} tCO2e ` +
+              `com o fator do SIN (${now.value} tCO2/MWh, ${now.refYear}), contra ${r(inv.scope2, 1)} tCO2e no sistema isolado: ` +
+              'essa redução do escopo 2 acontece sem ação do órgão e deve ser descontada antes de planejar as demais.'
+          );
+        } else if (y <= iso.until) {
+          contexto.push(`${iso.label}: a partir de ${iso.until + 1} o fator de energia passa a ser o do SIN, muito menor.`);
+        }
+      }
+      return {
+        orgao: org.acronym,
+        tipo: orgKind(org),
+        ano: y,
+        ...(contexto.length ? { contexto } : {}),
+        exercicio_parcial: inv.energyMonths > 0 && inv.energyMonths < 12 ? `energia lançada em ${inv.energyMonths} de 12 meses` : undefined,
+        escopo1_tCO2e: t(inv.scope1),
+        escopo2_tCO2e: t(inv.scope2),
+        escopo3_tCO2e: t(inv.scope3),
+        total_tCO2e: t(inv.total),
+        arvores_equivalentes: inv.total ? Math.round(inv.total * TREES_PER_TCO2E) : null,
+        co2_biogenico_t: t(inv.biogenic),
+        fontes: inv.lines
+          .filter(l => l.activity != null || l.tCO2e != null)
+          .map(l => ({
+            escopo: l.scope,
+            fonte: l.source,
+            atividade: r(l.activity, 0),
+            unidade: l.activityUnit,
+            fator: l.factor == null ? null : Number(l.factor.toPrecision(4)),
+            unidade_fator: l.factorUnit,
+            tCO2e: t(l.tCO2e),
+            ...(l.excluded ? { fora_do_total: true } : {}),
+            ...(l.warning ? { aviso: l.warning } : {})
+          })),
+        geracao_propria: inv.injectedKwh
+          ? { energia_injetada_kWh: r(inv.injectedKwh, 0), emissoes_evitadas_tCO2: t(inv.avoidedTCO2e), observacao: 'informativo; não abate o escopo 2' }
+          : undefined,
+        viagens_trajetos_de_maior_emissao: Object.entries(routes)
+          .sort((a, b) => b[1].t - a[1].t)
+          .slice(0, 5)
+          .map(([k, v]) => ({ trajeto: k, trechos: v.trips, tCO2e: t(v.t) })),
+        informado_ao_cnj: { escopos1e2_tCO2e: t(inv.reported12), escopo3_tCO2e: t(inv.scope3Reported) },
+        avisos: inv.warnings,
+        serie: series.map(s => ({ ano: s.year, escopo1: t(s.scope1), escopo2: t(s.scope2), escopo3: t(s.scope3), total: t(s.total) })),
+        metodologia: 'GHG Protocol (Ferramenta 2024.0.2); escopo 2 por localização (fator do SIN/MCTI ou do sistema isolado); escopo 3 = viagens aéreas.'
       };
     }
   }

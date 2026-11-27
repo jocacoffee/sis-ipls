@@ -225,6 +225,11 @@ export interface GHGYearInventory {
   reported12: number | null;
   /** Energia injetada na rede por fonte própria (kWh), informativo. */
   injectedKwh: number | null;
+  /**
+   * Emissões evitadas pela energia injetada (tCO2): kWhI × fator da rede no mês (SIN ou sistema
+   * isolado). Informativo: pelo GHG Protocol, NÃO abate o escopo 2 nem o total.
+   */
+  avoidedTCO2e: number | null;
   /** Meses de energia lançados (exercício em curso fica parcial). */
   energyMonths: number;
   provisional: boolean;
@@ -330,6 +335,28 @@ export function computeGHGInventory(
     energyProvisional = sin.provisional;
   }
 
+  // Emissões evitadas pela energia injetada na rede (informativo, fora do total). Usa o mesmo
+  // fator da energia consumida no período: mensal quando a injeção é lançada mês a mês.
+  const injInd = findIndicator(indicators, 'kWhI', '6.7');
+  const injMs = yearMeasurements(measurements, injInd, year).filter(m => m.value > 0);
+  const injMonthly = injInd?.periodicity === 'MENSAL' || injMs.some(m => m.isMonthlyEntry);
+  const gridFactor = (month: number): number | null => {
+    const mi = injMonthly && month >= 1 && month <= 12 ? month - 1 : -1;
+    if (isIsolated) {
+      if (fesi != null) return fesi;
+      const official = isolated!.factors?.[year];
+      if (!official) return null;
+      return mi >= 0 && official.monthly ? official.monthly[mi] : official.value;
+    }
+    if (sin.value == null) return null;
+    return mi >= 0 && sin.monthly ? sin.monthly[mi] : sin.value;
+  };
+  const avoidedParts = injMs.map(m => {
+    const f = gridFactor(m.month);
+    return f == null ? null : (m.value / 1000) * f;
+  });
+  const avoidedTCO2e = avoidedParts.length && avoidedParts.every(v => v != null) ? sumOrNull(avoidedParts) : null;
+
   const fugitive: GHGLine[] = FUGITIVE_GASES.flatMap(g => {
     const v = yearTotal(measurements, findIndicator(indicators, g.acronym), year);
     if (v.total == null || v.total <= 0) return [];
@@ -402,6 +429,7 @@ export function computeGHGInventory(
     scope3Reported: esc3.total && esc3.total > 0 ? esc3.total : null,
     reported12: rep12.total && rep12.total > 0 ? rep12.total : null,
     injectedKwh: inj.total,
+    avoidedTCO2e,
     energyMonths: cee.months,
     provisional: lines.some(l => l.provisional && l.tCO2e != null),
     warnings
@@ -446,6 +474,7 @@ export function sumGHGInventories(parts: GHGYearInventory[], year: number): GHGY
     scope3Reported: s(p => p.scope3Reported),
     reported12: s(p => p.reported12),
     injectedKwh: s(p => p.injectedKwh),
+    avoidedTCO2e: s(p => p.avoidedTCO2e),
     energyMonths: Math.max(0, ...parts.map(p => p.energyMonths)),
     provisional: parts.some(p => p.provisional),
     warnings: [...new Set(parts.flatMap(p => p.warnings))]

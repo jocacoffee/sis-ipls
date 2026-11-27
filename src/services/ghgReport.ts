@@ -98,6 +98,13 @@ export function ghgReportText(data: GHGInventoryData, year: number, acronym: str
   }
 
   const notes = [...inv.warnings];
+  if (inv.injectedKwh != null && inv.injectedKwh > 0) {
+    notes.push(
+      `A geração própria injetou ${fmtN(Math.round(inv.injectedKwh))} kWh na rede` +
+        (inv.avoidedTCO2e != null ? `, o que evitou cerca de ${fmtT(inv.avoidedTCO2e)} tCO2 na geração da rede` : '') +
+        '; esse valor é informativo e não abate o escopo 2 (GHG Protocol).'
+    );
+  }
   if (inv.provisional) notes.push('Há fator de emissão provisório no ano (fator do SIN ainda não publicado pelo MCTI).');
   if (notes.length) parts.push(`Observações: ${notes.join(' ')}`);
 

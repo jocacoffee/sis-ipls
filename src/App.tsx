@@ -1187,6 +1187,7 @@ export function App() {
             organization={currentOrg}
             selectedYear={selectedYear}
             measurements={measurements}
+            onAskAI={handleOpenChatWithQuery}
           />
         )}
 

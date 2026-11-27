@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2, TreePine, FileDown } from 'lucide-react';
+import { Sparkles, Sun, Leaf, Car, Zap, Plane, Info, AlertTriangle, Loader2, TreePine, FileDown } from 'lucide-react';
 import { generateGHGInventoryPdf } from '../services/ghgPdf';
 import { reportOrgLabels } from '../services/annualReportSections';
 import { TravelEmissionsCharts, TravelYearStats } from './TravelEmissionsCharts';
@@ -22,7 +22,16 @@ interface GHGInventoryViewProps {
   selectedYear: number;
   /** Medições do órgão: só para recarregar o inventário quando houver lançamento. */
   measurements: IndicatorMeasurement[];
+  /** Abre o chat do iPLS com uma pergunta pronta. */
+  onAskAI?: (question: string) => void;
 }
+
+/** Pergunta à IA sobre o caminho para zerar as emissões líquidas até 2030 (CNJ 594/2024). */
+export const zeroEmissionsQuestion = (acronym: string, year: number) =>
+  `Com base no inventário de emissões de GEE de ${acronym} (escopos 1, 2 e 3, ano de ${year} e série histórica), ` +
+  'o que precisaria ser feito para zerar as emissões líquidas até 2030, conforme o Programa Justiça Carbono Zero ' +
+  '(Resolução CNJ nº 594/2024)? Indique as maiores fontes, ações de redução para cada uma com estimativa de impacto ' +
+  'em tCO2e por ano, um cronograma de 2026 a 2030 e quanto restaria para compensar.';
 
 interface TravelBIStatus {
   configured: boolean;
@@ -49,7 +58,8 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
   organizationName,
   organization,
   selectedYear,
-  measurements
+  measurements,
+  onAskAI
 }) => {
   const [series, setSeries] = useState<GHGYearInventory[] | null>(null);
   const [error, setError] = useState('');
@@ -126,6 +136,15 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
               className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs"
             >
               <FileDown className="w-3.5 h-3.5" /> Baixar PDF do inventário
+            </button>
+          )}
+          {inv && onAskAI && (
+            <button
+              onClick={() => onAskAI(zeroEmissionsQuestion(organization?.acronym || organizationName, selectedYear))}
+              title="Abre o chat do iPLS com a pergunta, usando os dados deste inventário"
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950/40 px-3 py-1.5 text-xs font-semibold shadow-xs"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Como zerar as emissões até 2030? Perguntar à IA
             </button>
           )}
           {inv?.reported12 != null && (
@@ -307,8 +326,17 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
               </table>
             </div>
             {inv.injectedKwh != null && inv.injectedKwh > 0 && (
-              <div className="px-4 py-2.5 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
-                Energia injetada na rede por geração própria (kWhI): {fmtInt(inv.injectedKwh)} kWh. Informativo: não abate o escopo 2 calculado pela abordagem de localização.
+              <div className="flex items-start gap-3 px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-sky-50/60 dark:bg-sky-950/20">
+                <Sun className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+                  <div className="text-slate-900 dark:text-white">
+                    <span className="font-semibold">Emissões evitadas pela geração própria: </span>
+                    <span className="font-mono font-bold tabular-nums">{inv.avoidedTCO2e == null ? 'sem fator da rede' : `${fmt(inv.avoidedTCO2e)} tCO₂`}</span>
+                  </div>
+                  Energia injetada na rede (kWhI): {fmtInt(inv.injectedKwh)} kWh × fator da rede do período. Informativo, fora do total:
+                  pelo GHG Protocol, a energia exportada não abate o escopo 2. A energia solar consumida no próprio prédio já reduz
+                  o escopo 2, porque diminui o consumo comprado da rede (CEE).
+                </div>
               </div>
             )}
           </div>
