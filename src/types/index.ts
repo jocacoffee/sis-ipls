@@ -558,7 +558,7 @@ export interface ChatMessage {
   sources?: {
     title: string;
     reference: string;
-    type: 'DADO_ESTRUTURADO' | 'DOCUMENTO' | 'NORMATIVA' | 'PROCESSO_SEI';
+    type: 'DADO_ESTRUTURADO' | 'DOCUMENTO' | 'NORMATIVA' | 'PROCESSO_SEI' | 'INTERNET';
     details?: string;
   }[];
   indicatorsMentioned?: string[];

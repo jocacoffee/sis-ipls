@@ -72,6 +72,14 @@ Opcionais:
 - **IA local:** `AI_PROVIDER`, `LOCAL_AI_ENDPOINT` e `LOCAL_AI_MODEL`. O endpoint precisa ser
   acessível a partir do servidor; `localhost` é o próprio contêiner.
 - **Sessão:** `SESSION_HOURS`.
+- **Busca na internet pelo chat:** já vem ligada. O compose sobe o serviço `searxng`, um metabuscador
+  próprio que fica só na rede interna dos contêineres, sem domínio, chave ou conta. O agente consulta
+  esse serviço e lê páginas públicas; endereços da rede interna nunca são lidos. Variáveis:
+  - `WEB_SEARCH=off` desliga a busca.
+  - `WEB_ALLOWED_DOMAINS=cnj.jus.br,cjf.jus.br,gov.br` restringe a busca e a leitura a esses sites.
+  - `SEARXNG_SECRET` é opcional; sem ela, o SearXNG usa o `SESSION_SECRET`.
+  - Se o servidor sai para a internet por proxy, ajuste `outgoing.proxies` em `deploy/searxng/settings.yml`.
+    A leitura de páginas pelo iPLS também precisa de saída direta pelas portas 80 e 443.
 
 O compose já traz estes padrões:
 

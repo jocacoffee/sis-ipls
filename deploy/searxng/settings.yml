@@ -1,0 +1,42 @@
+# Configuração do SearXNG do iPLS (o resto vem dos padrões do SearXNG).
+# A chave secreta vem da variável SEARXNG_SECRET (definida no docker-compose).
+use_default_settings:
+  engines:
+    # Só buscadores gerais da web (menos tráfego externo e nenhum motor que exija configuração extra)
+    keep_only:
+      - google
+      - duckduckgo
+      - bing
+      - brave
+      - startpage
+      - mojeek
+      - qwant
+      - yahoo
+
+general:
+  instance_name: "iPLS"
+  enable_metrics: false
+
+search:
+  safe_search: 1
+  default_lang: "pt-BR"
+  autocomplete: ""
+  # JSON é o formato que o iPLS consome
+  formats:
+    - html
+    - json
+
+server:
+  # Uso interno (só o iPLS acessa): sem limitador de robôs nem proxy de imagens
+  limiter: false
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 10.0
+  # Se o servidor só acessa a internet por proxy, descomente e ajuste:
+  # proxies:
+  #   all://:
+  #     - http://proxy.exemplo:3128

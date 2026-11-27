@@ -850,7 +850,13 @@ export function createApiRouter() {
         });
         console.log(
           `[Agente] ${currentUser()?.username || '?'} · ${org.acronym} · ${Date.now() - t0} ms · ` +
-            (trace.map(t => `${t.tool}${t.ok ? '' : '(erro)'}`).join(', ') || 'sem ferramentas')
+            (trace
+              .map(t => {
+                const a = t.args as { consulta?: string; endereco?: string } | undefined;
+                const web = t.tool === 'buscar_internet' ? ` "${String(a?.consulta || '').slice(0, 120)}"` : t.tool === 'ler_pagina' ? ` ${String(a?.endereco || '').slice(0, 160)}` : '';
+                return `${t.tool}${web}${t.ok ? '' : '(erro)'}`;
+              })
+              .join(', ') || 'sem ferramentas')
         );
         return res.json(message);
       } catch (err: any) {

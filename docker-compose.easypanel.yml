@@ -73,6 +73,11 @@ services:
       - TRAVEL_BI_URL=${TRAVEL_BI_URL:-}
       - TRAVEL_BI_API_HOST=${TRAVEL_BI_API_HOST:-}
       - TRAVEL_BI_SYNC_HOUR=${TRAVEL_BI_SYNC_HOUR:-}
+      # Busca na internet pelo agente do chat (SearXNG próprio, serviço "searxng")
+      - WEB_SEARCH=${WEB_SEARCH:-}
+      - WEB_SEARCH_URL=${WEB_SEARCH_URL:-http://searxng:8080}
+      - WEB_ALLOWED_DOMAINS=${WEB_ALLOWED_DOMAINS:-}
+      - WEB_TIMEOUT_S=${WEB_TIMEOUT_S:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     volumes:
       # Cadeia da AC TRF1 (pública) versionada no repositório, para o LDAPS
@@ -86,6 +91,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Metabuscador SearXNG (busca na internet do agente do chat), só na rede interna
+  searxng:
+    build:
+      context: ./deploy/searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-${SESSION_SECRET:?Defina SESSION_SECRET na aba Environment}}
 
   postgres:
     image: postgres:16-alpine

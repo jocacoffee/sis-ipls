@@ -495,8 +495,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           {s.type === 'DADO_ESTRUTURADO' && <Database className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
                           {s.type === 'DOCUMENTO' && <FileText className="w-3 h-3 text-blue-600 dark:text-blue-400" />}
                           {s.type === 'NORMATIVA' && <BookOpen className="w-3 h-3 text-purple-600 dark:text-purple-400" />}
+                          {s.type === 'INTERNET' && <Globe className="w-3 h-3 text-sky-600 dark:text-sky-400" />}
                           <span className="font-semibold text-slate-800 dark:text-slate-200">{s.title}:</span>
-                          <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">{s.reference}</span>
+                          {s.type === 'INTERNET' && /^https?:\/\//.test(s.reference) ? (
+                            <a
+                              href={s.reference}
+                              target="_blank"
+                              rel="noopener noreferrer nofollow"
+                              title={s.details || s.reference}
+                              className="text-sky-700 dark:text-sky-300 underline underline-offset-2 text-[10px] max-w-[260px] truncate"
+                            >
+                              {s.details || s.reference}
+                            </a>
+                          ) : (
+                            <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">{s.reference}</span>
+                          )}
                         </div>
                       ))}
                     </div>

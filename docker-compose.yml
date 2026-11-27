@@ -49,6 +49,11 @@ services:
       - TRAVEL_BI_URL=${TRAVEL_BI_URL:-}
       - TRAVEL_BI_API_HOST=${TRAVEL_BI_API_HOST:-}
       - TRAVEL_BI_SYNC_HOUR=${TRAVEL_BI_SYNC_HOUR:-}
+      # Busca na internet pelo agente do chat (SearXNG próprio, serviço "searxng")
+      - WEB_SEARCH=${WEB_SEARCH:-}
+      - WEB_SEARCH_URL=${WEB_SEARCH_URL:-http://searxng:8080}
+      - WEB_ALLOWED_DOMAINS=${WEB_ALLOWED_DOMAINS:-}
+      - WEB_TIMEOUT_S=${WEB_TIMEOUT_S:-}
       # Persistência em PostgreSQL (schema "ipls"). Na primeira subida, com o banco
       # vazio, a base é importada de data/database.json.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ipls_admin}:${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-ipls_db}
@@ -115,6 +120,21 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    networks:
+      - ipls-network
+
+  # =========================================================================
+  # Metabuscador SearXNG (busca na internet do agente do chat)
+  # Sem porta publicada: só o iPLS o acessa, pela rede interna dos contêineres.
+  # =========================================================================
+  searxng:
+    build:
+      context: ./deploy/searxng
+    image: ipls-searxng:latest
+    container_name: ipls-sjrr-searxng
+    restart: unless-stopped
+    environment:
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-${SESSION_SECRET:-troque-esta-chave-searxng}}
     networks:
       - ipls-network
 
