@@ -83,7 +83,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   // AI Provider & Local AI settings
   const [providerMode, setProviderMode] = useState<AIProviderMode>('local');
-  const [serverAI, setServerAI] = useState<{ defaultProvider: AIProviderMode; localModel: string | null; localAvailable: boolean; webSearch?: boolean } | null>(null);
+  const [serverAI, setServerAI] = useState<{ defaultProvider: AIProviderMode; localModel: string | null; localAvailable: boolean } | null>(null);
   useEffect(() => {
     fetch('/api/ai/config')
       .then(r => r.json())
@@ -178,6 +178,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const [inputQuery, setInputQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  /** Id da pergunta em andamento, para o indicador de espera consultar a etapa real do agente. */
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -190,10 +192,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const box = messagesContainerRef.current;
     if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
   };
+  /** Coloca o início de uma mensagem no topo da área de mensagens (para ler a resposta do começo). */
+  const scrollToMessageStart = (id: string) => {
+    const box = messagesContainerRef.current;
+    const el = box?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`);
+    if (!box || !el) return;
+    const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12;
+    box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  };
+
+  /** Resposta sendo escrita (streaming), antes da versão final com as fontes. */
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
+  // Próxima rolagem: 'bottom' (pergunta enviada) ou o id da resposta que começou
+  const scrollTarget = useRef<'bottom' | string | null>('bottom');
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
+    const target = scrollTarget.current;
+    if (!target) return;
+    scrollTarget.current = null;
+    if (target === 'bottom') scrollToBottom();
+    else requestAnimationFrame(() => scrollToMessageStart(target));
+  }, [messages, isLoading, draft?.id]);
 
   // Save provider choice in localStorage
   useEffect(() => {
@@ -246,8 +265,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     const nextHistory = [...messages, userMsg];
+    scrollTarget.current = 'bottom';
     setMessages(nextHistory);
     setInputQuery('');
+    const rid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `q-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setRequestId(rid);
     setIsLoading(true);
 
     try {
@@ -269,12 +291,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
           year: selectedYear,
           orgId: organizationId,
           provider: providerMode,
-          conversationHistory
+          conversationHistory,
+          requestId: rid,
+          stream: true
         })
       });
 
-      if (res.ok) {
+      const isStream = res.ok && (res.headers.get('content-type') || '').includes('ndjson') && !!res.body;
+      if (isStream) {
+        // NDJSON: rascunho crescendo ("draft"), descarte ("reset"), resposta final ("done") ou erro
+        const draftId = `draft-${rid}`;
+        let started = false;
+        let final: ChatMessage | null = null;
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        const handle = (line: string) => {
+          if (!line.trim()) return;
+          let evt: any;
+          try {
+            evt = JSON.parse(line);
+          } catch {
+            return;
+          }
+          if (evt.type === 'draft' && typeof evt.text === 'string') {
+            if (!started) {
+              started = true;
+              scrollTarget.current = draftId;
+            }
+            setDraft({ id: draftId, text: evt.text });
+          } else if (evt.type === 'reset') {
+            started = false;
+            setDraft(null);
+          } else if (evt.type === 'done' && evt.message) {
+            final = evt.message as ChatMessage;
+          } else if (evt.type === 'error') {
+            throw new Error(evt.error || 'Falha no servidor.');
+          }
+        };
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf('\n')) >= 0) {
+            handle(buf.slice(0, nl));
+            buf = buf.slice(nl + 1);
+          }
+        }
+        handle(buf);
+        if (!final) throw new Error('A resposta foi interrompida. Tente novamente.');
+        const finalMsg: ChatMessage = final;
+        // Sem rascunho (ex.: Gemini, contexto fixo): rola para o início da resposta final
+        if (!started) scrollTarget.current = finalMsg.id;
+        setDraft(null);
+        setMessages(prev => [...prev, finalMsg]);
+      } else if (res.ok) {
         const aiResponse: ChatMessage = await res.json();
+        scrollTarget.current = aiResponse.id;
         setMessages(prev => [...prev, aiResponse]);
       } else {
         const body = await res.json().catch(() => ({}));
@@ -286,6 +360,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
     } catch (err: any) {
       // Sem resposta inventada: apenas informa o erro
+      setDraft(null);
       setMessages(prev => [
         ...prev,
         {
@@ -443,6 +518,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           return (
             <div
               key={msg.id}
+              data-msg-id={msg.id}
               className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-3xl ${
                 isUser ? 'ml-auto' : 'mr-auto'
               }`}
@@ -575,8 +651,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
           );
         })}
 
+        {isLoading && draft && (
+          <div data-msg-id={draft.id} className="flex flex-col items-start max-w-3xl mr-auto" aria-live="polite" aria-busy="true">
+            <div className="p-4 sm:p-5 rounded-3xl text-xs leading-relaxed bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 rounded-bl-xs shadow-xs">
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-200/60 dark:border-slate-700/60 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
+                <Sparkles className="w-3 h-3 text-emerald-600 animate-pulse" />
+                Escrevendo a resposta…
+              </div>
+              <ChatMarkdown text={draft.text} />
+              <span className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-emerald-500 animate-pulse rounded-sm" aria-hidden="true" />
+            </div>
+          </div>
+        )}
+
         {isLoading && (
-          <ChatThinking mode={providerMode} model={serverAI?.localModel} webSearch={serverAI?.webSearch} />
+          // Fica montado (só escondido) enquanto há rascunho, para não recomeçar as etapas se ele for descartado
+          <div className={draft ? 'hidden' : undefined}>
+            <ChatThinking mode={providerMode} model={serverAI?.localModel} requestId={requestId} />
+          </div>
         )}
 
         <div ref={messagesEndRef} />

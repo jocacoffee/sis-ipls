@@ -14,6 +14,7 @@ import type { ChatMessage } from '../../types';
 import { AgentMessage, callLocalLLMWithTools, localLLMSettings, ToolCall, ToolSpec } from '../localLLM';
 import { runTool, ToolError, TOOLS } from './tools';
 import { activeWebTools } from './webTools';
+import { ChatStage, stageForTool } from './chatProgress';
 
 export const agentEnabled = () => (process.env.AI_AGENT || '').toLowerCase() !== 'off';
 
@@ -51,6 +52,12 @@ export interface ChatAgentInput {
   organizationName: string;
   isConsolidated: boolean;
   year: number;
+  /** Avisa a etapa em andamento (indicador de espera do chat). */
+  onStage?: (stage: ChatStage) => void;
+  /** Streaming: texto da resposta à medida que o modelo escreve (rascunho). */
+  onDraft?: (text: string) => void;
+  /** O rascunho enviado era, na verdade, uma rodada de ferramentas: a tela deve descartá-lo. */
+  onDraftReset?: () => void;
 }
 
 function systemPrompt(input: ChatAgentInput): string {
@@ -196,14 +203,71 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
   let model = settings.model;
   let answer = '';
 
+  const stage = (s: ChatStage) => {
+    try {
+      input.onStage?.(s);
+    } catch {
+      /* indicador de espera é acessório */
+    }
+  };
+  // Rascunho em streaming, com no máximo ~8 envios por segundo
+  let drafted = false;
+  let lastDraft = 0;
+  let pendingDraft: string | null = null;
+  let draftTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushDraft = () => {
+    draftTimer = null;
+    if (pendingDraft == null) return;
+    lastDraft = Date.now();
+    drafted = true;
+    const t = pendingDraft;
+    pendingDraft = null;
+    try {
+      input.onDraft?.(t);
+    } catch {
+      /* acessório */
+    }
+  };
+  const onText = input.onDraft
+    ? (text: string) => {
+        if (!text.trim()) return;
+        pendingDraft = text;
+        const wait = 120 - (Date.now() - lastDraft);
+        if (wait <= 0) flushDraft();
+        else if (!draftTimer) draftTimer = setTimeout(flushDraft, wait);
+      }
+    : undefined;
+  const resetDraft = () => {
+    if (draftTimer) clearTimeout(draftTimer);
+    draftTimer = null;
+    pendingDraft = null;
+    if (drafted) {
+      drafted = false;
+      try {
+        input.onDraftReset?.();
+      } catch {
+        /* acessório */
+      }
+    }
+  };
+  const callLLM = async (msgs: AgentMessage[], t: ToolSpec[]) => {
+    const out = await callLocalLLMWithTools(msgs, t, { onText });
+    if (draftTimer) clearTimeout(draftTimer);
+    flushDraft();
+    return out;
+  };
+
   for (let step = 0; step < MAX_STEPS(); step++) {
     const canUseTools = size() < budgetChars;
-    const out = await callLocalLLMWithTools(messages, canUseTools ? tools : []);
+    stage(trace.length ? 'escrevendo' : 'pensando');
+    const out = await callLLM(messages, canUseTools ? tools : []);
     model = out.model;
+    if (out.toolCalls.length) resetDraft();
     if (!out.toolCalls.length) {
       // Chamada escrita no texto em vez de estruturada: executa do mesmo jeito
       const parsed = parseTextToolCalls(out.content);
       if (parsed.calls.length && canUseTools) {
+        resetDraft();
         out.toolCalls = parsed.calls;
         out.content = parsed.rest;
       } else {
@@ -211,6 +275,7 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
         const knownNames = [...TOOLS, ...activeWebTools()].map(t => t.name);
         if (canUseTools && !nudged && !trace.length && knownNames.some(n => parsed.rest.includes(n))) {
           nudged = true;
+          resetDraft();
           messages.push({ role: 'assistant', content: out.content });
           messages.push({
             role: 'user',
@@ -235,6 +300,7 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
         args = {};
       }
       const t0 = Date.now();
+      stage(stageForTool(call.function.name));
       const { ok, result } = await runAgentTool(call.function.name, args);
       trace.push({ tool: call.function.name, args, ok, ms: Date.now() - t0 });
       if (ok && call.function.name === 'ler_pagina') {
@@ -248,7 +314,9 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
   if (!answer) {
     // Esgotou as rodadas: pede a resposta final com o que já foi coletado
     messages.push({ role: 'user', content: 'Responda agora à pergunta original com os dados já obtidos, sem chamar mais ferramentas.' });
-    const out = await callLocalLLMWithTools(messages, []);
+    stage('escrevendo');
+    resetDraft();
+    const out = await callLLM(messages, []);
     answer = parseTextToolCalls(out.content).rest;
   }
   if (!answer) throw new Error('A IA local não produziu resposta.');

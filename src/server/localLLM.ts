@@ -52,9 +52,7 @@ export function publicAIConfig() {
     defaultProvider: defaultAIProvider(),
     localAvailable: !!s.endpoint && !!s.model,
     localModel: s.model || null,
-    geminiAvailable: !!env.GEMINI_API_KEY,
-    // Agente com busca na internet ativo (para o indicador de espera do chat)
-    webSearch: (env.AI_AGENT || '').toLowerCase() !== 'off' && (env.WEB_SEARCH || '').toLowerCase() !== 'off'
+    geminiAvailable: !!env.GEMINI_API_KEY
   };
 }
 
@@ -153,8 +151,17 @@ export interface ToolSpec {
 export async function callLocalLLMWithTools(
   messages: AgentMessage[],
   tools: ToolSpec[],
-  opts: { timeoutMs?: number; maxTokens?: number } = {}
+  opts: {
+    timeoutMs?: number;
+    maxTokens?: number;
+    /**
+     * Streaming: recebe o texto visível acumulado à medida que o modelo escreve (sem o raciocínio
+     * <think>). Deixa de ser chamado quando a resposta vira chamada de ferramenta.
+     */
+    onText?: (visibleSoFar: string) => void;
+  } = {}
 ): Promise<{ content: string; toolCalls: ToolCall[]; model: string; finishReason?: string }> {
+  if (opts.onText) return callLocalLLMStreaming(messages, tools, { ...opts, onText: opts.onText });
   const s = localLLMSettings();
   if (!s.endpoint || !s.model) throw new Error('IA local não configurada (LOCAL_AI_ENDPOINT e LOCAL_AI_MODEL).');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -204,6 +211,131 @@ export async function callLocalLLMWithTools(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Texto que pode ir para a tela durante o streaming: sem blocos <think> (nem um <think> ainda
+ * aberto) e sem nada a partir de uma chamada de ferramenta escrita no texto.
+ */
+export function visibleStreamText(raw: string): string {
+  let t = raw.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const open = t.search(/<think>/i);
+  if (open >= 0) t = t.slice(0, open);
+  const call = t.search(/<tool_call>|<function=/);
+  if (call >= 0) t = t.slice(0, call);
+  return t.replace(/^\s+/, '');
+}
+
+/** Igual a callLocalLLMWithTools, com stream=true (SSE da API compatível com a OpenAI). */
+async function callLocalLLMStreaming(
+  messages: AgentMessage[],
+  tools: ToolSpec[],
+  opts: { timeoutMs?: number; maxTokens?: number; onText: (visibleSoFar: string) => void }
+): Promise<{ content: string; toolCalls: ToolCall[]; model: string; finishReason?: string }> {
+  const s = localLLMSettings();
+  if (!s.endpoint || !s.model) throw new Error('IA local não configurada (LOCAL_AI_ENDPOINT e LOCAL_AI_MODEL).');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'text/event-stream' };
+  if (s.apiKey) headers.Authorization = `Bearer ${s.apiKey}`;
+  const controller = new AbortController();
+  const timeoutMs = opts.timeoutMs ?? s.timeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${s.endpoint}/chat/completions`, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: s.model,
+        messages,
+        ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
+        temperature: s.temperature,
+        max_tokens: opts.maxTokens ?? s.maxTokens,
+        stream: true
+      })
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Servidor de IA respondeu HTTP ${res.status}: ${body.slice(0, 200)}`);
+    }
+    // Servidor que ignora stream=true e devolve JSON inteiro
+    if (!(res.headers.get('content-type') || '').includes('event-stream')) {
+      const json = await res.json();
+      const msg = json.choices?.[0]?.message || {};
+      const content = stripReasoning(String(msg.content || ''));
+      const toolCalls = normalizeToolCalls(msg.tool_calls);
+      if (!toolCalls.length) opts.onText(visibleStreamText(content));
+      return { content, toolCalls, model: s.model, finishReason: json.choices?.[0]?.finish_reason };
+    }
+
+    let raw = '';
+    let finishReason: string | undefined;
+    let toolMode = false;
+    const calls: { id?: string; name: string; args: string }[] = [];
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        let chunk: any;
+        try {
+          chunk = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        const delta = choice.delta || {};
+        for (const tc of Array.isArray(delta.tool_calls) ? delta.tool_calls : []) {
+          toolMode = true;
+          const i = typeof tc.index === 'number' ? tc.index : calls.length;
+          const c = (calls[i] ||= { name: '', args: '' });
+          if (tc.id) c.id = tc.id;
+          if (tc.function?.name) c.name += tc.function.name;
+          if (tc.function?.arguments) c.args += tc.function.arguments;
+        }
+        if (typeof delta.content === 'string' && delta.content) {
+          raw += delta.content;
+          if (!toolMode) opts.onText(visibleStreamText(raw));
+        }
+      }
+    }
+    const toolCalls: ToolCall[] = calls
+      .filter(c => c && c.name)
+      .map((c, k) => ({ id: c.id || `call-${Date.now()}-${k}`, type: 'function' as const, function: { name: c.name, arguments: c.args || '{}' } }));
+    return { content: stripReasoning(raw), toolCalls, model: s.model, finishReason };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`Tempo limite de ${Math.round(timeoutMs / 1000)} s esgotado aguardando a IA local (${s.model}).`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function normalizeToolCalls(list: unknown): ToolCall[] {
+  return Array.isArray(list)
+    ? list
+        .filter((c: any) => c?.function?.name)
+        .map((c: any, k: number) => ({
+          id: String(c.id || `call-${Date.now()}-${k}`),
+          type: 'function' as const,
+          function: {
+            name: String(c.function.name),
+            arguments: typeof c.function.arguments === 'string' ? c.function.arguments : JSON.stringify(c.function.arguments || {})
+          }
+        }))
+    : [];
 }
 
 /** Extrai o primeiro objeto JSON de um texto (modelos locais às vezes cercam o JSON com texto ou ```json). */

@@ -35,6 +35,7 @@ import { EntryMode, yearEntryMode } from '../services/periodicity';
 import { legacyTargetType, resolveTarget } from '../services/targets';
 import { isAutoIndicator } from '../services/autoCalc';
 import { agentEnabled, runChatAgent } from './agent/chatAgent';
+import { ChatStage, clearChatStage, getChatStage, setChatStage, validRequestId } from './agent/chatProgress';
 import { ingestEnergyInvoice } from './invoiceIngest';
 import { computeGHGInventory, hasGHGData, sumGHGInventories } from '../services/ghgInventory';
 import { runTravelBISync, travelBIStatus } from './agent/travelBI';
@@ -836,6 +837,33 @@ export function createApiRouter() {
 
     const org = db.organizations.find(o => o.id === orgId) || db.organizations[0];
 
+    // Etapa em andamento, consultada pelo indicador de espera do chat
+    const requestId = validRequestId(req.body.requestId) ? req.body.requestId : null;
+    const stageUser = currentUser()?.username || '';
+    const onStage = requestId && stageUser ? (s: ChatStage) => setChatStage(requestId, stageUser, s) : undefined;
+    res.on('finish', () => requestId && clearChatStage(requestId));
+    onStage?.('pensando');
+
+    // Streaming (stream: true): resposta em NDJSON, uma linha JSON por evento:
+    //   {"type":"draft","text":"..."}  texto acumulado enquanto o modelo escreve
+    //   {"type":"reset"}               o rascunho era uma rodada de ferramentas: descartar
+    //   {"type":"done","message":{…}}  resposta final (com fontes)
+    //   {"type":"error","error":"..."}
+    const streaming = req.body.stream === true;
+    if (streaming) {
+      res.status(200);
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+    }
+    const emit = (evt: unknown) => {
+      if (!res.writableEnded) res.write(`${JSON.stringify(evt)}\n`);
+    };
+    const finish = (message: unknown) => (streaming ? (emit({ type: 'done', message }), res.end()) : res.json(message));
+    const fail = (status: number, error: string) =>
+      streaming ? (emit({ type: 'error', error }), res.end()) : res.status(status).json({ error });
+
     // Agente com ferramentas (modelo local consulta a base sob demanda); se falhar, usa o chat com contexto fixo
     if (provider === 'local' && !localConfig && agentEnabled()) {
       const t0 = Date.now();
@@ -846,7 +874,11 @@ export function createApiRouter() {
           organizationAcronym: org.acronym,
           organizationName: org.name,
           isConsolidated: isConsolidatedOrg(org.id, db.organizations),
-          year: Number(year) || new Date().getFullYear()
+          year: Number(year) || new Date().getFullYear(),
+          onStage,
+          ...(streaming
+            ? { onDraft: (text: string) => emit({ type: 'draft', text }), onDraftReset: () => emit({ type: 'reset' }) }
+            : {})
         });
         console.log(
           `[Agente] ${currentUser()?.username || '?'} · ${org.acronym} · ${Date.now() - t0} ms · ` +
@@ -858,9 +890,10 @@ export function createApiRouter() {
               })
               .join(', ') || 'sem ferramentas')
         );
-        return res.json(message);
+        return finish(message);
       } catch (err: any) {
         console.warn('[Agente] Falhou; usando o chat com contexto fixo:', err?.message || err);
+        if (streaming) emit({ type: 'reset' });
       }
     }
 
@@ -884,10 +917,10 @@ export function createApiRouter() {
         }
       });
 
-      return res.json(responseMessage);
+      return finish(responseMessage);
     } catch (err: any) {
       console.error('[API] Erro ao processar chat:', err);
-      return res.status(500).json({ error: 'Não foi possível processar a pergunta. Tente novamente.' });
+      return fail(500, 'Não foi possível processar a pergunta. Tente novamente.');
     }
   };
 
@@ -897,6 +930,14 @@ export function createApiRouter() {
   });
 
   router.post('/chat', requireLogin, handleChatRequest);
+  // Etapa real da pergunta em andamento (só para quem perguntou)
+  router.get('/ai/chat/progress', requireLogin, (req: Request, res: Response) => {
+    const id = req.query.id;
+    const user = currentUser()?.username || '';
+    if (!validRequestId(id) || !user) return res.status(400).json({ error: 'Pedido inválido.' });
+    res.set('Cache-Control', 'no-store');
+    res.json(getChatStage(id, user) || { stage: null, seen: [] });
+  });
   router.post('/ai/chat', requireLogin, handleChatRequest);
 
   // POST /api/ai/test-local - Test connectivity to on-premise Local AI endpoint (Ollama/vLLM)
