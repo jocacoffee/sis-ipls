@@ -103,7 +103,7 @@ export function ghgReportText(data: GHGInventoryData, year: number, acronym: str
 
   parts.push(
     'Metodologia: escopo 1 pelo consumo de gasolina, etanol e diesel (CO₂ fóssil, CH₄ e N₂O, GWP do AR5) e pela reposição de gases refrigerantes; ' +
-    'escopo 2 pela abordagem de localização, com os fatores do Sistema Interligado Nacional (MCTI), e, em sistema isolado, com o fator informado; ' +
+    'escopo 2 pela abordagem de localização, com os fatores do Sistema Interligado Nacional (MCTI), e, em sistema isolado, com o fator do sistema calculado com os dados da EPE (PASI) ou o informado pelo órgão; ' +
     'escopo 3 pelas viagens aéreas a serviço. O detalhamento está no PDF do inventário de GEE, gerado pelo iPLS.'
   );
   // Sem subscritos: o texto também vai para o PDF do relatório anual (fonte padrão do jsPDF)

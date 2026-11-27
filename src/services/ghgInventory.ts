@@ -13,7 +13,8 @@ import type { Indicator, IndicatorMeasurement } from '../types';
  *     complementares 20.C1 a 20.C7). O R-22 (HCFC, Protocolo de Montreal) é relatado fora do total.
  * - Escopo 2 (abordagem por localização): consumo de energia (CEE) de cada mês × fator mensal do SIN
  *   (MCTI); sem fator mensal, a média anual. Em sistema isolado (Roraima até 2025) usa-se o fator
- *   informado no campo FESI; sem ele, o escopo 2 fica sem cálculo.
+ *   informado no campo FESI ou, sem ele, o fator oficial do sistema (EPE/PASI, 2023–2025); sem
+ *   nenhum dos dois, o escopo 2 fica sem cálculo.
  * - Escopo 3: viagens aéreas a serviço (campo GEEViag, coletado do painel de BI de viagens).
  *   O valor informado ao CNJ (GEE-Esc3) aparece à parte, para comparação.
  *
@@ -54,9 +55,36 @@ export const FUGITIVE_GASES: { acronym: string; label: string; gwp: number; inTo
   { acronym: 'R22', label: 'Gás refrigerante R-22 (HCFC, fora do total)', gwp: GWP.HCFC22, inTotal: false }
 ];
 
-/** Órgãos atendidos por sistema isolado (fora do SIN) até o ano indicado, inclusive. */
-export const ISOLATED_SYSTEM_UNTIL: Record<string, { until: number; label: string }> = {
-  'org-sjrr': { until: 2025, label: 'Roraima (sistema isolado até 2025)' }
+interface IsolatedSystem {
+  until: number;
+  label: string;
+  /** Fatores de emissão do sistema isolado por ano (tCO2/MWh), quando há fonte oficial. */
+  factors?: Record<number, { value: number; monthly?: number[] }>;
+  factorSource?: string;
+}
+
+/**
+ * Órgãos atendidos por sistema isolado (fora do SIN) até o ano indicado, inclusive.
+ *
+ * Sistema Boa Vista (RR), 2023–2025: emissões ÷ geração das usinas que atendem a capital
+ * (Jaguatirica II a gás; Monte Cristo, Floresta, Distrito e Novo Paraíso a diesel; biomassa e
+ * PCH Jatapú com emissão zero), sem as localidades remotas. Dados mensais por usina do PASI
+ * (EPE, com geração da CCEE), que usa os fatores do Informe Técnico EPE nº 011/2022
+ * (diesel 0,762 e gás natural 0,367 tCO2/MWh). 2021 e 2022 não constam do PASI: sem fonte
+ * oficial, ficam sem cálculo até que se informe o FESI.
+ * O valor lançado no campo FESI (20.C8) prevalece sobre estes.
+ */
+export const ISOLATED_SYSTEM_UNTIL: Record<string, IsolatedSystem> = {
+  'org-sjrr': {
+    until: 2025,
+    label: 'Roraima (sistema isolado até 2025)',
+    factorSource: 'EPE/PASI, usinas do sistema Boa Vista (geração CCEE; fatores EPE IT 011/2022)',
+    factors: {
+      2023: { value: 0.3813, monthly: [0.3627, 0.372, 0.3832, 0.3946, 0.3725, 0.3732, 0.3782, 0.38, 0.4035, 0.3901, 0.3817, 0.3774] },
+      2024: { value: 0.3852, monthly: [0.3814, 0.399, 0.4075, 0.4127, 0.3486, 0.3686, 0.3355, 0.364, 0.4093, 0.3886, 0.3916, 0.3972] },
+      2025: { value: 0.3359, monthly: [0.3748, 0.386, 0.3605, 0.3394, 0.3188, 0.3392, 0.3511, 0.3454, 0.3252, 0.2828, 0.286, 0.2916] }
+    }
+  }
 };
 
 interface YearFactors {
@@ -262,10 +290,26 @@ export function computeGHGInventory(
   let energyProvisional = false;
   let energyWarning: string | undefined;
   if (isIsolated) {
-    energyFactor = fesi;
-    energySource = `${isolated!.label}: fator informado no campo FESI (20.C8)`;
-    if (cee.total != null && fesi != null) scope2 = (cee.total / 1000) * fesi;
-    if (cee.total != null && fesi == null) {
+    const official = isolated!.factors?.[year];
+    if (fesi != null) {
+      energyFactor = fesi;
+      energySource = `${isolated!.label}: fator informado no campo FESI (20.C8)`;
+      if (cee.total != null) scope2 = (cee.total / 1000) * fesi;
+    } else if (official) {
+      const monthlyEnergy = ceeInd?.periodicity === 'MENSAL';
+      if (ceeMs.length) {
+        scope2 = ceeMs.reduce((s, m) => {
+          const f = monthlyEnergy && official.monthly && m.month >= 1 && m.month <= 12 ? official.monthly[m.month - 1] : official.value;
+          return s + (m.value / 1000) * f;
+        }, 0);
+      }
+      energyFactor = scope2 != null && cee.total ? scope2 / (cee.total / 1000) : official.value;
+      energySource = `${isolated!.label}: ${isolated!.factorSource}${official.monthly && monthlyEnergy ? ', fatores mensais (média ponderada pelo consumo)' : ''}`;
+    } else {
+      energyFactor = null;
+      energySource = `${isolated!.label}: fator informado no campo FESI (20.C8)`;
+    }
+    if (cee.total != null && energyFactor == null) {
       energyWarning = 'Sistema isolado: informe o fator de emissão no campo FESI (20.C8).';
       warnings.push(`${isolated!.label}: o fator do SIN não se aplica. Informe o fator de emissão da energia do sistema isolado no campo FESI (20.C8) de ${year} para calcular o escopo 2.`);
     }
@@ -383,7 +427,7 @@ export function sumGHGInventories(parts: GHGYearInventory[], year: number): GHGY
       tCO2e,
       tCO2bio: sumOrNull(ls.map(l => l.tCO2bio)),
       factor,
-      factorSource: key === 'energia' && sources.length > 1 ? 'Por órgão: SIN (MCTI) e sistema isolado (FESI); fator médio ponderado' : sources[0] || first.factorSource,
+      factorSource: key === 'energia' && sources.length > 1 ? 'Por órgão: SIN (MCTI) e sistema isolado (EPE/PASI ou FESI); fator médio ponderado' : sources[0] || first.factorSource,
       provisional: ls.some(l => l.provisional && l.tCO2e != null),
       months: Math.max(0, ...ls.map(l => l.months || 0)) || undefined,
       warning: ls.some(l => l.warning) ? 'Há órgão em sistema isolado sem o fator informado (FESI); o consumo dele não entra no escopo 2.' : undefined

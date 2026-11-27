@@ -391,7 +391,7 @@ export const GHGInventoryView: React.FC<GHGInventoryViewProps> = ({
           </li>
           <li>
             <b>Escopo 2:</b> abordagem por localização, com o consumo de cada mês multiplicado pelo fator mensal do Sistema Interligado Nacional (MCTI); sem fator mensal, a média anual (tCO₂/MWh):{' '}
-            {factorYears.filter(y => YEAR_FACTORS[y].sin != null).map(y => `${y}: ${fmt(YEAR_FACTORS[y].sin!, 4)}`).join('; ')}. Anos sem publicação usam o último fator disponível, marcado como provisório. Roraima foi sistema isolado até 2025: nesses anos, a SJRR usa o fator informado no campo FESI (20.C8).
+            {factorYears.filter(y => YEAR_FACTORS[y].sin != null).map(y => `${y}: ${fmt(YEAR_FACTORS[y].sin!, 4)}`).join('; ')}. Anos sem publicação usam o último fator disponível, marcado como provisório. Roraima foi sistema isolado até 2025: nesses anos, a SJRR usa o fator do sistema Boa Vista calculado com os dados da EPE (PASI, geração da CCEE): 2023: 0,3813; 2024: 0,3852; 2025: 0,3359 tCO₂/MWh, mês a mês quando o consumo é mensal. Para 2021 e 2022, sem dado oficial, informe o fator no campo FESI (20.C8), que também prevalece sobre os valores da EPE.
           </li>
           <li>
             <b>Escopo 3, viagens:</b> emissões das viagens aéreas a serviço, coletadas do painel de BI de viagens e somadas trecho a trecho (campo 20.C9). O total que o painel mostra em visões agregadas aplica o fator do voo curto a toda a distância e fica maior que esta soma.

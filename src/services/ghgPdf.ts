@@ -466,7 +466,7 @@ export function generateGHGInventoryPdf({ data, year, labels, organizationName }
   para(
     'Escopo 2: abordagem por localização; consumo de cada mês × fator mensal do Sistema Interligado Nacional (MCTI) ou, sem fator mensal, a média anual ' +
     `(${Object.keys(YEAR_FACTORS).map(Number).filter(y => YEAR_FACTORS[y].sin != null).map(y => `${y}: ${fmtT(YEAR_FACTORS[y].sin!, 4)}`).join('; ')} tCO₂/MWh). ` +
-    'Em sistema isolado (Roraima até 2025), usa-se o fator informado pelo órgão.'
+    'Em sistema isolado (Roraima até 2025), usa-se o fator do sistema Boa Vista calculado com os dados da EPE (PASI, geração da CCEE; 2023–2025) ou o fator informado pelo órgão.'
   );
   para('Escopo 3: viagens aéreas a serviço, do painel de BI de viagens, somadas trecho a trecho com o fator da faixa de distância de cada trecho.');
   para('Os dados de atividade são os lançados no iPLS pelos órgãos; o consolidado regional é a soma dos inventários dos órgãos.', 7.5, [100, 116, 139]);
