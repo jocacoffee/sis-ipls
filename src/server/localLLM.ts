@@ -52,7 +52,9 @@ export function publicAIConfig() {
     defaultProvider: defaultAIProvider(),
     localAvailable: !!s.endpoint && !!s.model,
     localModel: s.model || null,
-    geminiAvailable: !!env.GEMINI_API_KEY
+    geminiAvailable: !!env.GEMINI_API_KEY,
+    // Agente com busca na internet ativo (para o indicador de espera do chat)
+    webSearch: (env.AI_AGENT || '').toLowerCase() !== 'off' && (env.WEB_SEARCH || '').toLowerCase() !== 'off'
   };
 }
 

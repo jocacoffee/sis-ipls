@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { reportOrgLabels } from '../services/annualReportSections';
 import { ChatMarkdown } from './ChatMarkdown';
+import { ChatThinking } from './ChatThinking';
 import type { Organization } from '../types';
 import {
   MessageSquare,
@@ -82,7 +83,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   // AI Provider & Local AI settings
   const [providerMode, setProviderMode] = useState<AIProviderMode>('local');
-  const [serverAI, setServerAI] = useState<{ defaultProvider: AIProviderMode; localModel: string | null; localAvailable: boolean } | null>(null);
+  const [serverAI, setServerAI] = useState<{ defaultProvider: AIProviderMode; localModel: string | null; localAvailable: boolean; webSearch?: boolean } | null>(null);
   useEffect(() => {
     fetch('/api/ai/config')
       .then(r => r.json())
@@ -575,14 +576,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         })}
 
         {isLoading && (
-          <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-md">
-            <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
-            <div className="text-xs text-slate-600 dark:text-slate-300">
-              {providerMode === 'gemini' && 'Consultando API do Gemini com RAG normativo do CNJ e medições do PLS...'}
-              {providerMode === 'local' && `Processando na IA local (${serverAI?.localModel || 'modelo do servidor'})... modelos locais podem levar até 1–2 minutos.`}
-              {providerMode === 'heuristic' && 'Analisando banco de dados relacional e normativas do CNJ...'}
-            </div>
-          </div>
+          <ChatThinking mode={providerMode} model={serverAI?.localModel} webSearch={serverAI?.webSearch} />
         )}
 
         <div ref={messagesEndRef} />
