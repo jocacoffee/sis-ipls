@@ -1,12 +1,33 @@
 import React from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 /**
- * Markdown das respostas da IA (tabelas, listas, títulos, negrito, código, links, emojis).
+ * Markdown das respostas da IA (tabelas, listas, títulos, negrito, código, links, emojis e
+ * fórmulas em LaTeX, desenhadas pelo KaTeX).
  * HTML embutido no texto é ignorado (o react-markdown não interpreta HTML sem rehype-raw),
- * então a resposta do modelo não consegue injetar scripts na página.
+ * então a resposta do modelo não consegue injetar scripts na página. O KaTeX roda com
+ * trust=false: comandos como \href e \includegraphics não são aceitos.
  */
+
+/**
+ * Fórmulas: aceita \( … \) e $$ … $$ em linha, \[ … \] e $$ … $$ em bloco. O cifrão simples
+ * fica desligado, porque "R$ 100 e R$ 200" viraria fórmula. Trechos de código não são tocados.
+ */
+export function normalizeMath(text: string): string {
+  return text
+    .split(/(```[\s\S]*?```|`[^`\n]*`)/g)
+    .map((part, i) => {
+      if (i % 2 === 1) return part;
+      return part
+        .replace(/\\\[([\s\S]+?)\\\]/g, (_m, f: string) => `\n$$\n${f.trim()}\n$$\n`)
+        .replace(/\\\(([\s\S]+?)\\\)/g, (_m, f: string) => `$$${f.trim()}$$`);
+    })
+    .join('');
+}
 const components: Components = {
   p: ({ children }) => <p className="mb-2.5 last:mb-0 leading-relaxed">{children}</p>,
   h1: ({ children }) => <h3 className="mt-3 mb-2 text-sm font-bold text-slate-900 dark:text-white first:mt-0">{children}</h3>,
@@ -60,8 +81,12 @@ const components: Components = {
 
 export const ChatMarkdown: React.FC<{ text: string }> = ({ text }) => (
   <div className="font-sans text-slate-800 dark:text-slate-200">
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-      {text}
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+      rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, trust: false, output: 'htmlAndMathml' }]]}
+      components={components}
+    >
+      {normalizeMath(text)}
     </ReactMarkdown>
   </div>
 );

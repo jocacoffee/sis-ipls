@@ -85,6 +85,8 @@ Como responder:
 - Pode usar emojis com moderação para sinalizar situação: ✅ em dia/conformidade, ⚠️ atenção/pendência parcial,
   🔴 risco/sem lançamento, 📈 alta, 📉 queda, 💡 recomendação. No máximo um por linha.
 - Números no formato brasileiro (1.234,5) com a unidade.
+- Fórmulas em LaTeX: \\( ... \\) no meio do texto e \\[ ... \\] em linha própria (ex.: \\[ E = \\frac{C}{1000} \\times F \\]).
+  Nunca use cifrão simples para fórmula ($ é moeda: R$).
 - Exercício em andamento: deixe claro que os valores são parciais (meses informados).
 - Sem meta cadastrada: diga isso, sem avaliar cumprimento.
 - Cite as resoluções do CNJ só pelo número, sem inventar artigos.`;
@@ -144,6 +146,27 @@ export function parseTextToolCalls(content: string): { calls: ToolCall[]; rest: 
     return '';
   });
   rest = rest.replace(/<\/?tool_call>/g, '').trim();
+  // Formato "código": nome(arg="valor", ano=2026), em geral dentro de bloco ``` (modelos pequenos)
+  if (!calls.length) {
+    const names = [...known].join('|');
+    const callRe = new RegExp(`\\b(${names})\\s*\\(([^()]*)\\)`, 'g');
+    const blocks = rest.match(/```[\w-]*\n[\s\S]*?```/g) || [];
+    const ALIAS: Record<string, string> = { exercicio: 'ano', exercício: 'ano', ano_exercicio: 'ano', 'órgão': 'orgao', organizacao: 'orgao', unidade: 'orgao' };
+    for (const block of blocks) {
+      let found = false;
+      for (const m of block.matchAll(callRe)) {
+        const args: Record<string, unknown> = {};
+        for (const a of m[2].matchAll(/([\wÀ-ú]+)\s*[=:]\s*("[^"]*"|'[^']*'|[^,\s)]+)/g)) {
+          const key = ALIAS[a[1].toLowerCase()] || a[1];
+          args[key] = value(a[2].replace(/^'(.*)'$/, '"$1"'));
+        }
+        add(m[1], args);
+        found = true;
+      }
+      if (found) rest = rest.replace(block, '');
+    }
+    rest = rest.trim();
+  }
   return { calls, rest };
 }
 
@@ -169,6 +192,7 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
 
   const trace: AgentTrace[] = [];
   const webPages: { url: string; title: string }[] = [];
+  let nudged = false;
   let model = settings.model;
   let answer = '';
 
@@ -183,6 +207,17 @@ export async function runChatAgent(input: ChatAgentInput): Promise<ChatMessage &
         out.toolCalls = parsed.calls;
         out.content = parsed.rest;
       } else {
+        // Citou ferramenta sem chamá-la ("vou usar inventario_gee..."): pede a chamada de verdade, uma vez
+        const knownNames = [...TOOLS, ...activeWebTools()].map(t => t.name);
+        if (canUseTools && !nudged && !trace.length && knownNames.some(n => parsed.rest.includes(n))) {
+          nudged = true;
+          messages.push({ role: 'assistant', content: out.content });
+          messages.push({
+            role: 'user',
+            content: 'Você descreveu chamadas de ferramenta no texto em vez de executá-las. Não escreva código: chame as ferramentas pelo mecanismo de função agora e só depois responda.'
+          });
+          continue;
+        }
         answer = parsed.rest;
         if (answer || !parsed.calls.length) break;
       }

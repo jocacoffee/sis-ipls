@@ -599,7 +599,7 @@ export const TOOLS: ToolDefinition[] = [
         tipo: orgKind(org),
         ano: y,
         ...(contexto.length ? { contexto } : {}),
-        exercicio_parcial: inv.energyMonths > 0 && inv.energyMonths < 12 ? `energia lançada em ${inv.energyMonths} de 12 meses` : undefined,
+        exercicio_parcial: inv.energyMonths > 0 && inv.energyMonths < 12 ? `exercício incompleto: energia lançada em ${inv.energyMonths} meses (total de meses do ano: 12)` : undefined,
         escopo1_tCO2e: t(inv.scope1),
         escopo2_tCO2e: t(inv.scope2),
         escopo3_tCO2e: t(inv.scope3),
