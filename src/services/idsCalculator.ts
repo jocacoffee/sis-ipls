@@ -11,25 +11,29 @@
  *       cre = líquido / FTT; crem2 = líquido / m²Total.
  *     - Água: cra = CA / FTT; cram2 = CA / m²Total.
  *     - upv = FTT / QVe (maior é melhor).
- *     - cc.ftt = CC / FTT (convertido de centos para copos).
+ *     - cc.ftt = CC / FTT, em centos de copos por pessoa (como no código do CNJ).
  *     - gtransm2 = (GMV + GCM + GC + GCV + GOT) / área de jurisdição (km²).
  *     - gp.ftt = (GPP + GCGraf) / FTT.
  *     - tmr.ftt = (TMR + DEl + DImp + DPB) / FTT (TMR já inclui papel, plástico, metal e vidro).
  *     - ced.ftt = CED / FTT; glinha.ftt = (GTF + GTM) / FTT; qei.ftt = QEI / FTT.
  *     - Pservcf (servidoras em chefia) e Pdesembpf (desembargadoras, só 2º grau/tribunal).
- *  2. Padronização 0–1 pela distribuição uniforme entre os limites de referência.
- *     Pdesembpf: 1 se ≥ 40%; abaixo disso, o próprio percentual.
+ *  2. Padronização 0–1 pela distribuição uniforme (linear) entre o mínimo e o máximo NACIONAIS
+ *     do exercício, entre todos os tribunais (src/data/cnjIdsLimits.ts, da base oficial do CNJ).
+ *     Pdesembpf: 1 se ≥ 40%; abaixo disso, o próprio percentual; sem dado, 0 (como no CNJ).
  *  3. IDS = Σ(peso AHP × padronizado) / Σ(pesos), em %.
  *
  * Nada é inventado: indicador sem dado fica "não disponível" e sai do cálculo; o
  * resultado informa a cobertura (quantos dos 13/14 indicadores entraram).
  *
- * ATENÇÃO: a padronização oficial usa a distribuição nacional de todos os tribunais.
- * Enquanto os limites nacionais não forem carregados, os limites abaixo são
- * PROVISÓRIOS e o IDS deve ser lido como estimativa interna.
+ * Reprodução validada contra o "Código Básico do IDS - 2025.R": com os limites oficiais, os IDS
+ * de 2025 dos tribunais conferem com o 10º Balanço ao centésimo (TRF4 64,84%, TRF6 64,23%…).
+ * Exercício sem limites oficiais (em curso): usa os do último Balanço, com observação.
+ * Seções judiciárias: o CNJ não calcula IDS por seção; o valor é "a nota da seção se fosse
+ * avaliada na mesma régua nacional" (comparação interna).
  */
 
 import { IDSComplement, Indicator, IndicatorMeasurement, Organization } from '../types';
+import { CNJ_IDS_LIMITS, CNJ_IDS_LIMITS_SOURCE, CNJ_PUBLISHED_IDS } from '../data/cnjIdsLimits';
 
 /**
  * Pesos AHP do CNJ (autovetor da matriz de comparação; somam 14).
@@ -43,14 +47,14 @@ export const CNJ_AHP_WEIGHTS = [
   0.964285714285714, 0.964285714285714
 ];
 
-/** Limites de referência PROVISÓRIOS (não oficiais) para a padronização uniforme. */
+/** Limites PROVISÓRIOS, usados só se não houver limites nacionais de nenhum exercício. */
 export const CNJ_BENCHMARK_LIMITS = {
   cre: { min: 250, max: 2200 },          // kWh/pessoa
   crem2: { min: 5.0, max: 65.0 },        // kWh/m²
   cra: { min: 2.5, max: 22.0 },          // m³/pessoa
   cram2: { min: 0.05, max: 0.65 },       // m³/m²
   upv: { min: 4.0, max: 45.0 },          // pessoas/veículo (maior é melhor)
-  cc_ftt: { min: 0.0, max: 120.0 },      // copos/pessoa
+  cc_ftt: { min: 0.0, max: 1.2 },        // centos de copos/pessoa
   gtransm2: { min: 0.1, max: 15.0 },     // R$/km²
   gp_ftt: { min: 0.0, max: 110.0 },      // R$/pessoa
   tmr_ftt: { min: 1.0, max: 35.0 },      // kg/pessoa (maior é melhor)
@@ -60,7 +64,9 @@ export const CNJ_BENCHMARK_LIMITS = {
   pservcf: { min: 0.2, max: 0.65 },      // fração (maior é melhor)
   pdesembpf: { min: 0.0, max: 0.4 }      // fração; ≥ 0,4 vale 1
 };
-export const BENCHMARK_STATUS: 'PROVISORIO' | 'OFICIAL' = 'PROVISORIO';
+export type BenchmarkStatus = 'OFICIAL' | 'ULTIMO_BALANCO' | 'PROVISORIO';
+
+const OFFICIAL_YEARS = Object.keys(CNJ_IDS_LIMITS).map(Number).sort((a, b) => a - b);
 
 export type IDSScope = 'JUSTICA_FEDERAL_1GRAU' | 'TRIBUNAL_REGIONAL_2GRAU';
 
@@ -101,6 +107,10 @@ export interface CNJIDSResult {
   subIndicators: CNJSubIndicatorItem[];
   previousYearScore?: number;
   deltaYoY?: number;
+  /** Origem dos limites de padronização. */
+  benchmark: { status: BenchmarkStatus; limitsYear: number | null; source: string };
+  /** IDS publicado pelo CNJ para este órgão e exercício, quando houver. */
+  published?: { value: number; source: string };
 }
 
 export function getIDSClassification(score: number) {
@@ -316,7 +326,7 @@ export function calculateCNJIDS(
     { key: 'cra', variableR: 'cra', name: 'Água per capita', category: 'UTILIDADES', unit: 'm³/pessoa', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[2], description: 'Consumo de água por força de trabalho.', num: ca, den: ftt, missing: 'Sem CA ou FTT no exercício.' },
     { key: 'cram2', variableR: 'cram2', name: 'Água por m²', category: 'UTILIDADES', unit: 'm³/m²', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[3], description: 'Consumo de água por área total construída.', num: ca, den: mtotal, missing: 'Sem CA ou área total (m²).' },
     { key: 'upv', variableR: 'upv', name: 'Usuários por veículo', category: 'FROTA', unit: 'pessoas/veículo', direction: 'MAIOR_MELHOR', weight: CNJ_AHP_WEIGHTS[4], description: 'Força de trabalho por veículo da frota (QVe).', num: ftt, den: qve, missing: 'Sem FTT ou quantidade de veículos (QVe).' },
-    { key: 'cc_ftt', variableR: 'cc.ftt', name: 'Copos descartáveis per capita', category: 'MATERIAIS', unit: 'copos/pessoa', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[5], description: 'Copos descartáveis (CC, em centos) por força de trabalho.', num: per(cc), den: ftt, factor: 100, missing: 'Sem CC ou FTT no exercício.' },
+    { key: 'cc_ftt', variableR: 'cc.ftt', name: 'Copos descartáveis per capita', category: 'MATERIAIS', unit: 'centos/pessoa', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[5], description: 'Centos de copos descartáveis (CC) por força de trabalho.', num: per(cc), den: ftt, missing: 'Sem CC ou FTT no exercício.' },
     { key: 'gtransm2', variableR: 'gtransm2', name: 'Gastos de transporte por área de jurisdição', category: 'FROTA', unit: 'R$/km²', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[6], description: 'GMV + GCM + GC + GCV + GOT por km² de jurisdição.', num: transport, den: areakm, missing: 'Sem gastos de transporte ou área de jurisdição.' },
     { key: 'gp_ftt', variableR: 'gp.ftt', name: 'Gastos de papel e serviços gráficos per capita', category: 'MATERIAIS', unit: 'R$/pessoa', direction: 'MENOR_MELHOR', weight: CNJ_AHP_WEIGHTS[7], description: '(GPP + GCGraf) por força de trabalho.', num: paper, den: ftt, missing: 'Sem GPP ou FTT no exercício.' },
     { key: 'tmr_ftt', variableR: 'tmr.ftt', name: 'Resíduos destinados à reciclagem per capita', category: 'MATERIAIS', unit: 'kg/pessoa', direction: 'MAIOR_MELHOR', weight: CNJ_AHP_WEIGHTS[8], description: '(TMR + DEl + DImp + DPB) por força de trabalho.', num: recycling, den: ftt, missing: 'Sem TMR/resíduos ou FTT no exercício.' },
@@ -326,18 +336,47 @@ export function calculateCNJIDS(
     { key: 'pservcf', variableR: 'Pservcf', name: 'Servidoras em cargos de chefia', category: 'GESTAO_PESSOAS', unit: '%', direction: 'MAIOR_MELHOR', weight: CNJ_AHP_WEIGHTS[12], description: 'Percentual de servidoras em cargos e funções de chefia.', num: pservcf, den: 1, missing: 'Percentual não informado para este órgão/exercício.' }
   ];
   if (scope === 'TRIBUNAL_REGIONAL_2GRAU') {
-    defs.push({ key: 'pdesembpf', variableR: 'Pdesembpf', name: 'Desembargadoras da carreira da magistratura', category: 'GESTAO_PESSOAS', unit: '%', direction: 'MAIOR_MELHOR', weight: CNJ_AHP_WEIGHTS[13], description: 'Percentual de desembargadoras nas vagas da carreira; ≥ 40% vale nota máxima.', num: pdesemb, den: 1, missing: 'Percentual não informado para este órgão/exercício.' });
+    defs.push({ key: 'pdesembpf', variableR: 'Pdesembpf', name: 'Desembargadoras da carreira da magistratura', category: 'GESTAO_PESSOAS', unit: '%', direction: 'MAIOR_MELHOR', weight: CNJ_AHP_WEIGHTS[13], description: 'Percentual de desembargadoras nas vagas da carreira; ≥ 40% vale nota máxima.', num: pdesemb ?? 0, den: 1, missing: 'Percentual não informado para este órgão/exercício.' });
+    if (pdesemb === null) notes.push('Percentual de desembargadoras não informado: conta como 0, como no cálculo do CNJ.');
+  }
+
+  // Limites nacionais do exercício; sem eles, os do último Balanço; sem nenhum, os provisórios
+  const exactYear = CNJ_IDS_LIMITS[year] ? year : null;
+  const fallbackYear = exactYear ?? (OFFICIAL_YEARS.length ? OFFICIAL_YEARS.filter(y => y <= year).pop() ?? OFFICIAL_YEARS[0] : null);
+  const borrowed = new Set<string>();
+  const limitFor = (key: keyof typeof L): { min: number; max: number } => {
+    if (fallbackYear !== null) {
+      const own = CNJ_IDS_LIMITS[fallbackYear]?.[key];
+      if (own) return own;
+      // Indicador ausente da base nesse ano (ex.: Pservcf antes de 2025): ano mais próximo com o limite
+      const near = [...OFFICIAL_YEARS].sort((a, b) => Math.abs(a - year) - Math.abs(b - year)).find(y => CNJ_IDS_LIMITS[y]?.[key]);
+      if (near !== undefined) {
+        borrowed.add(`${key} (${near})`);
+        return CNJ_IDS_LIMITS[near]![key]!;
+      }
+    }
+    return L[key];
+  };
+  const benchmark: CNJIDSResult['benchmark'] = exactYear
+    ? { status: 'OFICIAL', limitsYear: exactYear, source: CNJ_IDS_LIMITS_SOURCE }
+    : fallbackYear !== null
+      ? { status: 'ULTIMO_BALANCO', limitsYear: fallbackYear, source: CNJ_IDS_LIMITS_SOURCE }
+      : { status: 'PROVISORIO', limitsYear: null, source: 'Faixas provisórias do iPLS' };
+  if (benchmark.status === 'ULTIMO_BALANCO') {
+    notes.push(`Limites nacionais de ${fallbackYear} (último Balanço do CNJ); os de ${year} só saem no Balanço seguinte.`);
   }
 
   const items = defs.map(d => {
-    const lim = L[d.key];
+    const lim = d.key === 'pdesembpf' ? L.pdesembpf : limitFor(d.key);
     const available = d.num !== null && d.den !== null && d.den > 0;
     const raw = available ? (d.num! * (d.factor ?? 1)) / d.den! : 0;
     let norm = 0;
     if (available) {
+      const span = lim.max - lim.min;
       if (d.key === 'pdesembpf') norm = raw >= 0.4 ? 1 : clamp(raw);
-      else if (d.direction === 'MENOR_MELHOR') norm = clamp(1 - (raw - lim.min) / (lim.max - lim.min));
-      else norm = clamp((raw - lim.min) / (lim.max - lim.min));
+      else if (span <= 0) norm = 0;
+      else if (d.direction === 'MENOR_MELHOR') norm = clamp(1 - (raw - lim.min) / span);
+      else norm = clamp((raw - lim.min) / span);
     }
     const isPct = d.unit === '%';
     return {
@@ -360,6 +399,12 @@ export function calculateCNJIDS(
       description: d.description
     };
   });
+
+  if (borrowed.size) notes.push(`Sem limite nacional em ${year} para ${[...borrowed].join(', ')}: usado o do ano indicado.`);
+  const outOfRange = items.filter(i => i.available && i.key !== 'pdesembpf' && i.unit !== '%' && (i.rawValue < i.minRef || i.rawValue > i.maxRef));
+  if (outOfRange.length && benchmark.status !== 'PROVISORIO') {
+    notes.push(`Fora da faixa nacional (nota limitada a 0 ou 1): ${outOfRange.map(i => i.variableR).join(', ')}.`);
+  }
 
   const usedWeights = items.filter(i => i.available).reduce((a, i) => a + i.ahpWeight, 0);
   const totalWeightedScore = items.reduce((a, i) => a + i.weightedScore, 0);
@@ -388,7 +433,9 @@ export function calculateCNJIDS(
     notes,
     inputs: { ftt, mtotal, areakm, cee, kwhi, redgee3, ceeNet, ca, qve, cc, transport, gpp, gcgraf, paper, recycling, ced, phones, qei, pservcf, pdesemb },
     classification: hasScore ? getIDSClassification(idsScore) : NO_DATA_CLASSIFICATION,
-    subIndicators
+    subIndicators,
+    benchmark,
+    published: ctx.organization ? CNJ_PUBLISHED_IDS[ctx.organization.id]?.[year] : undefined
   };
 }
 

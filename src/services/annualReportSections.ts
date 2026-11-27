@@ -236,7 +236,14 @@ export function buildAnnualReportSections(args: BuildArgs): AnnualReportSection[
   const idsText = ids.hasScore
     ? `O Índice de Desempenho de Sustentabilidade (IDS) estimado para ${labels.acronym} em ${year} é de ${fmt(ids.idsScore, 1)}% (${ids.classification.label}), com ${ids.coverage.available} de ${ids.coverage.total} indicadores com dados` +
       (idsPrev.hasScore ? `, ante ${fmt(idsPrev.idsScore, 1)}% em ${year - 1}` : '') +
-      '. A estimativa usa faixas de referência provisórias até a divulgação dos limites nacionais pelo CNJ.'
+      '. ' +
+      (ids.benchmark.status === 'OFICIAL'
+        ? `O cálculo reproduz a metodologia do CNJ, com os limites nacionais de ${year} entre os tribunais.`
+        : ids.benchmark.status === 'ULTIMO_BALANCO'
+          ? `Os limites nacionais de ${year} ainda não foram divulgados; o cálculo usa os de ${ids.benchmark.limitsYear}, do último Balanço do CNJ.`
+          : 'A estimativa usa faixas de referência provisórias até a divulgação dos limites nacionais pelo CNJ.') +
+      (ids.published ? ` O IDS publicado pelo CNJ para ${year} foi de ${fmt(ids.published.value, 2)}% (${ids.published.source}).` : '') +
+      (scope === 'JUSTICA_FEDERAL_1GRAU' ? ' O CNJ não calcula IDS por seção judiciária: o valor serve para comparação interna, na mesma régua nacional.' : '')
     : `Não há dados suficientes para estimar o IDS de ${labels.acronym} em ${year}.`;
   const s7 =
     idsText +

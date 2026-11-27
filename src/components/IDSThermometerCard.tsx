@@ -25,7 +25,6 @@ import {
 import { IDSComplement, Indicator, IndicatorMeasurement, Organization } from '../types';
 import { getCycleFromYear, getYearsForCycle } from '../utils/yearUtils';
 import {
-  BENCHMARK_STATUS,
   calculateCNJIDS,
   calculateMultiYearCNJIDS,
   CNJIDSResult,
@@ -598,7 +597,20 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
             <div className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold">
               Cobertura: {activeResult.coverage.available}/{activeResult.coverage.total} indicadores com dados
             </div>
-            {BENCHMARK_STATUS === 'PROVISORIO' && (
+            {activeResult.published && (
+              <div className="text-[10px] leading-snug text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                IDS publicado pelo CNJ: <strong>{activeResult.published.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%</strong>{' '}
+                ({activeResult.published.source}). Diferença para o iPLS:{' '}
+                {(activeResult.idsScore - activeResult.published.value).toLocaleString('pt-BR', { maximumFractionDigits: 1, signDisplay: 'always' })} p.p.
+              </div>
+            )}
+            {activeResult.benchmark.status === 'OFICIAL' && (
+              <div className="text-[10px] leading-snug text-slate-500">
+                Régua oficial: mínimo e máximo nacionais de {activeResult.benchmark.limitsYear} entre os tribunais ({activeResult.benchmark.source}).
+                {scope === 'JUSTICA_FEDERAL_1GRAU' && ' O CNJ não calcula IDS por seção: este valor é a nota da seção na mesma régua.'}
+              </div>
+            )}
+            {activeResult.benchmark.status === 'PROVISORIO' && (
               <div className="text-[10px] leading-snug text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
                 Estimativa interna: padronização com faixas de referência provisórias. O IDS oficial depende dos limites nacionais do CNJ.
               </div>
@@ -749,7 +761,7 @@ export const IDSThermometerCard: React.FC<IDSThermometerCardProps> = ({
             <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 shadow-2xs">
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Copos (cc)</span>
               <div className="font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'cc_ftt'), 1)} copos/p
+                {fmtRaw(activeResult.subIndicators.find(i => i.key === 'cc_ftt'), 2)} centos/p
               </div>
               <div className="text-[9px] text-emerald-700 dark:text-emerald-400 mt-0.5 font-semibold">
                 Nota: {(activeResult.subIndicators.find(i => i.key === 'cc_ftt')?.normalizedValue || 0).toFixed(2)} (AHP: 0.96)

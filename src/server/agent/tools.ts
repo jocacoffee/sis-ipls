@@ -538,6 +538,23 @@ export const TOOLS: ToolDefinition[] = [
         ano: y,
         ids: res.hasScore ? r(res.idsScore, 3) : null,
         indicadores_com_dados: `${res.coverage.available} de ${res.coverage.total}`,
+        regua:
+          res.benchmark.status === 'OFICIAL'
+            ? `limites nacionais oficiais de ${res.benchmark.limitsYear} (base do CNJ)`
+            : res.benchmark.status === 'ULTIMO_BALANCO'
+              ? `limites nacionais de ${res.benchmark.limitsYear} (último Balanço; os do ano saem depois)`
+              : 'faixas provisórias',
+        ...(res.published ? { ids_publicado_cnj: res.published.value, fonte_publicado: res.published.source } : {}),
+        ...(org.type === 'SECAO_JUDICIARIA' ? { observacao: 'O CNJ não calcula IDS por seção; valor para comparação interna.' } : {}),
+        notas_por_indicador: res.subIndicators.map(s => ({
+          indicador: s.name,
+          valor: s.available ? r(s.rawValue, 3) : null,
+          unidade: s.unit,
+          nota_0a1: r(s.normalizedValue, 3),
+          peso: r(s.ahpWeight, 3),
+          pontos_no_ids: s.contributionPoints
+        })),
+        observacoes: res.notes,
         ...(res.hasScore ? {} : { aviso: 'Dados insuficientes para calcular o IDS.' })
       };
     }
